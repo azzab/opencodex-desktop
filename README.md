@@ -311,13 +311,15 @@ Read:
 
 ## Attribution
 
-OpenCodex Desktop is an independent fork and rebrand of DeepSeek GUI by XingYu-Zhong and contributors.
+OpenCodex Desktop began as a fork of DeepSeek GUI and its Kun runtime by XingYu-Zhong and contributors. That upstream work remains the technical foundation for this project.
 
 Original upstream:
 
 https://github.com/XingYu-Zhong/DeepSeek-GUI
 
-OpenAI, Codex, DeepSeek, and related marks belong to their respective owners. OpenCodex Desktop is not affiliated with OpenAI.
+OpenCodex Desktop is now an independent agent workbench project benchmarked against modern agent systems including Codex, Claude Code, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, and Aider.
+
+OpenAI, Codex, Claude, Anthropic, DeepSeek, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and related marks belong to their respective owners. OpenCodex Desktop is not affiliated with, endorsed by, or sponsored by those projects or companies.
 
 ## License
 

@@ -2,9 +2,9 @@
 
 OpenCodex Desktop is an independent open agent workbench. It is not affiliated with OpenAI.
 
-This project is a fork and rebrand of DeepSeek GUI by XingYu-Zhong and contributors. The fork keeps the Kun local agent runtime architecture and extends the product direction toward Codex-style desktop workflows, multi-provider model routing, Skills, MCP tools, CLI integration, Arabic UI support, and subagent workflows.
+This project began as a fork of DeepSeek GUI by XingYu-Zhong and contributors. It keeps the Kun local agent runtime architecture as its foundation and extends the product direction toward Codex-style desktop workflows, multi-provider model routing, Skills, MCP tools, CLI integration, browser and computer-control workflows, Arabic UI support, and controlled subagent workflows.
 
-OpenAI, Codex, DeepSeek, and related marks belong to their respective owners. OpenCodex Desktop uses these names only to describe compatibility, supported providers, or non-affiliated project positioning.
+OpenAI, Codex, Claude, Anthropic, DeepSeek, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and related marks belong to their respective owners. OpenCodex Desktop uses these names only to describe compatibility, supported providers, attribution, benchmark context, or non-affiliated project positioning.
 
 OpenCodex Desktop may discuss or benchmark public features from OpenAI Codex, Claude Code, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and similar tools. This does not imply affiliation, endorsement, sponsorship, or code ownership by those projects or companies.
 
