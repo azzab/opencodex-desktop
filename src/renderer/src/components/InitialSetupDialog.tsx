@@ -196,19 +196,24 @@ export function InitialSetupDialog(): ReactElement {
               {t('language')}
             </label>
             <div className="grid grid-cols-1 gap-2 sm:gap-2.5 min-[440px]:grid-cols-2">
-              {(['en', 'zh'] as const).map((lang) => {
-                const isActive = form.locale === lang
+              {[
+                { value: 'en', label: 'English' },
+                { value: 'ar', label: 'العربية' },
+                { value: 'zh', label: '简体中文' }
+              ].map(({ value, label }) => {
+                const locale = value as AppSettingsV1['locale']
+                const isActive = form.locale === locale
                 return (
                   <button
-                    key={lang}
+                    key={locale}
                     type="button"
                     onClick={() => {
-                      updateForm({ locale: lang })
-                      void applyI18n(lang)
+                      updateForm({ locale })
+                      void applyI18n(locale)
                     }}
                     className={choiceButtonClass(isActive)}
                   >
-                    <span className="min-w-0 text-center leading-tight">{lang === 'en' ? 'English' : '简体中文'}</span>
+                    <span className="min-w-0 text-center leading-tight">{label}</span>
                   </button>
                 )
               })}

@@ -97,7 +97,7 @@ Kun 把“省 token”做成 agent loop 的默认行为，而不是事后补救�
 - **高 Token ROI**：Kun 会稳定 prompt 前缀、跟踪 DeepSeek 原生缓存命中、按需压缩上下文和工具输出，并用 MCP search 渐进发现工具，把 token 留给需求、代码、决策和结果。
 - **首次配置友好**：首次启动会引导你选择语言、填写 DeepSeek API Key，并按需配置兼容服务地址。
 - **本地优先**：设置、会话状态、日志和运行时配置保存在本机；模型调用使用你自己的 DeepSeek API Key。
-- **中英文界面**：应用和 README 均提供中文、英文版本，界面语言可随时切换。
+- **多语言界面**：应用与文档支持中文、English、العربية（阿拉伯语）版本，界面语言可随时切换。
 - **跨平台使用**：提供 macOS `.dmg/.zip`、Windows `.exe`、Linux `.AppImage`；也可以从源码构建。
 
 ## 运行时：Kun

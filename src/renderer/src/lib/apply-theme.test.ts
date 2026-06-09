@@ -28,7 +28,7 @@ describe('applyDocumentLocale', () => {
     let writes = 0
     vi.stubGlobal('document', {
       documentElement: {
-        getAttribute: () => 'en',
+        getAttribute: (name: string) => (name === 'dir' ? 'ltr' : 'en'),
         setAttribute: () => {
           writes += 1
         }

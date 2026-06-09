@@ -97,7 +97,7 @@ The result: Kun is built for real project work with long tasks, long sessions, a
 - **High token ROI**: Kun keeps prompt prefixes stable, tracks DeepSeek-native cache hit/miss fields, compacts context and tool output, and uses MCP search to discover tools progressively so tokens stay focused on requirements, code, decisions, and results.
 - **Friendly first launch**: choose language, add your DeepSeek API key, and optionally set a compatible Base URL.
 - **Local-first**: preferences, sessions, logs, and runtime config stay on your machine; model calls use your own DeepSeek API key.
-- **English and Chinese UI**: switch languages from Settings at any time.
+- **English, Arabic, and Chinese UI**: switch languages from Settings at any time.
 - **Cross-platform use**: macOS `.dmg/.zip`, Windows `.exe`, and Linux `.AppImage`; source builds remain available.
 
 ## Runtime: Kun

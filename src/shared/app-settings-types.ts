@@ -443,7 +443,7 @@ export type GuiUpdateConfigV1 = {
 
 export type AppSettingsV1 = {
   version: 1
-  locale: 'en' | 'zh'
+  locale: 'en' | 'ar' | 'zh'
   theme: 'system' | 'light' | 'dark'
   uiFontScale: UiFontScale
   provider: ModelProviderSettingsV1

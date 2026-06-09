@@ -254,7 +254,7 @@ export type ChatState = {
     action: { kind: 'submit'; answers: UserInputAnswer[] } | { kind: 'cancel' }
   ) => Promise<void>
   selectInspectorItem: (id: string | null) => void
-  applyI18nFromSettings: (locale: 'en' | 'zh') => Promise<void>
+  applyI18nFromSettings: (locale: 'en' | 'zh' | 'ar') => Promise<void>
   reloadUiSettings: () => Promise<void>
 }
 

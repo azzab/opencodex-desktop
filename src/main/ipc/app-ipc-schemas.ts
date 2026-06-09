@@ -151,7 +151,7 @@ export const runtimeRequestPayloadSchema = z
   })
   .strict()
 
-const localeSchema = z.enum(['en', 'zh'])
+const localeSchema = z.enum(['en', 'zh', 'ar'])
 const themeSchema = z.enum(['system', 'light', 'dark'])
 const uiFontScaleSchema = z.enum(['small', 'medium', 'large'])
 const approvalPolicySchema = z.enum(['on-request', 'untrusted', 'never', 'auto', 'suggest'])
