@@ -31,4 +31,18 @@ describe('OpenCodex Desktop brand documents', () => {
     expect(landing).toContain('OpenRouter')
     expect(landing).toContain('subagents')
   })
+
+  it('documents the Phase 0.5 Codex-parity reference plan', () => {
+    const goal = readFileSync(join(repoRoot, 'docs', 'PHASE_0_5_GOAL.md'), 'utf8')
+    const reference = readFileSync(join(repoRoot, 'docs', 'REFERENCE_INTAKE.md'), 'utf8')
+    const engine = readFileSync(join(repoRoot, 'docs', 'ENGINE_AUDIT_KUN.md'), 'utf8')
+    const desktop = readFileSync(join(repoRoot, 'docs', 'DESKTOP_UX_BENCHMARK.md'), 'utf8')
+    const control = readFileSync(join(repoRoot, 'docs', 'BROWSER_COMPUTER_CONTROL_PLAN.md'), 'utf8')
+
+    expect(goal).toContain('Codex-Parity Reference And Engine Plan')
+    expect(reference).toContain('Codex is the product compass')
+    expect(engine).toContain('Can Kun become the OpenCodex kernel')
+    expect(desktop).toContain('The desktop app is the selling point')
+    expect(control).toContain('Computer control is also feasible')
+  })
 })

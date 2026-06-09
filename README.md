@@ -6,6 +6,8 @@ OpenCodex Desktop is a fork and rebrand of [DeepSeek GUI](https://github.com/Xin
 
 DeepSeek remains a supported default model provider. It is no longer the product identity.
 
+OpenCodex Desktop is not only inspired by DeepSeek GUI. DeepSeek GUI/Kun is the fork foundation; Codex is the product compass. The roadmap also studies Claude Code Desktop, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and similar agent systems as benchmarks for desktop UX, coding-agent kernels, Skills, MCP, model routing, browser automation, and computer-control workflows.
+
 ## Why This Fork Exists
 
 OpenCodex Desktop is designed for users who run many local projects and want one durable agent workstation across them. The immediate target is any developer, founder, operator, or team that already has useful agent settings spread across tools such as Codex, Claude Code, Cursor, OpenCode, MCP configs, shell profiles, and project-local skill folders.
@@ -50,6 +52,24 @@ Phase 0 establishes identity and documentation:
 - RTL document direction for Arabic;
 - detailed README, landing document, and notice;
 - upstream strategy for future DeepSeek GUI updates.
+
+### Phase 0.5: Codex-Parity Reference And Engine Plan
+
+Phase 0.5 is a docs-only planning gate before deeper implementation:
+
+- Codex-parity reference intake;
+- Kun engine audit;
+- desktop UX benchmark;
+- browser and computer-control feasibility plan;
+- public clarification that OpenCodex Desktop is an independent workbench benchmarked against multiple modern agent systems, not only a DeepSeek GUI rebrand.
+
+Read:
+
+- [docs/PHASE_0_5_GOAL.md](docs/PHASE_0_5_GOAL.md)
+- [docs/REFERENCE_INTAKE.md](docs/REFERENCE_INTAKE.md)
+- [docs/ENGINE_AUDIT_KUN.md](docs/ENGINE_AUDIT_KUN.md)
+- [docs/DESKTOP_UX_BENCHMARK.md](docs/DESKTOP_UX_BENCHMARK.md)
+- [docs/BROWSER_COMPUTER_CONTROL_PLAN.md](docs/BROWSER_COMPUTER_CONTROL_PLAN.md)
 
 ### Phase 1: User Agent Stack Import
 
@@ -109,6 +129,7 @@ OpenCodex Desktop should add a stronger project control surface:
 - guarded file read/write permissions;
 - command allowlists and denylists;
 - terminal session tracking;
+- checkpoint and rewind support;
 - test/build command discovery;
 - handoff summaries that can restart work without chat history.
 
@@ -152,6 +173,9 @@ The usage layer should become a real operator dashboard:
 The workbench should support guarded GUI automation:
 
 - browser preview and screenshot verification;
+- in-app browser automation;
+- Appshot-style app/window context capture;
+- guarded computer control;
 - local web app smoke tests;
 - Electron app smoke tests;
 - accessibility checks for core flows;

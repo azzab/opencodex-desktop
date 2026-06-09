@@ -6,6 +6,8 @@ OpenCodex Desktop is a local-first Electron workbench for serious agentic coding
 
 The product direction is simple: keep the speed, token discipline, and local persistence of Kun, then make the desktop app usable across any user's real project portfolio, including coding repos, SaaS products, automation tools, research workspaces, and agent-heavy operations.
 
+Codex is the compass. DeepSeek GUI/Kun is the fork foundation. OpenCodex Desktop is also benchmarked against Claude Code Desktop, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and similar agent systems where their desktop, kernel, Skills, MCP, browser automation, or computer-control designs are stronger.
+
 ## What It Is
 
 OpenCodex Desktop is not another chat wrapper. It is a desktop environment for long-running coding and product work:
@@ -30,6 +32,18 @@ The first fork phase establishes the product identity:
 - full documentation and notice files that explain independence, attribution, and secret-handling boundaries.
 
 DeepSeek remains a supported model provider. It is no longer the product identity.
+
+## Phase 0.5 Reference And Engine Plan
+
+Before feature implementation continues, Phase 0.5 defines the reference map and engine decision:
+
+- [Phase 0.5 Goal](docs/PHASE_0_5_GOAL.md)
+- [Reference Intake](docs/REFERENCE_INTAKE.md)
+- [Kun Engine Audit](docs/ENGINE_AUDIT_KUN.md)
+- [Desktop UX Benchmark](docs/DESKTOP_UX_BENCHMARK.md)
+- [Browser And Computer Control Plan](docs/BROWSER_COMPUTER_CONTROL_PLAN.md)
+
+The accepted direction is to keep Electron as the desktop shell and evolve Kun into the OpenCodex kernel. A second runtime or engine replacement requires a written audit first.
 
 ## User Agent Stack Import
 
@@ -71,7 +85,7 @@ OpenCodex Desktop will keep extending toward a near-Codex desktop workbench with
 2. **Phase 5: Skills, Plugins, And MCP Marketplace** - visible skill/MCP catalogs, local plugin profiles, import/export, and per-project overrides.
 3. **Phase 6: Agentic Coding Workflow System** - planning, TDD, debugging, review, UI audit, release, and handoff workflows.
 4. **Phase 7: Observability, Cost, And Token Economy** - provider costs, cache savings, budget warnings, exportable reports, and child-agent rollups.
-5. **Phase 8: Browser, Computer Control, And App Automation** - local preview verification, screenshots, Electron smoke tests, and guarded computer-control flows.
+5. **Phase 8: Browser, Computer Control, And App Automation** - in-app browser automation, local preview verification, screenshots, Appshots, Electron smoke tests, and guarded computer-control flows.
 6. **Phase 9: Team Profiles, Sync, And Portable Workspaces** - encrypted profile export/import, shared presets without secrets, and workspace policy files.
 7. **Phase 10: Codex-Like Parity Target** - planning, editing, tool orchestration, model routing, subagents, verification, memory, handoff, and English/Arabic/Chinese polish.
 

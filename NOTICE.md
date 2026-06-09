@@ -6,6 +6,8 @@ This project is a fork and rebrand of DeepSeek GUI by XingYu-Zhong and contribut
 
 OpenAI, Codex, DeepSeek, and related marks belong to their respective owners. OpenCodex Desktop uses these names only to describe compatibility, supported providers, or non-affiliated project positioning.
 
+OpenCodex Desktop may discuss or benchmark public features from OpenAI Codex, Claude Code, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and similar tools. This does not imply affiliation, endorsement, sponsorship, or code ownership by those projects or companies.
+
 The original upstream project remains available at:
 
 https://github.com/XingYu-Zhong/DeepSeek-GUI
