@@ -33,6 +33,21 @@ function createUpdater(): MockUpdater {
 beforeEach(() => {
   vi.useFakeTimers()
   vi.resetModules()
+  delete process.env.OPENCODEX_DESKTOP_UPDATE_CHANNEL
+  delete process.env.OPENCODEX_DESKTOP_UPDATE_URL
+  delete process.env.OPENCODEX_DESKTOP_UPDATE_URL_STABLE
+  delete process.env.OPENCODEX_DESKTOP_UPDATE_URL_FRONTIER
+  delete process.env.OPENCODEX_DESKTOP_GITHUB_REPO
+  delete process.env.OPENCODEX_DESKTOP_DOWNLOAD_URL
+  delete process.env.OPENCODEX_DESKTOP_ALLOW_UNSIGNED_UPDATES
+  delete process.env.DEEPSEEK_GUI_UPDATE_URL
+  delete process.env.DEEPSEEK_GUI_UPDATE_URL_STABLE
+  delete process.env.DEEPSEEK_GUI_UPDATE_URL_FRONTIER
+  delete process.env.DEEPSEEK_GUI_GITHUB_REPO
+  delete process.env.DEEPSEEK_GUI_DOWNLOAD_URL
+  delete process.env.DEEPSEEK_GUI_ALLOW_UNSIGNED_UPDATES
+  delete process.env.R2_PUBLIC_BASE_URL
+  delete process.env.R2_RELEASE_PREFIX
   updater = createUpdater()
   nativeUpdater = new EventEmitter()
   vi.doMock('electron', () => ({
@@ -57,6 +72,41 @@ afterEach(() => {
   vi.doUnmock('electron')
   vi.doUnmock('electron-updater')
   vi.resetModules()
+})
+
+describe('initializeGuiUpdater', () => {
+  it('uses the OpenCodex Desktop release feed by default', async () => {
+    const module = await import('./gui-updater')
+
+    module.initializeGuiUpdater(() => null, () => 'stable')
+
+    expect(updater.setFeedURL).toHaveBeenCalledWith({
+      provider: 'generic',
+      url: 'https://opencodex-desktop.local/api/r2/opencodex-desktop/channels/stable/latest/'
+    })
+  })
+})
+
+describe('checkGuiUpdate', () => {
+  it('identifies manual update metadata requests as OpenCodex Desktop', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      text: async () => 'version: 0.1.0\nreleaseDate: 2026-06-09T00:00:00.000Z\n'
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const module = await import('./gui-updater')
+
+    await module.checkGuiUpdate('stable')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencodex-desktop.local/api/r2/opencodex-desktop/channels/stable/latest/latest-mac.yml',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'User-Agent': 'opencodex-desktop/0.1.0'
+        })
+      })
+    )
+  })
 })
 
 describe('installGuiUpdate', () => {

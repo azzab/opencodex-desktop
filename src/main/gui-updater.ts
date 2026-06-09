@@ -15,8 +15,8 @@ import type {
 import { nextGuiUpdateCheckDelay } from '../shared/gui-update-schedule'
 import { DEFAULT_GUI_UPDATE_CHANNEL, normalizeGuiUpdateChannel } from '../shared/gui-update'
 
-const DEFAULT_R2_PUBLIC_BASE_URL = 'https://deepseek-gui.com/api/r2'
-const DEFAULT_R2_RELEASE_PREFIX = 'deepseek-gui'
+const DEFAULT_R2_PUBLIC_BASE_URL = 'https://opencodex-desktop.local/api/r2'
+const DEFAULT_R2_RELEASE_PREFIX = 'opencodex-desktop'
 const { autoUpdater } = electronUpdater
 
 let initialized = false
@@ -26,7 +26,7 @@ let lastState: GuiUpdateState = { status: 'idle' }
 let downloaded = false
 let downloadPromise: Promise<string[]> | null = null
 let configuredChannel: GuiUpdateChannel = normalizeGuiUpdateChannel(
-  process.env.DEEPSEEK_GUI_UPDATE_CHANNEL?.trim()
+  (process.env.OPENCODEX_DESKTOP_UPDATE_CHANNEL ?? process.env.DEEPSEEK_GUI_UPDATE_CHANNEL)?.trim()
 )
 let configuredFeedUrl = ''
 let getSelectedChannel: (() => GuiUpdateChannel | Promise<GuiUpdateChannel>) | null = null
@@ -52,8 +52,14 @@ function joinUrl(base: string, ...parts: string[]): string {
 }
 
 function envUpdateUrl(channel: GuiUpdateChannel): string {
-  const channelSpecific = process.env[`DEEPSEEK_GUI_UPDATE_URL_${channel.toUpperCase()}`]?.trim()
-  const direct = channelSpecific || process.env.DEEPSEEK_GUI_UPDATE_URL?.trim() || ''
+  const channelSpecific = (
+    process.env[`OPENCODEX_DESKTOP_UPDATE_URL_${channel.toUpperCase()}`] ??
+    process.env[`DEEPSEEK_GUI_UPDATE_URL_${channel.toUpperCase()}`]
+  )?.trim()
+  const direct = channelSpecific ||
+    process.env.OPENCODEX_DESKTOP_UPDATE_URL?.trim() ||
+    process.env.DEEPSEEK_GUI_UPDATE_URL?.trim() ||
+    ''
   return direct ? direct.replace(/\{channel\}/g, channel).replace(/\/?$/, '/') : ''
 }
 
@@ -118,7 +124,9 @@ function readPackageJson(): Record<string, unknown> | null {
 }
 
 function resolveGithubReleaseUrl(): string | null {
-  const envRepo = normalizeGithubOwnerRepo(process.env.DEEPSEEK_GUI_GITHUB_REPO?.trim() ?? '')
+  const envRepo = normalizeGithubOwnerRepo(
+    (process.env.OPENCODEX_DESKTOP_GITHUB_REPO ?? process.env.DEEPSEEK_GUI_GITHUB_REPO)?.trim() ?? ''
+  )
   if (envRepo) return `https://github.com/${envRepo}/releases`
 
   const pkg = readPackageJson()
@@ -134,7 +142,9 @@ function resolveGithubReleaseUrl(): string | null {
 }
 
 function downloadPageUrl(): string {
-  const direct = process.env.DEEPSEEK_GUI_DOWNLOAD_URL?.trim()
+  const direct = (
+    process.env.OPENCODEX_DESKTOP_DOWNLOAD_URL ?? process.env.DEEPSEEK_GUI_DOWNLOAD_URL
+  )?.trim()
   if (direct) return direct
 
   const pkg = readPackageJson()
@@ -184,7 +194,10 @@ function parseYamlScalar(source: string, key: string): string {
 
 function macAutoUpdateAllowed(): boolean {
   if (process.platform !== 'darwin') return true
-  if (process.env.DEEPSEEK_GUI_ALLOW_UNSIGNED_UPDATES === '1') return true
+  if (
+    process.env.OPENCODEX_DESKTOP_ALLOW_UNSIGNED_UPDATES === '1' ||
+    process.env.DEEPSEEK_GUI_ALLOW_UNSIGNED_UPDATES === '1'
+  ) return true
 
   const pkg = readPackageJson()
   const hints = pkg?.buildHints
@@ -307,7 +320,7 @@ async function runScheduledGuiUpdateCheck(): Promise<void> {
       await writeLastScheduledCheckAt(nowMs)
       await checkGuiUpdate()
     } catch (error) {
-      console.warn('[deepseek-gui updater] scheduled GUI update check failed:', error)
+      console.warn('[opencodex-desktop updater] scheduled GUI update check failed:', error)
     } finally {
       backgroundCheckPromise = null
       void scheduleNextBackgroundCheck()
@@ -353,7 +366,7 @@ async function checkManualUpdate(
     const res = await fetch(url, {
       headers: {
         Accept: 'application/x-yaml,text/yaml,text/plain,*/*',
-        'User-Agent': `deepseek-gui/${currentVersion}`
+        'User-Agent': `opencodex-desktop/${currentVersion}`
       }
     })
     if (!res.ok) {
@@ -423,9 +436,9 @@ export function initializeGuiUpdater(
   }
 
   autoUpdater.logger = {
-    info: (message?: unknown) => console.info('[deepseek-gui updater]', message),
-    warn: (message?: unknown) => console.warn('[deepseek-gui updater]', message),
-    error: (message?: unknown) => console.error('[deepseek-gui updater]', message)
+    info: (message?: unknown) => console.info('[opencodex-desktop updater]', message),
+    warn: (message?: unknown) => console.warn('[opencodex-desktop updater]', message),
+    error: (message?: unknown) => console.error('[opencodex-desktop updater]', message)
   }
 
   autoUpdater.on('checking-for-update', () => {
@@ -464,7 +477,7 @@ export function initializeGuiUpdater(
 
   nativeAutoUpdater?.on?.('before-quit-for-update', () => {
     void runBeforeInstallUpdate().catch((error) => {
-      console.warn('[deepseek-gui updater] failed to stop runtimes before update quit:', error)
+      console.warn('[opencodex-desktop updater] failed to stop runtimes before update quit:', error)
     })
   })
 

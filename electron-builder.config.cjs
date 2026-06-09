@@ -3,6 +3,7 @@ const { join } = require('node:path')
 
 function loadLocalReleaseEnv() {
   const candidates = [
+    process.env.OPENCODEX_DESKTOP_RELEASE_ENV,
     process.env.DEEPSEEK_GUI_RELEASE_ENV,
     join(__dirname, 'scripts', 'release.local.env'),
     join(__dirname, 'release.local.env')
@@ -49,20 +50,24 @@ const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || 'https://opencodex-de
 const r2ReleasePrefix = (process.env.R2_RELEASE_PREFIX || 'opencodex-desktop')
   .trim()
   .replace(/^\/+|\/+$/g, '')
-const updateChannel = normalizeUpdateChannel(process.env.DEEPSEEK_GUI_UPDATE_CHANNEL || 'stable')
+const updateChannel = normalizeUpdateChannel(
+  process.env.OPENCODEX_DESKTOP_UPDATE_CHANNEL || process.env.DEEPSEEK_GUI_UPDATE_CHANNEL || 'stable'
+)
 const genericUpdateUrl = `${r2PublicBaseUrl}/${r2ReleasePrefix}/channels/${updateChannel}/latest/`
-const releaseAppVersion = (process.env.DEEPSEEK_GUI_APP_VERSION || '').trim()
+const releaseAppVersion = (
+  process.env.OPENCODEX_DESKTOP_APP_VERSION || process.env.DEEPSEEK_GUI_APP_VERSION || ''
+).trim()
 const artifactVersion = releaseAppVersion || '${version}'
 
 function normalizeUpdateChannel(raw) {
   const value = String(raw || '').trim()
   if (value === 'stable' || value === 'frontier') return value
-  throw new Error(`DEEPSEEK_GUI_UPDATE_CHANNEL must be "stable" or "frontier", got: ${raw}`)
+  throw new Error(`OPENCODEX_DESKTOP_UPDATE_CHANNEL must be "stable" or "frontier", got: ${raw}`)
 }
 
 if (releaseAppVersion && !/^\d+\.\d+\.\d+$/.test(releaseAppVersion)) {
   throw new Error(
-    `DEEPSEEK_GUI_APP_VERSION must be a valid x.y.z semver for electron-updater, got: ${releaseAppVersion}`
+    `OPENCODEX_DESKTOP_APP_VERSION must be a valid x.y.z semver for electron-updater, got: ${releaseAppVersion}`
   )
 }
 
@@ -80,7 +85,7 @@ module.exports = {
   ],
   npmRebuild: true,
   directories: {
-    output: process.env.DEEPSEEK_GUI_DIST_DIR || 'dist'
+    output: process.env.OPENCODEX_DESKTOP_DIST_DIR || process.env.DEEPSEEK_GUI_DIST_DIR || 'dist'
   },
   files: [
     'out/**/*',
@@ -117,7 +122,7 @@ module.exports = {
     gatekeeperAssess: false,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.inherit.plist',
-    icon: './src/asset/img/deepseek.png',
+    icon: './src/asset/img/opencodex.png',
     // arm64 (Apple Silicon) + x64 (Intel). On M 系列 Mac 本地打包会各出一组 dmg/zip。
     target: [
       { target: 'dmg', arch: ['arm64', 'x64'] },
@@ -128,7 +133,7 @@ module.exports = {
     sign: hasExplicitMacSigningIdentity
   },
   win: {
-    icon: './src/asset/img/deepseek.png',
+    icon: './src/asset/img/opencodex.png',
     target: [{ target: 'nsis', arch: ['x64'] }]
   },
   nsis: {
@@ -146,7 +151,7 @@ module.exports = {
   },
   linux: {
     category: 'Development',
-    icon: './src/asset/img/deepseek.png',
+    icon: './src/asset/img/opencodex.png',
     target: [{ target: 'AppImage', arch: ['x64'] }]
   },
   extraMetadata: {

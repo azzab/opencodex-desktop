@@ -52,7 +52,10 @@ function Require-Command([string]$Name) {
 }
 
 function Load-LocalReleaseEnv([string]$RootPath) {
-  $configured = [Environment]::GetEnvironmentVariable('DEEPSEEK_GUI_RELEASE_ENV', 'Process')
+  $configured = [Environment]::GetEnvironmentVariable('OPENCODEX_DESKTOP_RELEASE_ENV', 'Process')
+  if (-not $configured) {
+    $configured = [Environment]::GetEnvironmentVariable('DEEPSEEK_GUI_RELEASE_ENV', 'Process')
+  }
   $candidates = @()
   if ($configured) { $candidates += $configured }
   $candidates += (Join-Path $RootPath 'scripts\release.local.env')
@@ -94,6 +97,8 @@ $RequestedChannel = if ($Stable) {
   $Channel
 } elseif ($env:RELEASE_CHANNEL) {
   $env:RELEASE_CHANNEL
+} elseif ($env:OPENCODEX_DESKTOP_UPDATE_CHANNEL) {
+  $env:OPENCODEX_DESKTOP_UPDATE_CHANNEL
 } elseif ($env:DEEPSEEK_GUI_UPDATE_CHANNEL) {
   $env:DEEPSEEK_GUI_UPDATE_CHANNEL
 } else {
@@ -138,10 +143,10 @@ Write-Info "GitHub release tag: $TagName"
 Write-Info "Release channel: $ReleaseChannel"
 $ReleaseVersion = $TagName.TrimStart('v')
 Assert-Semver $ReleaseVersion
-$env:DEEPSEEK_GUI_APP_VERSION = $ReleaseVersion
+$env:OPENCODEX_DESKTOP_APP_VERSION = $ReleaseVersion
 $env:RELEASE_CHANNEL = $ReleaseChannel
-$env:DEEPSEEK_GUI_UPDATE_CHANNEL = $ReleaseChannel
-Write-Info "App version: $env:DEEPSEEK_GUI_APP_VERSION"
+$env:OPENCODEX_DESKTOP_UPDATE_CHANNEL = $ReleaseChannel
+Write-Info "App version: $env:OPENCODEX_DESKTOP_APP_VERSION"
 
 & gh release view $TagName 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -158,8 +163,8 @@ Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
   (Join-Path $Root 'dist\mac-arm64'), `
   (Join-Path $Root 'dist\linux-unpacked')
 Remove-Item -Force -ErrorAction SilentlyContinue `
-  (Join-Path $Root 'dist\DeepSeek-GUI-*'), `
-  (Join-Path $Root 'dist\DeepSeek GUI-*'), `
+  (Join-Path $Root 'dist\OpenCodex-Desktop-*'), `
+  (Join-Path $Root 'dist\OpenCodex Desktop-*'), `
   (Join-Path $Root 'dist\latest*.yml'), `
   (Join-Path $Root 'dist\*.blockmap')
 

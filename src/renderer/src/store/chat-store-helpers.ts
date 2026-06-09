@@ -11,16 +11,16 @@ import {
 import type { ChatState } from './chat-store-types'
 import {
   isClawWorkspacePath,
-  isInternalDeepSeekGuiWorkspace,
+  isInternalOpenCodexWorkspace,
   isInternalTemporaryWorkspace,
   normalizeWorkspaceRoot,
   workspaceRootIdentityKey
 } from '../lib/workspace-path'
 import { readBrowserStorageItem, writeBrowserStorageItem } from '../lib/browser-storage'
 
-const COMPOSER_MODEL_STORAGE_KEY = 'deepseekgui.composerModel'
-const TURN_MODEL_STORAGE_KEY = 'deepseekgui.turnModelLabel'
-const CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'deepseekgui.codeWorkspaceRoots.v1'
+const COMPOSER_MODEL_STORAGE_KEY = 'opencodex.composerModel'
+const TURN_MODEL_STORAGE_KEY = 'opencodex.turnModelLabel'
+const CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'opencodex.codeWorkspaceRoots.v1'
 export const MAX_CODE_WORKSPACE_ROOTS = 30
 export const MAX_TURN_MODEL_LABELS = 500
 
@@ -45,7 +45,7 @@ export function compactCodeWorkspaceRoots(workspaceRoots: readonly (string | und
     const normalized = normalizeWorkspaceRoot(workspaceRoot ?? '').replace(/[\\/]+$/, '')
     if (!normalized) continue
     if (isInternalTemporaryWorkspace(normalized)) continue
-    if (isInternalDeepSeekGuiWorkspace(normalized)) continue
+    if (isInternalOpenCodexWorkspace(normalized)) continue
     if (isClawWorkspacePath(normalized)) continue
     const key = workspaceRootIdentityKey(normalized)
     if (seen.has(key)) continue

@@ -39,6 +39,7 @@ import {
 import { compactStrings } from './app-settings-normalizers'
 
 const LEGACY_COREAGENT_DATA_DIR = '~/.deepseekgui/coreagent'
+const LEGACY_KUN_DATA_DIR = '~/.deepseekgui/kun'
 const LEGACY_KUN_DEFAULT_MODEL = 'deepseek-chat'
 const LEGACY_LOCAL_HTTP_DEFAULT_PORT = 7878
 const DEFAULT_KUN_CHILD_MODEL = 'deepseek-v4-flash'
@@ -834,7 +835,9 @@ function upgradeLegacyKunDefaultDataDir(value: unknown): string {
   if (
     !trimmed ||
     normalized === LEGACY_COREAGENT_DATA_DIR ||
-    normalized.endsWith('/.deepseekgui/coreagent')
+    normalized === LEGACY_KUN_DATA_DIR ||
+    normalized.endsWith('/.deepseekgui/coreagent') ||
+    normalized.endsWith('/.deepseekgui/kun')
   ) {
     return DEFAULT_KUN_DATA_DIR
   }

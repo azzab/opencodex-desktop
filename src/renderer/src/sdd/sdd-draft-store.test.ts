@@ -7,7 +7,7 @@ import {
 } from './sdd-draft-store'
 import { saveActiveSddDraftToDisk, syncActiveSddDraftFromDisk } from './sdd-draft-actions'
 
-const SDD_DRAFT_REGISTRY_STORAGE_KEY = 'deepseekgui.sdd.draft.registry.v1'
+const SDD_DRAFT_REGISTRY_STORAGE_KEY = 'opencodex.sdd.draft.registry.v1'
 
 function createMemoryStorage(): Storage {
   const items = new Map<string, string>()

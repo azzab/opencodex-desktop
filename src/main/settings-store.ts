@@ -30,11 +30,17 @@ import {
 
 export type { AppSettingsV1 }
 
-const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.deepseekgui', 'default_workspace')
-const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.deepseekgui', 'claw')
+const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.opencodex', 'default_workspace')
+const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.opencodex', 'claw')
 const DEFAULT_WRITE_WORKSPACE_ROOT_ABSOLUTE = expandHomePath(DEFAULT_WRITE_WORKSPACE_ROOT)
-const SETTINGS_FILE_NAME = 'deepseek-gui-settings.json'
-const COMPATIBLE_USER_DATA_DIR_NAMES = ['deepseek-gui', 'DeepSeek GUI'] as const
+const SETTINGS_FILE_NAME = 'opencodex-desktop-settings.json'
+const LEGACY_SETTINGS_FILE_NAMES = ['deepseek-gui-settings.json'] as const
+const COMPATIBLE_USER_DATA_DIR_NAMES = [
+  'opencodex-desktop',
+  'OpenCodex Desktop',
+  'deepseek-gui',
+  'DeepSeek GUI'
+] as const
 const WELCOME_MARKDOWN = `# Welcome to Write
 
 This is your default writing workspace.
@@ -263,9 +269,15 @@ function compatibleSettingsPaths(currentPath: string): string[] {
   const currentUserDataDir = dirname(currentPath)
   const currentDirName = basename(currentUserDataDir)
   const parentDir = dirname(currentUserDataDir)
-  return COMPATIBLE_USER_DATA_DIR_NAMES
-    .filter((dirName) => dirName !== currentDirName)
-    .map((dirName) => join(parentDir, dirName, SETTINGS_FILE_NAME))
+  const paths = LEGACY_SETTINGS_FILE_NAMES.map((fileName) => join(currentUserDataDir, fileName))
+  for (const dirName of COMPATIBLE_USER_DATA_DIR_NAMES) {
+    if (dirName === currentDirName) continue
+    paths.push(join(parentDir, dirName, SETTINGS_FILE_NAME))
+    for (const fileName of LEGACY_SETTINGS_FILE_NAMES) {
+      paths.push(join(parentDir, dirName, fileName))
+    }
+  }
+  return paths
 }
 
 async function readSettingsFileWithCompatibility(
@@ -331,11 +343,11 @@ export class JsonSettingsStore {
         await this.save(defaults)
         if (backupPath) {
           console.warn(
-            `[deepseek-gui] Invalid settings JSON was replaced with defaults. Backup: ${backupPath}`
+            `[opencodex-desktop] Invalid settings JSON was replaced with defaults. Backup: ${backupPath}`
           )
         } else {
           console.warn(
-            `[deepseek-gui] Invalid settings JSON was replaced with defaults. Backup could not be written for ${sourcePath}.`
+            `[opencodex-desktop] Invalid settings JSON was replaced with defaults. Backup could not be written for ${sourcePath}.`
           )
         }
         return defaults

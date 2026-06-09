@@ -28,7 +28,7 @@ describe('JsonSettingsStore', () => {
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
 
-    expect(loaded.write.defaultWorkspaceRoot).toContain('.deepseekgui')
+    expect(loaded.write.defaultWorkspaceRoot).toContain('.opencodex')
     expect(loaded.write.workspaces).toContain(loaded.write.defaultWorkspaceRoot)
     expect(loaded.write.inlineCompletion.enabled).toBe(true)
     expect(loaded.write.inlineCompletion.retrievalEnabled).toBe(true)
@@ -140,8 +140,8 @@ describe('JsonSettingsStore', () => {
   it('loads settings from the legacy lowercase userData directory and writes them into the current path', async () => {
     const supportRoot = await mkdtemp(join(tmpdir(), 'ds-gui-settings-compat-'))
     const legacyUserDataDir = join(supportRoot, 'deepseek-gui')
-    const currentUserDataDir = join(supportRoot, 'DeepSeek GUI')
-    const currentSettingsPath = join(currentUserDataDir, 'deepseek-gui-settings.json')
+    const currentUserDataDir = join(supportRoot, 'OpenCodex Desktop')
+    const currentSettingsPath = join(currentUserDataDir, 'opencodex-desktop-settings.json')
 
     await mkdir(legacyUserDataDir, { recursive: true })
     await writeFile(
@@ -214,7 +214,7 @@ describe('JsonSettingsStore', () => {
     expect(loaded.workspaceRoot.length).toBeGreaterThan(0)
     expect(backupName).toBeTruthy()
     expect(await readFile(join(userDataDir, backupName ?? ''), 'utf8')).toBe('{ invalid json')
-    const replaced = await readFile(settingsPath, 'utf8')
+    const replaced = await readFile(join(userDataDir, 'opencodex-desktop-settings.json'), 'utf8')
     expect(() => JSON.parse(replaced)).not.toThrow()
   })
 
@@ -293,8 +293,8 @@ describe('JsonSettingsStore', () => {
       GITHUB_TOKEN: '<redacted>'
     })
     const files = await readdir(userDataDir)
-    expect(files).toContain('deepseek-gui-settings.json')
-    expect(await readFile(join(userDataDir, 'deepseek-gui-settings.json'), 'utf8')).toContain('<redacted>')
+    expect(files).toContain('opencodex-desktop-settings.json')
+    expect(await readFile(join(userDataDir, 'opencodex-desktop-settings.json'), 'utf8')).toContain('<redacted>')
   })
 
   it('merges desktop behavior patches without keeping invalid startup state', async () => {
@@ -329,7 +329,7 @@ describe('JsonSettingsStore', () => {
 
   it('omits agentProvider when writing normalized settings to disk', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
-    const settingsPath = join(userDataDir, 'deepseek-gui-settings.json')
+    const settingsPath = join(userDataDir, 'opencodex-desktop-settings.json')
     const store = new JsonSettingsStore(userDataDir)
     await store.load()
     await store.patch({
@@ -439,7 +439,7 @@ describe('JsonSettingsStore', () => {
 
       // Final file is present and non-empty.
       const finalContents = await readFile(
-        join(userDataDir, 'deepseek-gui-settings.json'),
+        join(userDataDir, 'opencodex-desktop-settings.json'),
         'utf8'
       )
       expect(finalContents.length).toBeGreaterThan(0)

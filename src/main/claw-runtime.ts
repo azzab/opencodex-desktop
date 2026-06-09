@@ -1227,7 +1227,7 @@ export class ClawRuntime {
           appSecret,
           domain: domain === 'lark' ? Domain.Lark : Domain.Feishu,
           loggerLevel: LoggerLevel.warn,
-          source: 'deepseek-gui',
+          source: 'opencodex-desktop',
           transport: 'websocket',
           policy: {
             dmMode: 'open',
@@ -1356,9 +1356,13 @@ export class ClawRuntime {
       }
       if (im.secret) {
         const auth = req.headers.authorization ?? ''
-        const headerSecret = Array.isArray(req.headers['x-deepseek-gui-secret'])
+        const primaryHeaderSecret = Array.isArray(req.headers['x-opencodex-desktop-secret'])
+          ? req.headers['x-opencodex-desktop-secret'][0]
+          : req.headers['x-opencodex-desktop-secret']
+        const legacyHeaderSecret = Array.isArray(req.headers['x-deepseek-gui-secret'])
           ? req.headers['x-deepseek-gui-secret'][0]
           : req.headers['x-deepseek-gui-secret']
+        const headerSecret = primaryHeaderSecret ?? legacyHeaderSecret
         if (auth !== `Bearer ${im.secret}` && headerSecret !== im.secret) {
           writeJson(res, 401, { ok: false, message: 'Unauthorized.' })
           return

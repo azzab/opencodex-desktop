@@ -24,6 +24,7 @@ lanes.
 | Phase | Prompt file | Primary model |
 |---|---|---|
 | Audit | [OPENCODEX_PROGRESS_AUDIT_PROMPT.md](./OPENCODEX_PROGRESS_AUDIT_PROMPT.md) | `gpt-5.5`, reasoning `extra high` |
+| S1 | [PHASE_S1_BASELINE_PRESERVE_AND_STAGE.md](./PHASE_S1_BASELINE_PRESERVE_AND_STAGE.md) | `gpt-5.5`, reasoning `high` |
 | 0 | [PHASE_0_FORK_REBRAND_ARABIC_FOUNDATION.md](./PHASE_0_FORK_REBRAND_ARABIC_FOUNDATION.md) | `gpt-5.4`, reasoning `high` |
 | 0.5 | [PHASE_0_5_CODEX_PARITY_REFERENCE_INTAKE.md](./PHASE_0_5_CODEX_PARITY_REFERENCE_INTAKE.md) | `gpt-5.5`, reasoning `high` |
 | 1 | [PHASE_1_USER_AGENT_STACK_IMPORT.md](./PHASE_1_USER_AGENT_STACK_IMPORT.md) | `gpt-5.4`, reasoning `high` |

@@ -64,7 +64,7 @@ type SkillRootOption = {
   available: boolean
 }
 
-const INSTALLED_STORAGE_KEY = 'deepseekgui.installedPlugins'
+const INSTALLED_STORAGE_KEY = 'opencodex.installedPlugins'
 const GUI_SCHEDULE_MCP_SERVER_ID = 'gui_schedule'
 
 function loadInstalledPlugins(): string[] {

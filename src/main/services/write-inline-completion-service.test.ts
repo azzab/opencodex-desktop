@@ -145,7 +145,7 @@ describe('requestWriteInlineCompletion', () => {
       suffix: ' a test.',
       max_tokens: 64
     })
-    expect(body.prompt).toContain('DeepSeek GUI inline completion')
+    expect(body.prompt).toContain('OpenCodex Desktop inline completion')
     expect(body.prompt).toContain('Return only the text to insert at the cursor')
     expect(body.prompt).not.toContain('<<<SHORT')
     expect(body.prompt).toContain('<<<PREFIX')
@@ -198,7 +198,7 @@ describe('requestWriteInlineCompletion', () => {
       suffix: ' a test.',
       responseChars: 0
     })
-    expect(debugEntries[0].prompt).toContain('DeepSeek GUI inline completion')
+    expect(debugEntries[0].prompt).toContain('OpenCodex Desktop inline completion')
     expect(debugEntries[0].prompt.endsWith('# Draft\n\nThis is')).toBe(true)
   })
 
@@ -436,7 +436,7 @@ describe('requestWriteInlineCompletion', () => {
         startColumn: 1,
         endLine: 3,
         endColumn: 38,
-        original: 'DeepSeek GUI keeps text editing local.'
+        original: 'OpenCodex Desktop keeps text editing local.'
       },
       recentEdits: [{
         source: 'user' as const,
@@ -444,7 +444,7 @@ describe('requestWriteInlineCompletion', () => {
         filePath: '/tmp/workspace/draft.md',
         from: 9,
         to: 21,
-        deletedText: 'DeepSeek GUI',
+        deletedText: 'OpenCodex Desktop',
         insertedText: 'Write mode',
         beforeContext: '',
         afterContext: ' keeps text editing local.'
@@ -461,7 +461,7 @@ describe('requestWriteInlineCompletion', () => {
         replacement: 'Write mode keeps text editing local.',
         from: 9,
         to: 47,
-        original: 'DeepSeek GUI keeps text editing local.',
+        original: 'OpenCodex Desktop keeps text editing local.',
         scopeKind: 'paragraph'
       }
     })
@@ -509,7 +509,7 @@ describe('requestWriteInlineCompletion', () => {
         startColumn: 1,
         endLine: 3,
         endColumn: 38,
-        original: 'DeepSeek GUI keeps text editing local.'
+        original: 'OpenCodex Desktop keeps text editing local.'
       }
     }
 
@@ -561,7 +561,7 @@ describe('requestWriteInlineCompletion', () => {
         startColumn: 1,
         endLine: 3,
         endColumn: 38,
-        original: 'DeepSeek GUI keeps text editing local.'
+        original: 'OpenCodex Desktop keeps text editing local.'
       }
     }
 
@@ -581,7 +581,7 @@ describe('requestWriteInlineCompletion', () => {
     const request = createRequest()
 
     const prompt = buildWriteInlineCompletionPrompt(request, null)
-    expect(prompt).toContain('DeepSeek GUI inline completion')
+    expect(prompt).toContain('OpenCodex Desktop inline completion')
     expect(prompt).toContain('<<<PREFIX')
     expect(prompt).toContain('<<<SUFFIX')
     expect(prompt).not.toContain('<<<SHORT')
@@ -604,7 +604,7 @@ describe('parseWriteInlineAction', () => {
       editTarget: {
         from: 9,
         to: 21,
-        original: 'DeepSeek GUI',
+        original: 'OpenCodex Desktop',
         scopeKind: 'selection'
       }
     })).toEqual({
@@ -612,7 +612,7 @@ describe('parseWriteInlineAction', () => {
       replacement: 'Write mode',
       from: 9,
       to: 21,
-      original: 'DeepSeek GUI',
+      original: 'OpenCodex Desktop',
       scopeKind: 'selection'
     })
   })

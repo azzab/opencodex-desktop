@@ -10,10 +10,10 @@ import {
 import { WORKSPACE_FILE_PREVIEW_EVENT, type WorkspaceFilePreviewDetail } from '../lib/workspace-file-preview'
 import type { RightPanelMode } from './chat/WorkbenchTopBar'
 
-const LEFT_PANEL_WIDTH_KEY = 'deepseekgui.layout.leftSidebarWidth'
-const LEFT_PANEL_COLLAPSED_KEY = 'deepseekgui.layout.leftSidebarCollapsed'
-const RIGHT_PANEL_WIDTH_KEY = 'deepseekgui.layout.rightInspectorWidth'
-const RIGHT_PANEL_MODE_KEY = 'deepseekgui.layout.rightPanelMode'
+const LEFT_PANEL_WIDTH_KEY = 'opencodex.layout.leftSidebarWidth'
+const LEFT_PANEL_COLLAPSED_KEY = 'opencodex.layout.leftSidebarCollapsed'
+const RIGHT_PANEL_WIDTH_KEY = 'opencodex.layout.rightInspectorWidth'
+const RIGHT_PANEL_MODE_KEY = 'opencodex.layout.rightPanelMode'
 const LEFT_PANEL_DEFAULT = 304
 const RIGHT_PANEL_DEFAULT = 360
 export const CODE_PANEL_PREFERRED = 560

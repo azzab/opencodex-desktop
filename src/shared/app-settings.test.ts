@@ -646,6 +646,17 @@ describe('legacy Kun defaults migration', () => {
       dataDir: DEFAULT_KUN_DATA_DIR,
       model: DEFAULT_KUN_MODEL
     }))
+
+    const oldKunDir = migrateLegacyAppSettings({
+      version: 1,
+      agents: {
+        kun: {
+          dataDir: '~/.deepseekgui/kun'
+        }
+      }
+    } as Parameters<typeof migrateLegacyAppSettings>[0])
+
+    expect(oldKunDir.agents?.kun?.dataDir).toBe(DEFAULT_KUN_DATA_DIR)
   })
 
   it('preserves a non-legacy Kun model override', () => {

@@ -21,7 +21,9 @@
   "loading": "جار التحميل",
   "cancel": "إلغاء",
   "confirm": "تأكيد",
+  "busyTimeout": "لم يصل رد من وقت التشغيل بعد انتظار {{minutes}} دقائق. قد تستغرق مهام التفكير العميق وقتا أطول. إذا بقيت عالقة، يمكنك الإلغاء والمحاولة مرة أخرى.",
   "runtimeOfflineHeroTitle": "OpenCodex Desktop يشغل وكيلك المحلي",
+  "runtimeErrorHeroTitle": "تعذر الاتصال بوقت التشغيل المحلي",
   "runtimeBinaryNotInstalled": "لم يتم العثور على Kun CLI. شغل `npm install` داخل مجلد OpenCodex Desktop أو حدد مسار Kun في الإعدادات.",
   "writeImageRestartRequired": "قناة معاينة الصور غير مسجلة بعد. أغلق OpenCodex Desktop بالكامل ثم افتحه مرة أخرى."
 }

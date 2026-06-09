@@ -13,7 +13,7 @@ describe('PluginMarketplaceView MCP config helpers', () => {
     const existing = JSON.stringify({
       timeouts: { read_timeout: 120 },
       servers: {
-        gui_schedule: { command: '/Applications/DeepSeek GUI.app' }
+        gui_schedule: { command: '/Applications/OpenCodex Desktop.app' }
       }
     })
 
@@ -25,7 +25,7 @@ describe('PluginMarketplaceView MCP config helpers', () => {
 
     expect(merged.alreadyExists).toBe(false)
     expect(parsed.timeouts).toEqual({ read_timeout: 120 })
-    expect(parsed.servers.gui_schedule).toEqual({ command: '/Applications/DeepSeek GUI.app' })
+    expect(parsed.servers.gui_schedule).toEqual({ command: '/Applications/OpenCodex Desktop.app' })
     expect(parsed.servers.playwright).toMatchObject({
       enabled: true,
       transport: 'stdio',

@@ -6,10 +6,11 @@ import {
   JsonSettingsStore,
   devServerHintUrl
 } from './settings-store'
-import deepseekLogoPng from '../asset/img/deepseek.png?url'
-import deepseekTrayPng from '../asset/img/deepseek_gui_tray.png?url'
+import opencodexLogoPng from '../asset/img/opencodex.png?url'
+import opencodexTrayPng from '../asset/img/opencodex_tray.png?url'
 import { createAppIcon, pickTrayIcon } from './app-icon'
 import { configureAppIdentity } from './app-identity'
+import { buildLoginItemSettings, shouldSyncLoginItemSettings } from './login-item-settings'
 import {
   applyKunRuntimePatch,
   kunSettingsEnvelope,
@@ -67,7 +68,7 @@ import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const APP_USER_MODEL_ID = 'com.xingyuzhong.deepseekgui'
+const APP_USER_MODEL_ID = 'app.opencodex.desktop'
 const HIDDEN_START_ARG = '--hidden'
 const startupTraceEnabled = process.env.DEEPSEEK_GUI_STARTUP_TRACE === '1'
 const startupTraceStart = Date.now()
@@ -266,9 +267,9 @@ function installDevPreviewWebviewGuards(): void {
 }
 
 
-const appIcon = createAppIcon(deepseekLogoPng)
-const trayIcon = createAppIcon(deepseekTrayPng)
-traceStartup('app icon loaded', { source: deepseekLogoPng.startsWith('data:') ? 'data-url' : 'path' })
+const appIcon = createAppIcon(opencodexLogoPng)
+const trayIcon = createAppIcon(opencodexTrayPng)
+traceStartup('app icon loaded', { source: opencodexLogoPng.startsWith('data:') ? 'data-url' : 'path' })
 const gotSingleInstanceLock = runningClawScheduleMcpServer || app.requestSingleInstanceLock()
 traceStartup('single instance lock checked', {
   gotSingleInstanceLock,
@@ -300,19 +301,13 @@ function shouldStartHidden(settings: AppSettingsV1): boolean {
 }
 
 function syncLoginItemSettings(settings: AppSettingsV1): void {
-  if (process.platform !== 'win32' && process.platform !== 'darwin') return
+  if (!shouldSyncLoginItemSettings(process.platform, app.isPackaged)) return
   const behavior = settings.appBehavior
   try {
-    app.setLoginItemSettings({
-      openAtLogin: behavior.openAtLogin,
-      args:
-        process.platform === 'win32' && behavior.openAtLogin && behavior.startMinimized
-          ? [HIDDEN_START_ARG]
-          : []
-    })
+    app.setLoginItemSettings(buildLoginItemSettings(process.platform, behavior, HIDDEN_START_ARG))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.warn('[deepseek-gui] failed to update login item settings:', error)
+    console.warn('[opencodex-desktop] failed to update login item settings:', error)
     logWarn('desktop-behavior', 'Failed to update login item settings.', { message })
   }
 }
@@ -625,7 +620,7 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
   try {
     await adapter.ensureRunning(settings)
   } catch (e) {
-    console.error('[deepseek-gui] failed to start kun:', e)
+    console.error('[opencodex-desktop] failed to start kun:', e)
     throw e
   }
   const started = await waitForKunHealth(settings, 20_000)
@@ -669,7 +664,7 @@ function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
   }
   mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(`[deepseek-gui] failed to load preload ${preloadPath}:`, error)
+    console.error(`[opencodex-desktop] failed to load preload ${preloadPath}:`, error)
     logError('preload', 'Failed to load preload script', { preloadPath, message })
   })
   const showWindow = (): void => {
@@ -764,10 +759,10 @@ async function restartManagedRuntimeForSettingsChange(
     await adapter.ensureRunning(next)
     const healthy = await waitForKunHealth(next, 20_000)
     if (!healthy) {
-      console.warn('[deepseek-gui] Kun restart did not become healthy after settings change')
+      console.warn('[opencodex-desktop] Kun restart did not become healthy after settings change')
     }
   } catch (e) {
-    console.warn('[deepseek-gui] Kun restart failed after settings change:', e)
+    console.warn('[opencodex-desktop] Kun restart failed after settings change:', e)
   }
 }
 
@@ -784,10 +779,10 @@ async function restartManagedRuntimeForMcpConfigChange(settings: AppSettingsV1):
     await adapter.ensureRunning(settings)
     const healthy = await waitForKunHealth(settings, 20_000)
     if (!healthy) {
-      console.warn('[deepseek-gui] Kun restart did not become healthy after MCP config change')
+      console.warn('[opencodex-desktop] Kun restart did not become healthy after MCP config change')
     }
   } catch (e) {
-    console.warn('[deepseek-gui] Kun restart failed after MCP config change:', e)
+    console.warn('[opencodex-desktop] Kun restart failed after MCP config change:', e)
   }
 }
 
@@ -948,7 +943,7 @@ app.whenReady().then(async () => {
   })
 
   void loadGuiUpdaterModule().catch((error) => {
-    console.warn('[deepseek-gui updater] failed to initialize on startup:', error)
+    console.warn('[opencodex-desktop updater] failed to initialize on startup:', error)
   })
 
   registerRuntimeSseIpc({ ipcMain, store, ensureRuntime, logError })
@@ -958,13 +953,13 @@ app.whenReady().then(async () => {
   traceStartup('createWindow:returned')
 
   void pruneOnStartup().catch((err) => {
-    console.warn('[deepseek-gui] prune logs:', err)
+    console.warn('[opencodex-desktop] prune logs:', err)
   })
 
   if (resolveConfiguredApiKey(initial)) {
     setTimeout(() => {
       void kunRuntimeAdapter.resolveExecutable(initial).catch((err) => {
-        console.warn('[deepseek-gui] prewarm Kun binary:', err)
+        console.warn('[opencodex-desktop] prewarm Kun binary:', err)
       })
     }, 1500)
   }
@@ -979,7 +974,7 @@ app.whenReady().then(async () => {
   })
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error)
-  console.error('[deepseek-gui] startup failed:', error)
+  console.error('[opencodex-desktop] startup failed:', error)
   dialog.showErrorBox('OpenCodex Desktop failed to start', message)
   app.quit()
 })
@@ -987,7 +982,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   void stopManagedRuntimes().catch((error) => {
-    console.warn('[deepseek-gui] failed to stop Kun runtime:', error)
+    console.warn('[opencodex-desktop] failed to stop Kun runtime:', error)
   })
   if (process.platform !== 'darwin') {
     app.quit()
@@ -1000,7 +995,7 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   void stopManagedRuntimesForQuit()
     .catch((error) => {
-      console.warn('[deepseek-gui] failed to stop Kun runtime:', error)
+      console.warn('[opencodex-desktop] failed to stop Kun runtime:', error)
       managedRuntimesStoppedForQuit = true
     })
     .finally(() => {

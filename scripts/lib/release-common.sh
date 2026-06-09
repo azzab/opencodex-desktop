@@ -22,7 +22,7 @@ release_normalize_channel() {
 release_export_update_channel() {
   RELEASE_CHANNEL="$(release_normalize_channel "${RELEASE_CHANNEL:-frontier}")"
   export RELEASE_CHANNEL
-  export DEEPSEEK_GUI_UPDATE_CHANNEL="${RELEASE_CHANNEL}"
+  export OPENCODEX_DESKTOP_UPDATE_CHANNEL="${RELEASE_CHANNEL}"
   cyan "  Channel: ${RELEASE_CHANNEL}"
 }
 
@@ -42,7 +42,7 @@ release_root() {
 }
 
 release_load_local_env() {
-  local env_file="${DEEPSEEK_GUI_RELEASE_ENV:-}"
+  local env_file="${OPENCODEX_DESKTOP_RELEASE_ENV:-${DEEPSEEK_GUI_RELEASE_ENV:-}}"
 
   if [[ -z "${env_file}" ]]; then
     if [[ -f "${ROOT}/scripts/release.local.env" ]]; then
@@ -79,7 +79,7 @@ release_compute_version() {
     [[ "${TAG_NAME}" == v* ]] || TAG_NAME="v${TAG_NAME}"
     RELEASE_VERSION="${TAG_NAME#v}"
     release_validate_semver "${RELEASE_VERSION}" || die "Release tag must be vX.Y.Z. electron-updater cannot use four-part versions: ${TAG_NAME}"
-    RELEASE_NAME="DeepSeek GUI ${RELEASE_VERSION}"
+    RELEASE_NAME="OpenCodex Desktop ${RELEASE_VERSION}"
     LATEST_TAG=""
     return
   fi
@@ -114,13 +114,13 @@ release_compute_version() {
   RELEASE_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 
   TAG_NAME="v${RELEASE_VERSION}"
-  RELEASE_NAME="DeepSeek GUI ${RELEASE_VERSION}"
+  RELEASE_NAME="OpenCodex Desktop ${RELEASE_VERSION}"
 }
 
 release_export_app_version() {
   release_validate_semver "${RELEASE_VERSION}" || die "Invalid release version for electron-updater: ${RELEASE_VERSION}"
-  export DEEPSEEK_GUI_APP_VERSION="${RELEASE_VERSION}"
-  cyan "  App:     ${DEEPSEEK_GUI_APP_VERSION}"
+  export OPENCODEX_DESKTOP_APP_VERSION="${RELEASE_VERSION}"
+  cyan "  App:     ${OPENCODEX_DESKTOP_APP_VERSION}"
 }
 
 release_ensure_tag_available() {
@@ -157,7 +157,7 @@ release_acquire_lock() {
 
 release_clean_dist_artifacts() {
   rm -rf "${ROOT}/dist/mac" "${ROOT}/dist/mac-arm64" "${ROOT}/dist/.mac-build" "${ROOT}/dist/win-unpacked" "${ROOT}/dist/linux-unpacked"
-  rm -f "${ROOT}"/dist/DeepSeek-GUI-* "${ROOT}"/dist/DeepSeek\ GUI-* "${ROOT}"/dist/latest*.yml "${ROOT}"/dist/*.blockmap
+  rm -f "${ROOT}"/dist/OpenCodex-Desktop-* "${ROOT}"/dist/OpenCodex\ Desktop-* "${ROOT}"/dist/latest*.yml "${ROOT}"/dist/*.blockmap
 }
 
 release_apply_signing_env() {

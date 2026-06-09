@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import deepseekWhaleLogo from '../../../../asset/img/deepseek.svg'
+import opencodexMark from '../../../../asset/img/opencodex-mark.svg'
 
 export function AnimatedWorkLogo({
   active = false,
@@ -25,26 +25,16 @@ export function AnimatedWorkLogo({
         .join(' ')}
       aria-hidden="true"
     >
-      <span className="ds-work-logo-gust" />
-      <span className="ds-work-logo-current" />
-      <span className="ds-work-logo-swell" />
-      <span className="ds-work-logo-wave ds-work-logo-wave-back" />
-      <span className="ds-work-logo-ripple" />
-      <span className="ds-work-logo-wave ds-work-logo-wave-front" />
-      <span className="ds-work-logo-breaker" />
-      <span className="ds-work-logo-wake" />
-      <span className="ds-work-logo-foam" />
-      <span className="ds-work-logo-crest" />
-      <span className="ds-work-logo-splash" />
-      <span className="ds-work-logo-spray" />
-      <span className="ds-work-logo-bubbles" />
-      <img className="ds-work-logo-echo" src={deepseekWhaleLogo} alt="" draggable={false} decoding="async" />
+      <span className="ds-work-logo-orbit ds-work-logo-orbit-back" />
+      <span className="ds-work-logo-scan" />
+      <span className="ds-work-logo-pulse" />
       <span className="ds-work-logo-track">
         <span className="ds-work-logo-body">
-          <img className="ds-work-logo-image" src={deepseekWhaleLogo} alt="" draggable={false} decoding="async" />
-          <img className="ds-work-logo-tail" src={deepseekWhaleLogo} alt="" draggable={false} decoding="async" />
+          <img className="ds-work-logo-image" src={opencodexMark} alt="" draggable={false} decoding="async" />
         </span>
       </span>
+      <span className="ds-work-logo-spark" />
+      <span className="ds-work-logo-orbit ds-work-logo-orbit-front" />
     </span>
   )
 }

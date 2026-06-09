@@ -1,0 +1,52 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cloud-shell" x1="61" y1="42" x2="198" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3DBFF"/>
+      <stop offset="0.45" stop-color="#7B72FF"/>
+      <stop offset="1" stop-color="#19D8FF"/>
+    </linearGradient>
+    <linearGradient id="cloud-edge" x1="58" y1="46" x2="214" y2="203" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="0.5" stop-color="#B8B9FF"/>
+      <stop offset="1" stop-color="#5AE8FF"/>
+    </linearGradient>
+    <linearGradient id="terminal-fill" x1="76" y1="90" x2="176" y2="177" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9F7FF"/>
+      <stop offset="1" stop-color="#E9F5FF"/>
+    </linearGradient>
+    <linearGradient id="glyph" x1="93" y1="103" x2="158" y2="159" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF6FF"/>
+      <stop offset="0.55" stop-color="#A5A3FF"/>
+      <stop offset="1" stop-color="#3DDCFF"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(131 142) rotate(90) scale(98 104)">
+      <stop stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="0.55" stop-color="#E9ECFF" stop-opacity="0.86"/>
+      <stop offset="1" stop-color="#CFE9FF" stop-opacity="0.28"/>
+    </radialGradient>
+    <filter id="soft-glow" x="20" y="21" width="216" height="217" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#52617E" flood-opacity="0.24"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#52DFFF" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="220" height="220" rx="54" fill="#F9FAFF"/>
+  <rect x="18" y="18" width="220" height="220" rx="54" fill="url(#aura)"/>
+  <g filter="url(#soft-glow)">
+    <path
+      d="M83.5 197C65.55 197 51 182.45 51 164.5V104C51 84.67 66.67 69 86 69H88.58C95.49 51.61 112.48 39 132.5 39C153.77 39 171.79 53.06 177.78 72.38C181.61 71.14 185.72 70.47 190 70.47C211.54 70.47 229 87.93 229 109.47V139.5C229 147.51 222.51 154 214.5 154H190V164.5C190 182.45 175.45 197 157.5 197H83.5Z"
+      fill="url(#cloud-shell)"
+      stroke="url(#cloud-edge)"
+      stroke-width="8"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M86.5 96H169.5C179.72 96 188 104.28 188 114.5V151.5C188 161.72 179.72 170 169.5 170H86.5C76.28 170 68 161.72 68 151.5V114.5C68 104.28 76.28 96 86.5 96Z"
+      fill="url(#terminal-fill)"
+      stroke="#FFFFFF"
+      stroke-opacity="0.88"
+      stroke-width="5"
+    />
+    <path d="M99 113L122 136L99 159" stroke="url(#glyph)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M136 158H164" stroke="#63EAFF" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

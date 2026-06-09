@@ -52,8 +52,8 @@ type WebviewTitleEvent = Event & {
   title: string
 }
 
-const PREVIEW_URL_STORAGE_KEY = 'deepseekgui.devPreview.url'
-const PREVIEW_AUTO_FOLLOW_STORAGE_KEY = 'deepseekgui.devPreview.autoFollow'
+const PREVIEW_URL_STORAGE_KEY = 'opencodex.devPreview.url'
+const PREVIEW_AUTO_FOLLOW_STORAGE_KEY = 'opencodex.devPreview.autoFollow'
 
 function readStoredUrl(): string | null {
   try {

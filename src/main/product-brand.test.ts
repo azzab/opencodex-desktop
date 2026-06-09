@@ -47,6 +47,9 @@ describe('OpenCodex Desktop brand documents', () => {
     expect(enCommon).toContain('"appName": "OpenCodex Desktop"')
     expect(zhCommon).toContain('"appName": "OpenCodex Desktop"')
     expect(arCommon).toContain('"appName": "OpenCodex Desktop"')
+    expect(enSettings).toContain('"guiUpdate": "OpenCodex Desktop updates"')
+    expect(enSettings).toContain('Check the selected release channel for OpenCodex Desktop updates')
+    expect(enSettings).not.toContain('"guiUpdate": "GUI updates"')
   })
 
   it('documents the Phase 0.5 Codex-parity reference plan', () => {
