@@ -139,10 +139,11 @@ export function GeneralSettingsSection({ ctx }: { ctx: Record<string, any> }): R
                     <select
                       className={selectControlClass}
                       value={form.locale}
-                      onChange={(e) => update({ locale: e.target.value as 'en' | 'zh' })}
+                      onChange={(e) => update({ locale: e.target.value as AppSettingsV1['locale'] })}
                     >
                       <option value="en">English</option>
                       <option value="zh">简体中文</option>
+                      <option value="ar">العربية</option>
                     </select>
                   }
                 />

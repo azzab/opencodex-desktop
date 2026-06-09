@@ -43,10 +43,10 @@ const hasNotaryToolCredentials = Boolean(
     (process.env.APPLE_API_KEY || process.env.APPLE_API_KEY_BASE64)
 )
 
-const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || 'https://deepseek-gui.com/api/r2')
+const r2PublicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || 'https://opencodex-desktop.local/api/r2')
   .trim()
   .replace(/\/+$/, '')
-const r2ReleasePrefix = (process.env.R2_RELEASE_PREFIX || 'deepseek-gui')
+const r2ReleasePrefix = (process.env.R2_RELEASE_PREFIX || 'opencodex-desktop')
   .trim()
   .replace(/^\/+|\/+$/g, '')
 const updateChannel = normalizeUpdateChannel(process.env.DEEPSEEK_GUI_UPDATE_CHANNEL || 'stable')
@@ -67,8 +67,8 @@ if (releaseAppVersion && !/^\d+\.\d+\.\d+$/.test(releaseAppVersion)) {
 }
 
 module.exports = {
-  appId: 'com.xingyuzhong.deepseekgui',
-  productName: 'DeepSeek GUI',
+  appId: 'app.opencodex.desktop',
+  productName: 'OpenCodex Desktop',
   asar: true,
   asarUnpack: [
     '**/kun/dist/**/*',
@@ -97,7 +97,7 @@ module.exports = {
     '!**/CHANGELOG*',
     '!**/node_modules/openclaw/**/*'
   ],
-  artifactName: `DeepSeek-GUI-${artifactVersion}-\${os}-\${arch}.\${ext}`,
+  artifactName: `OpenCodex-Desktop-${artifactVersion}-\${os}-\${arch}.\${ext}`,
   publish: [
     {
       provider: 'generic',
@@ -140,8 +140,8 @@ module.exports = {
     // 明确创建快捷方式；always 在覆盖安装时也会重建（即使用户曾删掉桌面图标）
     createDesktopShortcut: 'always',
     createStartMenuShortcut: true,
-    shortcutName: 'DeepSeek GUI',
-    uninstallDisplayName: 'DeepSeek GUI',
+    shortcutName: 'OpenCodex Desktop',
+    uninstallDisplayName: 'OpenCodex Desktop',
     deleteAppDataOnUninstall: false
   },
   linux: {

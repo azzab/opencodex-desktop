@@ -51,9 +51,13 @@ export function applyUiFontScale(scale: UiFontScale): void {
  * Mirrors the active i18n locale onto `<html lang>` so screen readers,
  * browser spellcheck, and CSS `:lang()` selectors match the visible UI.
  */
-export function applyDocumentLocale(locale: 'en' | 'zh'): void {
-  const lang = locale === 'zh' ? 'zh-CN' : 'en'
+export function applyDocumentLocale(locale: 'en' | 'zh' | 'ar'): void {
+  const lang = locale === 'zh' ? 'zh-CN' : locale === 'ar' ? 'ar' : 'en'
+  const dir = locale === 'ar' ? 'rtl' : 'ltr'
   if (document.documentElement.getAttribute('lang') !== lang) {
     document.documentElement.setAttribute('lang', lang)
+  }
+  if (document.documentElement.getAttribute('dir') !== dir) {
+    document.documentElement.setAttribute('dir', dir)
   }
 }

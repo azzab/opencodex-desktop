@@ -119,6 +119,11 @@ describe('kun defaults', () => {
     })
   })
 
+  it('preserves Arabic as a supported UI locale', () => {
+    const next = normalizeAppSettings({ ...settings(), locale: 'ar' })
+    expect(next.locale).toBe('ar')
+  })
+
   it('defaults advanced Kun runtime tuning to conservative values', () => {
     expect(defaultKunRuntimeSettings()).toMatchObject({
       storage: {

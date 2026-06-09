@@ -278,15 +278,15 @@ traceStartup('single instance lock checked', {
 function trayLabels(locale: AppSettingsV1['locale']): { show: string; quit: string; tooltip: string } {
   if (locale === 'zh') {
     return {
-      show: '显示 DeepSeek GUI',
+      show: '显示 OpenCodex Desktop',
       quit: '退出',
-      tooltip: 'DeepSeek GUI'
+      tooltip: 'OpenCodex Desktop'
     }
   }
   return {
-    show: 'Show DeepSeek GUI',
+    show: 'Show OpenCodex Desktop',
     quit: 'Quit',
-    tooltip: 'DeepSeek GUI'
+    tooltip: 'OpenCodex Desktop'
   }
 }
 

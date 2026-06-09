@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { nativeImage } from 'electron'
 
@@ -28,7 +28,7 @@ export function resolveAppIconPath(source: string, baseDir: string = __dirname):
   // 前导斜杠剥掉,再判断 absoluteness。Windows 风格的真绝对路径(带盘符或 UNC)
   // 不以斜杠开头,原样透传。
   const normalized = source.replace(/^\/+/, '')
-  return isAbsolute(normalized) ? normalized : join(baseDir, normalized)
+  return isAbsolute(normalized) || win32.isAbsolute(normalized) ? normalized : join(baseDir, normalized)
 }
 
 /**

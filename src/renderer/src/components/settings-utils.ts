@@ -89,7 +89,7 @@ export function coerceRendererSettings(settings: AppSettingsV1): AppSettingsV1 {
       : 'medium'
   return {
     version: 1,
-    locale: raw.locale === 'zh' ? 'zh' : 'en',
+    locale: raw.locale === 'zh' || raw.locale === 'ar' ? raw.locale : 'en',
     theme,
     uiFontScale,
     provider: normalizeModelProviderSettings(raw.provider),

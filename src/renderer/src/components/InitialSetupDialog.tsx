@@ -195,9 +195,10 @@ export function InitialSetupDialog(): ReactElement {
             <label className={labelClass}>
               {t('language')}
             </label>
-            <div className="grid grid-cols-1 gap-2 sm:gap-2.5 min-[440px]:grid-cols-2">
-              {(['en', 'zh'] as const).map((lang) => {
+            <div className="grid grid-cols-1 gap-2 sm:gap-2.5 min-[440px]:grid-cols-3">
+              {(['en', 'zh', 'ar'] as const).map((lang) => {
                 const isActive = form.locale === lang
+                const label = lang === 'en' ? 'English' : lang === 'zh' ? '简体中文' : 'العربية'
                 return (
                   <button
                     key={lang}
@@ -208,7 +209,7 @@ export function InitialSetupDialog(): ReactElement {
                     }}
                     className={choiceButtonClass(isActive)}
                   >
-                    <span className="min-w-0 text-center leading-tight">{lang === 'en' ? 'English' : '简体中文'}</span>
+                    <span className="min-w-0 text-center leading-tight">{label}</span>
                   </button>
                 )
               })}

@@ -17,12 +17,12 @@ describe('app identity bootstrap', () => {
     vi.resetModules()
   })
 
-  it('calls app.setName with the project productName', async () => {
+  it('calls app.setName with the OpenCodex Desktop product name', async () => {
     const { configureAppIdentity, APP_PRODUCT_NAME } = await import('./app-identity')
     configureAppIdentity()
     expect(setName).toHaveBeenCalledTimes(1)
     expect(setName).toHaveBeenCalledWith(APP_PRODUCT_NAME)
-    expect(APP_PRODUCT_NAME).toBe('DeepSeek GUI')
+    expect(APP_PRODUCT_NAME).toBe('OpenCodex Desktop')
   })
 
   it('does not call app.setAppUserModelId (caller responsibility on win32)', async () => {

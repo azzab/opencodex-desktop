@@ -22,13 +22,34 @@ describe('applyDocumentLocale', () => {
 
     applyDocumentLocale('zh')
     expect(attributes.get('lang')).toBe('zh-CN')
+
+    applyDocumentLocale('ar')
+    expect(attributes.get('lang')).toBe('ar')
   })
 
-  it('does not touch the attribute when the locale already matches', () => {
+  it('switches document direction for Arabic and non-Arabic locales', () => {
+    const attributes = new Map<string, string>()
+    vi.stubGlobal('document', {
+      documentElement: {
+        getAttribute: (name: string) => attributes.get(name) ?? null,
+        setAttribute: (name: string, value: string) => {
+          attributes.set(name, value)
+        }
+      }
+    })
+
+    applyDocumentLocale('ar')
+    expect(attributes.get('dir')).toBe('rtl')
+
+    applyDocumentLocale('en')
+    expect(attributes.get('dir')).toBe('ltr')
+  })
+
+  it('does not touch document locale attributes when the locale already matches', () => {
     let writes = 0
     vi.stubGlobal('document', {
       documentElement: {
-        getAttribute: () => 'en',
+        getAttribute: (name: string) => name === 'lang' ? 'en' : name === 'dir' ? 'ltr' : null,
         setAttribute: () => {
           writes += 1
         }
