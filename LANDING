@@ -1,0 +1,14 @@
+OpenCodex Desktop
+
+OpenCodex Desktop is an independent fork of DeepSeek GUI with the same Kun runtime contract and local-first workflow.
+
+Source and ownership:
+- Upstream: https://github.com/XingYu-Zhong/DeepSeek-GUI (preserved as upstream)
+- Fork origin: https://github.com/azzab/opencodex-desktop
+
+This project is not affiliated with DeepSeek Inc.
+
+Attribution:
+- DeepSeek GUI / Kun: foundational runtime and product lineage.
+- Codex: guidance compass for architecture and decisions.
+- Other systems: active benchmarks and references.

@@ -34,7 +34,7 @@ const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.deepseekgui', 'default_workspac
 const DEFAULT_CLAW_CHANNELS_ROOT = join(homedir(), '.deepseekgui', 'claw')
 const DEFAULT_WRITE_WORKSPACE_ROOT_ABSOLUTE = expandHomePath(DEFAULT_WRITE_WORKSPACE_ROOT)
 const SETTINGS_FILE_NAME = 'deepseek-gui-settings.json'
-const COMPATIBLE_USER_DATA_DIR_NAMES = ['deepseek-gui', 'DeepSeek GUI'] as const
+const COMPATIBLE_USER_DATA_DIR_NAMES = ['deepseek-gui', 'OpenCodex Desktop'] as const
 const WELCOME_MARKDOWN = `# Welcome to Write
 
 This is your default writing workspace.

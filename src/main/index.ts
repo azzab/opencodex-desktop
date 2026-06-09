@@ -67,7 +67,7 @@ import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const APP_USER_MODEL_ID = 'com.xingyuzhong.deepseekgui'
+const APP_USER_MODEL_ID = 'com.opencodex.desktop'
 const HIDDEN_START_ARG = '--hidden'
 const startupTraceEnabled = process.env.DEEPSEEK_GUI_STARTUP_TRACE === '1'
 const startupTraceStart = Date.now()
@@ -278,15 +278,15 @@ traceStartup('single instance lock checked', {
 function trayLabels(locale: AppSettingsV1['locale']): { show: string; quit: string; tooltip: string } {
   if (locale === 'zh') {
     return {
-      show: '显示 DeepSeek GUI',
+      show: '显示 OpenCodex Desktop',
       quit: '退出',
-      tooltip: 'DeepSeek GUI'
+      tooltip: 'OpenCodex Desktop'
     }
   }
   return {
-    show: 'Show DeepSeek GUI',
+    show: 'Show OpenCodex Desktop',
     quit: 'Quit',
-    tooltip: 'DeepSeek GUI'
+    tooltip: 'OpenCodex Desktop'
   }
 }
 
@@ -385,7 +385,7 @@ async function showTurnCompleteNotification(
     return { ok: true, shown: false, reason: 'unsupported' }
   }
 
-  const title = normalizeNotificationText(payload.title, 'DeepSeek GUI', 80)
+  const title = normalizeNotificationText(payload.title, 'OpenCodex Desktop', 80)
   const body = normalizeNotificationText(payload.body, 'Conversation complete.', 180)
 
   try {
@@ -980,7 +980,7 @@ app.whenReady().then(async () => {
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error)
   console.error('[deepseek-gui] startup failed:', error)
-  dialog.showErrorBox('DeepSeek GUI failed to start', message)
+  dialog.showErrorBox('OpenCodex Desktop failed to start', message)
   app.quit()
 })
 }

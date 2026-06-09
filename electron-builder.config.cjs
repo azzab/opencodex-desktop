@@ -67,8 +67,8 @@ if (releaseAppVersion && !/^\d+\.\d+\.\d+$/.test(releaseAppVersion)) {
 }
 
 module.exports = {
-  appId: 'com.xingyuzhong.deepseekgui',
-  productName: 'DeepSeek GUI',
+  appId: 'com.opencodex.desktop',
+  productName: 'OpenCodex Desktop',
   asar: true,
   asarUnpack: [
     '**/kun/dist/**/*',
@@ -97,7 +97,7 @@ module.exports = {
     '!**/CHANGELOG*',
     '!**/node_modules/openclaw/**/*'
   ],
-  artifactName: `DeepSeek-GUI-${artifactVersion}-\${os}-\${arch}.\${ext}`,
+  artifactName: `OpenCodex-Desktop-${artifactVersion}-\${os}-\${arch}.\${ext}`,
   publish: [
     {
       provider: 'generic',
@@ -140,8 +140,8 @@ module.exports = {
     // 明确创建快捷方式；always 在覆盖安装时也会重建（即使用户曾删掉桌面图标）
     createDesktopShortcut: 'always',
     createStartMenuShortcut: true,
-    shortcutName: 'DeepSeek GUI',
-    uninstallDisplayName: 'DeepSeek GUI',
+    shortcutName: 'OpenCodex Desktop',
+    uninstallDisplayName: 'OpenCodex Desktop',
     deleteAppDataOnUninstall: false
   },
   linux: {

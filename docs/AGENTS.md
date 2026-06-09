@@ -1,6 +1,6 @@
 # Agent Runtime Notes
 
-DeepSeek GUI has one live agent runtime: **Kun**.
+OpenCodex Desktop has one live agent runtime: **Kun**.
 
 Do not add a second live provider, provider switcher, runtime diagnostics panel,
 or legacy CodeWhale/Reasonix process path. Code, Write, and Connect phone all

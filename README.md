@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="src/asset/img/deepseek.png" width="96" alt="DeepSeek GUI 图标">
+  <img src="src/asset/img/deepseek.png" width="96" alt="OpenCodex Desktop 图标">
 </p>
 
-# DeepSeek GUI
+# OpenCodex Desktop
 
 [English](./README.en.md) | 简体中文
 
@@ -10,10 +10,10 @@
 
 [官网](https://deepseek-gui.com) | [下载](https://deepseek-gui.com)
 
-[![GitHub release](https://img.shields.io/github/v/release/XingYu-Zhong/DeepSeek-GUI?label=github)](https://github.com/XingYu-Zhong/DeepSeek-GUI/releases)
-[![License](https://img.shields.io/github/license/XingYu-Zhong/DeepSeek-GUI)](./LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/azzab/opencodex-desktop?label=github)](https://github.com/azzab/opencodex-desktop/releases)
+[![License](https://img.shields.io/github/license/azzab/opencodex-desktop)](./LICENSE)
 
-DeepSeek GUI 是一个面向开发者和高频 AI 工作者的本地桌面工作台。它以 Kun 为唯一运行时，把终端里的智能体体验整理成更容易上手、更适合长期使用的应用：选择工作目录，发起任务，实时查看推理、工具调用和文件改动，并在需要时审批或回退。
+OpenCodex Desktop 是一个面向开发者和高频 AI 工作者的本地桌面工作台。它以 Kun 为唯一运行时，把终端里的智能体体验整理成更容易上手、更适合长期使用的应用：选择工作目录，发起任务，实时查看推理、工具调用和文件改动，并在需要时审批或回退。
 
 这个项目的目标不是再造一个聊天壳，而是让 DeepSeek 变成一个可以稳定参与真实项目工作的桌面伙伴。Kun 的核心优势是高 Token ROI：同样的上下文预算，少浪费在重复前缀、庞大工具目录和失控输出上，多投入到真正推动任务完成的信息里。
 
@@ -21,10 +21,10 @@ DeepSeek GUI 是一个面向开发者和高频 AI 工作者的本地桌面工作
 
 <p align="center">
   <a href="src/asset/img/code.mp4">
-    <img src="src/asset/img/code.gif" width="410" alt="DeepSeek GUI Code 模式演示">
+    <img src="src/asset/img/code.gif" width="410" alt="OpenCodex Desktop Code 模式演示">
   </a>
   <a href="src/asset/img/write.mp4">
-    <img src="src/asset/img/write.gif" width="410" alt="DeepSeek GUI 写作模式演示">
+    <img src="src/asset/img/write.gif" width="410" alt="OpenCodex Desktop 写作模式演示">
   </a>
 </p>
 
@@ -102,7 +102,7 @@ Kun 把“省 token”做成 agent loop 的默认行为，而不是事后补救�
 
 ## 运行时：Kun
 
-DeepSeek-GUI 当前唯一活跃的本地 Agent 运行时是仓库自带的
+OpenCodex-Desktop 当前唯一活跃的本地 Agent 运行时是仓库自带的
 **Kun**（位于 `kun/` 目录）。Kun 取意于《庄子·逍遥游》中的
 “北冥有鱼，其名为鲲”：它不是一个临时聊天壳，而是希望把模型能力沉到
 更深的本地运行时里，让它能承载更长的上下文、更复杂的工具调用和更持续的
@@ -170,7 +170,7 @@ provider，settings 会在读取时迁移到 `agents.kun`，再次保存后
 
 ## 工作台与入口
 
-DeepSeek GUI 现在以 **Code** 和 **写作** 两个主工作台为核心，并提供
+OpenCodex Desktop 现在以 **Code** 和 **写作** 两个主工作台为核心，并提供
 **连接手机**、**定时任务**、**插件 / Skill / MCP** 等入口。它们共享同一套
 Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可按任务随时切换。
 
@@ -179,7 +179,7 @@ Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可�
 面向真实代码库的开发工作台：绑定本地项目目录，围绕仓库读写文件、执行命令、审查改动。
 
 <p align="center">
-  <img src="src/asset/img/codemode.png" alt="DeepSeek GUI Code 模式" width="860">
+  <img src="src/asset/img/codemode.png" alt="OpenCodex Desktop Code 模式" width="860">
 </p>
 
 - 按工作区管理多个 Agent 会话，实时查看推理、工具调用与文件变更。
@@ -193,7 +193,7 @@ Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可�
 独立的 Markdown 写作工作台，把写作文件、保存状态与 AI 助手从 Code 会话里拆出来单独管理。
 
 <p align="center">
-  <img src="src/asset/img/writemode.png" alt="DeepSeek GUI Write 模式" width="860">
+  <img src="src/asset/img/writemode.png" alt="OpenCodex Desktop Write 模式" width="860">
 </p>
 
 - 管理 `~/.deepseekgui/write_workspace` 与多个自定义写作空间，左侧文件树支持新建、重命名与删除。
@@ -206,7 +206,7 @@ Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可�
 把 Kun 连接到手机和 IM 的后台自动化入口，让 Agent 在普通桌面聊天之外持续处理消息与定时任务。
 
 <p align="center">
-  <img src="src/asset/img/clawmode.png" alt="DeepSeek GUI 连接手机" width="860">
+  <img src="src/asset/img/clawmode.png" alt="OpenCodex Desktop 连接手机" width="860">
 </p>
 
 - 为飞书 / Lark / 微信等渠道配置独立 Agent，分别设定人设、默认模型与工作目录。
@@ -220,7 +220,7 @@ Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可�
 
 ### 下载预构建安装包
 
-前往 [GitHub Releases](https://github.com/XingYu-Zhong/DeepSeek-GUI/releases) 下载最新版本：
+前往 [GitHub Releases](https://github.com/azzab/opencodex-desktop/releases) 下载最新版本：
 
 | 平台 | 安装包 |
 | --- | --- |
@@ -235,8 +235,8 @@ Kun 运行时与设置，但会话、工作区和界面布局彼此独立，可�
 适合贡献者或需要本地开发的人：
 
 ```bash
-git clone https://github.com/XingYu-Zhong/DeepSeek-GUI.git
-cd DeepSeek-GUI
+git clone https://github.com/azzab/opencodex-desktop.git
+cd opencodex-desktop
 npm install
 npm run dev
 ```
@@ -257,7 +257,7 @@ npm install --registry=https://registry.npmmirror.com
 
 ## 首次使用
 
-1. 打开 DeepSeek GUI。
+1. 打开 OpenCodex Desktop。
 2. 在首次引导中选择界面语言。
 3. 填入 DeepSeek API Key；如果需要，设置自定义 Base URL。
 4. 选择默认工作目录，或使用应用自动创建的默认目录。
@@ -299,7 +299,7 @@ npm install --registry=https://registry.npmmirror.com
 
 ## Write 模式设计参考
 
-Write 模式的目标是把 DeepSeek GUI 从“代码/聊天工作台”扩展成真正可长期写作的桌面工作区。实现时参考了本地 `openhanako` 项目中的几个方案：
+Write 模式的目标是把 OpenCodex Desktop 从“代码/聊天工作台”扩展成真正可长期写作的桌面工作区。实现时参考了本地 `openhanako` 项目中的几个方案：
 
 - Markdown live 编辑：借鉴 openhanako 的 CodeMirror decorations 思路，当前行保留 Markdown 源码，非当前行用装饰层渲染标题、任务项、图片、分割线和表格。
 - 选区 inline agent：借鉴 openhanako 的选区捕获与浮动输入框交互，用户选中文本后可以直接输入“润色/续写/分析”等指令，并把文件路径、行号和原文作为结构化引用交给写作助手。
@@ -312,20 +312,20 @@ Write 模式的目标是把 DeepSeek GUI 从“代码/聊天工作台”扩展�
 
 ### Windows
 
-- 打开“设置 -> 应用 -> 已安装的应用”，找到 `DeepSeek GUI` 并卸载。
+- 打开“设置 -> 应用 -> 已安装的应用”，找到 `OpenCodex Desktop` 并卸载。
 - 或在“控制面板 -> 程序和功能”中卸载。
 - 也可以运行安装目录中的卸载程序。
 
-Windows 安装器默认会创建开始菜单和桌面快捷方式。安装包不会强制固定到任务栏；如需固定，可在开始菜单中右键 `DeepSeek GUI` 并选择固定。
+Windows 安装器默认会创建开始菜单和桌面快捷方式。安装包不会强制固定到任务栏；如需固定，可在开始菜单中右键 `OpenCodex Desktop` 并选择固定。
 
 ### macOS
 
-- 将 `DeepSeek GUI.app` 从“应用程序”移到废纸篓。
+- 将 `OpenCodex Desktop.app` 从“应用程序”移到废纸篓。
 - 如果首次打开被系统拦截，可在 Finder 中右键应用并选择“打开”。
 - 本地未公证构建可先运行：
 
 ```bash
-npm run mac:unquarantine -- '/Applications/DeepSeek GUI.app'
+npm run mac:unquarantine -- '/Applications/OpenCodex Desktop.app'
 ```
 
 ### Linux
@@ -339,9 +339,9 @@ npm run mac:unquarantine -- '/Applications/DeepSeek GUI.app'
 
 | 平台 | 应用数据位置 |
 | --- | --- |
-| macOS | `~/Library/Application Support/DeepSeek GUI` |
-| Windows | `%APPDATA%\DeepSeek GUI` |
-| Linux | `~/.config/DeepSeek GUI` |
+| macOS | `~/Library/Application Support/OpenCodex Desktop` |
+| Windows | `%APPDATA%\OpenCodex Desktop` |
+| Linux | `~/.config/OpenCodex Desktop` |
 
 Kun 数据默认位于 `~/.deepseekgui/kun` 或应用数据目录下的 Kun data dir。删除前请确认其中没有你还需要的会话、MCP 或 Skill 配置。
 
@@ -349,7 +349,7 @@ Kun 数据默认位于 `~/.deepseekgui/kun` 或应用数据目录下的 Kun data
 
 ## 更新
 
-- 普通用户：可在设置页检查 GUI 更新，或前往 [GitHub Releases](https://github.com/XingYu-Zhong/DeepSeek-GUI/releases) 下载最新安装包。
+- 普通用户：可在设置页检查 GUI 更新，或前往 [GitHub Releases](https://github.com/azzab/opencodex-desktop/releases) 下载最新安装包。
 
 ## 贡献指南
 
@@ -407,10 +407,10 @@ Kun 的设计站在先行项目的肩膀上：
 - **[LobsterAI](https://github.com/netease-youdao/LobsterAI)**：IM 管理、扫码绑定、Agent 绑定与自定义人设流程给了本项目连接手机能力很多启发。
 - **OpenHanako**：Markdown live 编辑、写作空间、选中文本 inline agent 等 Write 模式交互和实现方案给了本项目重要参考。
 - **[DeepSeek](https://github.com/deepseek-ai)**：提供模型与 API。
-- 所有为 DeepSeek GUI 提交 issue、建议、代码和文档的贡献者。
+- 所有为 OpenCodex Desktop 提交 issue、建议、代码和文档的贡献者。
 
-<a href="https://github.com/XingYu-Zhong/DeepSeek-GUI/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=XingYu-Zhong/DeepSeek-GUI" />
+<a href="https://github.com/azzab/opencodex-desktop/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=azzab/opencodex-desktop" />
 </a>
 
 > [!NOTE]
@@ -422,4 +422,4 @@ Kun 的设计站在先行项目的肩膀上：
 
 ## Star 历史
 
-[![Star History Chart](https://api.star-history.com/chart?repos=XingYu-Zhong/DeepSeek-GUI&type=date&legend=top-left)](https://www.star-history.com/?repos=XingYu-Zhong%2FDeepSeek-GUI&type=date&logscale=&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=azzab/opencodex-desktop&type=date&legend=top-left)](https://www.star-history.com/?repos=azzab%2Fopencodex-desktop&type=date&logscale=&legend=top-left)

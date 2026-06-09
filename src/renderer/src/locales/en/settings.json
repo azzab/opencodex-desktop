@@ -98,7 +98,7 @@
   "turnCompleteNotificationDesc": "Show a native Windows/macOS notification when the AI assistant finishes replying.",
   "desktopBehavior": "Desktop behavior",
   "desktopOpenAtLogin": "Open at login",
-  "desktopOpenAtLoginDesc": "Start DeepSeek GUI automatically after you sign in.",
+  "desktopOpenAtLoginDesc": "Start OpenCodex Desktop automatically after you sign in.",
   "desktopOpenAtLoginUnsupportedDesc": "Open at login is available on Windows and macOS.",
   "desktopStartMinimized": "Start minimized",
   "desktopStartMinimizedDesc": "Keep the main window hidden during Windows login startup.",

@@ -453,7 +453,7 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.runtime.customRuntimeFlag).toBeUndefined()
     expect(parsed.runtime.toolArgumentRepair).toMatchObject({ maxStringBytes: 262144 })
     expect(parsed.capabilities.attachments).toMatchObject({ enabled: true })
-    expect(parsed.capabilities.mcp.servers.github.command).toBe('github-mcp')
+    expect(parsed.capabilities.mcp.servers.github.command).toBe('npx')
     expect(parsed.capabilities.web.fetchEnabled).toBe(true)
     expect(parsed.capabilities.mcp.search).toMatchObject({
       enabled: true,
