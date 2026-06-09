@@ -1,5 +1,11 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
-import type { ApprovalPolicy, AppSettingsV1, ModelProviderProfileV1, SandboxMode } from '@shared/app-settings'
+import type {
+  ApprovalPolicy,
+  AppSettingsV1,
+  ModelProviderCatalogModelV1,
+  ModelProviderProfileV1,
+  SandboxMode
+} from '@shared/app-settings'
 import {
   DEFAULT_MODEL_PROVIDER_ID,
   DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL,
@@ -66,6 +72,10 @@ type ModelContextProfileSummary = {
   sourceLabelKey: string
 }
 
+type SettingsModelPickerRow = ModelProviderCatalogModelV1 & {
+  providerName: string
+}
+
 const DEEPSEEK_V4_CONTEXT_PROFILE = {
   contextWindowTokens: 1_000_000,
   softThreshold: 980_000,
@@ -74,6 +84,11 @@ const DEEPSEEK_V4_CONTEXT_PROFILE = {
 
 function formatTokenNumber(value: number): string {
   return new Intl.NumberFormat('en-US').format(value)
+}
+
+function formatUsdPerMillion(value: number | undefined): string {
+  if (value === undefined) return 'n/a'
+  return `$${value.toFixed(value >= 10 ? 0 : 2)}/1M`
 }
 
 function normalizeModelId(model: string | undefined): string {
@@ -112,6 +127,102 @@ function modelContextProfileSummary(input: {
     hardThresholdLabel: formatTokenNumber(input.fallbackHardThreshold),
     sourceLabelKey: 'kunModelContextSourceFallback'
   }
+}
+
+function settingsModelPickerRows(providers: readonly ModelProviderProfileV1[]): SettingsModelPickerRow[] {
+  const rows: SettingsModelPickerRow[] = []
+  const seen = new Set<string>()
+  for (const provider of providers) {
+    for (const model of provider.catalogModels ?? []) {
+      const key = `${provider.id}:${model.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      rows.push({
+        ...model,
+        providerId: provider.id,
+        providerName: provider.name
+      })
+    }
+    for (const id of provider.models ?? []) {
+      const trimmed = id.trim()
+      if (!trimmed || trimmed === 'auto') continue
+      const key = `${provider.id}:${trimmed}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      rows.push(defaultSettingsModelPickerRow(provider, trimmed))
+    }
+  }
+  return rows.sort((a, b) =>
+    a.providerName.localeCompare(b.providerName) ||
+    a.id.localeCompare(b.id)
+  )
+}
+
+function defaultSettingsModelPickerRow(
+  provider: ModelProviderProfileV1,
+  id: string
+): SettingsModelPickerRow {
+  const known = knownModelContextProfile(id)
+  return {
+    id,
+    name: id,
+    providerId: provider.id,
+    providerName: provider.name,
+    ...(known ? { contextLength: DEEPSEEK_V4_CONTEXT_PROFILE.contextWindowTokens } : {}),
+    ...(provider.id === DEFAULT_MODEL_PROVIDER_ID
+      ? {
+          pricingUsdPerMillion: id.includes('flash')
+            ? { input: 0.14, output: 0.28, cacheRead: 0.0028 }
+            : { input: 0.435, output: 0.87, cacheRead: 0.003625 }
+        }
+      : {}),
+    capabilities: {
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      reasoning: id.includes('pro') || id.includes('reasoner'),
+      tools: true,
+      recommendedUse: id.includes('flash') ? ['chat', 'status'] : ['coding', 'debugging', 'review']
+    }
+  }
+}
+
+function uniqueRecommendedUses(rows: readonly SettingsModelPickerRow[]): string[] {
+  const uses = new Set<string>()
+  for (const row of rows) {
+    for (const use of row.capabilities.recommendedUse) {
+      if (use.trim()) uses.add(use.trim())
+    }
+  }
+  return [...uses].sort((a, b) => a.localeCompare(b))
+}
+
+function modelPickerFilteredRows(input: {
+  rows: readonly SettingsModelPickerRow[]
+  providerId: string
+  minContext: string
+  maxInputPrice: string
+  reasoningOnly: boolean
+  toolsOnly: boolean
+  recommendedUse: string
+}): SettingsModelPickerRow[] {
+  const hasMinContext = input.minContext.trim().length > 0
+  const hasMaxInputPrice = input.maxInputPrice.trim().length > 0
+  const minContext = hasMinContext ? Number(input.minContext) : Number.NaN
+  const maxInputPrice = hasMaxInputPrice ? Number(input.maxInputPrice) : Number.NaN
+  return input.rows.filter((row) => {
+    if (input.providerId && row.providerId !== input.providerId) return false
+    if (hasMinContext && Number.isFinite(minContext) && minContext > 0 && (row.contextLength ?? 0) < minContext) return false
+    if (
+      hasMaxInputPrice &&
+      Number.isFinite(maxInputPrice) &&
+      maxInputPrice >= 0 &&
+      (row.pricingUsdPerMillion?.input ?? Number.POSITIVE_INFINITY) > maxInputPrice
+    ) return false
+    if (input.reasoningOnly && !row.capabilities.reasoning) return false
+    if (input.toolsOnly && !row.capabilities.tools) return false
+    if (input.recommendedUse && !row.capabilities.recommendedUse.includes(input.recommendedUse)) return false
+    return true
+  })
 }
 
 function usageNumber(value: unknown): number {
@@ -234,6 +345,14 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     refreshKunDiagnostics,
     disableMemoryRecord,
     deleteMemoryRecord,
+    userAgentStackPreview,
+    userAgentStackBusy,
+    userAgentStackNotice,
+    previewUserAgentStack,
+    importUserAgentStack,
+    modelCatalogBusy = false,
+    modelCatalogNotice = null,
+    refreshModelProviderCatalog,
     pickClawWorkspace,
     resetClawWorkspaceToDefault,
     clawWorkspacePickerError,
@@ -320,6 +439,99 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
       maxStringBytes: 524288
     }
   }
+  const subagentDefaults = {
+    enabled: false,
+    defaultModel: 'deepseek-v4-flash',
+    defaultPreset: 'research_split',
+    maxParallel: 2,
+    maxChildRuns: 4,
+    maxTotalChildTokens: 50_000,
+    maxChildCostUsd: 1,
+    perAgentTimeoutMs: 120_000,
+    workflowPresets: {
+      review_swarm: {
+        id: 'review_swarm',
+        enabled: true,
+        label: 'Review swarm',
+        defaultModel: 'deepseek-v4-flash',
+        maxParallel: 4,
+        maxChildRuns: 8,
+        maxTotalChildTokens: 80_000,
+        maxChildCostUsd: 1,
+        perAgentTimeoutMs: 90_000
+      },
+      implementation_split: {
+        id: 'implementation_split',
+        enabled: true,
+        label: 'Implementation split',
+        defaultModel: 'deepseek-v4-flash',
+        maxParallel: 2,
+        maxChildRuns: 4,
+        maxTotalChildTokens: 70_000,
+        maxChildCostUsd: 1.5,
+        perAgentTimeoutMs: 180_000
+      },
+      research_split: {
+        id: 'research_split',
+        enabled: true,
+        label: 'Research split',
+        defaultModel: 'deepseek-v4-flash',
+        maxParallel: 3,
+        maxChildRuns: 6,
+        maxTotalChildTokens: 50_000,
+        maxChildCostUsd: 1,
+        perAgentTimeoutMs: 120_000
+      },
+      audit_split: {
+        id: 'audit_split',
+        enabled: true,
+        label: 'Audit split',
+        defaultModel: 'deepseek-v4-flash',
+        maxParallel: 3,
+        maxChildRuns: 6,
+        maxTotalChildTokens: 80_000,
+        maxChildCostUsd: 1.5,
+        perAgentTimeoutMs: 150_000
+      }
+    }
+  }
+  const subagents = {
+    ...subagentDefaults,
+    ...(kun.subagents ?? {}),
+    workflowPresets: {
+      ...subagentDefaults.workflowPresets,
+      ...(kun.subagents?.workflowPresets ?? {})
+    }
+  }
+  const automationDefaults = {
+    enabled: false,
+    browserWorkbenchEnabled: true,
+    localDevOnly: true,
+    allowedHosts: ['localhost', '127.0.0.1', '::1'],
+    permissions: {
+      browserNavigation: 'ask',
+      browserInteraction: 'ask',
+      screenshots: 'ask',
+      localFileAccess: 'deny',
+      appControl: 'deny'
+    },
+    auditLog: {
+      enabled: true,
+      maxEntries: 500
+    }
+  }
+  const automation = {
+    ...automationDefaults,
+    ...(kun.automation ?? {}),
+    permissions: {
+      ...automationDefaults.permissions,
+      ...(kun.automation?.permissions ?? {})
+    },
+    auditLog: {
+      ...automationDefaults.auditLog,
+      ...(kun.automation?.auditLog ?? {})
+    }
+  }
   const updateMcpSearch = (patch: Record<string, unknown>): void => {
     updateKun({
       mcpSearch: {
@@ -387,10 +599,71 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
       }
     })
   }
+  const updateSubagents = (patch: Record<string, unknown>): void => {
+    updateKun({
+      subagents: {
+        ...subagents,
+        ...patch
+      }
+    })
+  }
+  const updateAutomation = (patch: Record<string, unknown>): void => {
+    updateKun({
+      automation: {
+        ...automation,
+        ...patch
+      }
+    })
+  }
+  const updateAutomationPermission = (key: keyof typeof automation.permissions, value: string): void => {
+    updateAutomation({
+      permissions: {
+        ...automation.permissions,
+        [key]: value
+      }
+    })
+  }
+  const updateAutomationAuditLog = (patch: Record<string, unknown>): void => {
+    updateAutomation({
+      auditLog: {
+        ...automation.auditLog,
+        ...patch
+      }
+    })
+  }
+  const userAgentStack = userAgentStackPreview ?? kun.userAgentStack ?? {
+    importedAt: '',
+    skillRoots: [],
+    mcpServers: [],
+    cli: [],
+    redactedPreviewJson: ''
+  }
+  const userAgentStackReadyCli = (userAgentStack.cli ?? []).filter((cli: any) => cli.available)
+  const userAgentStackMissingCli = (userAgentStack.cli ?? []).filter((cli: any) => !cli.available)
+  const userAgentStackImportedLabel = userAgentStack.importedAt
+    ? t('userAgentStackImported', { date: userAgentStack.importedAt })
+    : t('userAgentStackNeverImported')
   const provider = providerFromContext ?? form.provider ?? defaultModelProviderSettings()
   const modelProviders = provider.providers as ModelProviderProfileV1[]
   const activeProviderId = kun.providerId?.trim() || DEFAULT_MODEL_PROVIDER_ID
   const activeProvider = modelProviders.find((item) => item.id === activeProviderId) ?? modelProviders[0]
+  const modelPickerRows = settingsModelPickerRows(modelProviders)
+  const recommendedUses = uniqueRecommendedUses(modelPickerRows)
+  const [modelFilterProviderId, setModelFilterProviderId] = useState('')
+  const [modelFilterMinContext, setModelFilterMinContext] = useState('')
+  const [modelFilterMaxInputPrice, setModelFilterMaxInputPrice] = useState('')
+  const [modelFilterReasoningOnly, setModelFilterReasoningOnly] = useState(false)
+  const [modelFilterToolsOnly, setModelFilterToolsOnly] = useState(false)
+  const [modelFilterRecommendedUse, setModelFilterRecommendedUse] = useState('')
+  const filteredModelRows = modelPickerFilteredRows({
+    rows: modelPickerRows,
+    providerId: modelFilterProviderId,
+    minContext: modelFilterMinContext,
+    maxInputPrice: modelFilterMaxInputPrice,
+    reasoningOnly: modelFilterReasoningOnly,
+    toolsOnly: modelFilterToolsOnly,
+    recommendedUse: modelFilterRecommendedUse
+  })
   const updateModelProviders = (providers: ModelProviderProfileV1[]): void => {
     const defaultProvider = providers.find((item) => item.id === DEFAULT_MODEL_PROVIDER_ID)
     update({
@@ -418,7 +691,8 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
       name: t('modelProviderNewName', { index }),
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
-      models: []
+      models: [],
+      catalogModels: []
     }
     updateModelProviders([...modelProviders, nextProvider])
     updateKun({ providerId: id })
@@ -430,6 +704,15 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     if (activeProviderId === id) {
       updateKun({ providerId: DEFAULT_MODEL_PROVIDER_ID })
     }
+  }
+  const selectModelPickerRow = (row: SettingsModelPickerRow): void => {
+    const providerToUpdate = modelProviders.find((item) => item.id === row.providerId)
+    if (providerToUpdate && !providerToUpdate.models.includes(row.id)) {
+      updateModelProvider(providerToUpdate.id, {
+        models: [...providerToUpdate.models, row.id]
+      })
+    }
+    updateKun({ providerId: row.providerId, model: row.id })
   }
 
   return (
@@ -662,12 +945,135 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                   <SettingRow
                     title={t('kunModel')}
                     description={t('kunModelDesc')}
+                    wideControl
                     control={
-                      <input
-                        className="w-full min-w-0 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30 md:max-w-md"
-                        value={kun.model}
-                        onChange={(e) => updateKun({ model: e.target.value })}
-                      />
+                      <div className="grid gap-3">
+                        <div className="rounded-xl border border-ds-border-muted bg-ds-main/35 p-3">
+                          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-semibold text-ds-ink">{t('kunModelPicker')}</div>
+                              <p className="mt-0.5 text-[12.5px] leading-5 text-ds-muted">{t('kunModelPickerDesc')}</p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={modelCatalogBusy || typeof refreshModelProviderCatalog !== 'function'}
+                              onClick={() => refreshModelProviderCatalog?.(activeProvider?.id ?? DEFAULT_MODEL_PROVIDER_ID)}
+                              className="inline-flex h-9 items-center gap-2 rounded-full border border-ds-border bg-ds-card px-3 text-[12.5px] font-medium text-ds-muted shadow-sm transition hover:bg-ds-hover hover:text-ds-ink disabled:cursor-not-allowed disabled:opacity-55"
+                            >
+                              {modelCatalogBusy ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.9} />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.9} />
+                              )}
+                              {modelCatalogBusy ? t('modelPickerRefreshing') : t('modelPickerRefreshCatalog')}
+                            </button>
+                          </div>
+                          {modelCatalogNotice ? <InlineNoticeView notice={modelCatalogNotice} /> : null}
+                          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelPickerProviderFilter')}
+                              <select
+                                className={selectControlClass}
+                                value={modelFilterProviderId}
+                                onChange={(e) => setModelFilterProviderId(e.target.value)}
+                              >
+                                <option value="">{t('modelPickerAllProviders')}</option>
+                                {modelProviders.map((item) => (
+                                  <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelPickerMinContext')}
+                              <input
+                                type="number"
+                                min={0}
+                                step={1000}
+                                className="w-full min-w-0 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] font-normal text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                                value={modelFilterMinContext}
+                                onChange={(e) => setModelFilterMinContext(e.target.value)}
+                              />
+                            </label>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelPickerMaxInputPrice')}
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="w-full min-w-0 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] font-normal text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                                value={modelFilterMaxInputPrice}
+                                onChange={(e) => setModelFilterMaxInputPrice(e.target.value)}
+                              />
+                            </label>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelPickerRecommendedUse')}
+                              <select
+                                className={selectControlClass}
+                                value={modelFilterRecommendedUse}
+                                onChange={(e) => setModelFilterRecommendedUse(e.target.value)}
+                              >
+                                <option value="">{t('modelPickerAnyUse')}</option>
+                                {recommendedUses.map((use) => (
+                                  <option key={use} value={use}>{use}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[13px] font-medium text-ds-muted">
+                              <span>{t('modelPickerReasoning')}</span>
+                              <Toggle checked={modelFilterReasoningOnly} onChange={setModelFilterReasoningOnly} />
+                            </label>
+                            <label className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[13px] font-medium text-ds-muted">
+                              <span>{t('modelPickerTools')}</span>
+                              <Toggle checked={modelFilterToolsOnly} onChange={setModelFilterToolsOnly} />
+                            </label>
+                          </div>
+                        </div>
+                        <div className="grid max-h-[360px] gap-2 overflow-y-auto pr-1">
+                          {filteredModelRows.length > 0 ? filteredModelRows.map((row) => {
+                            const selected = activeProviderId === row.providerId && kun.model === row.id
+                            return (
+                              <button
+                                key={`${row.providerId}:${row.id}`}
+                                type="button"
+                                onClick={() => selectModelPickerRow(row)}
+                                className={`grid gap-2 rounded-xl border px-3 py-3 text-left transition ${
+                                  selected
+                                    ? 'border-accent/45 bg-accent/10 text-ds-ink'
+                                    : 'border-ds-border-muted bg-ds-card text-ds-muted hover:bg-ds-hover hover:text-ds-ink'
+                                }`}
+                              >
+                                <span className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <span className="truncate text-[13.5px] font-semibold text-ds-ink">{row.name}</span>
+                                  <span className="rounded-md border border-ds-border-muted bg-ds-main/60 px-1.5 py-0.5 text-[11px] font-semibold text-ds-faint">
+                                    {row.providerName}
+                                  </span>
+                                  {row.capabilities.reasoning ? (
+                                    <span className="rounded-md border border-blue-300/40 bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-200">
+                                      {t('modelPickerReasoningBadge')}
+                                    </span>
+                                  ) : null}
+                                  {row.capabilities.tools ? (
+                                    <span className="rounded-md border border-emerald-300/40 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
+                                      {t('modelPickerToolsBadge')}
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="break-all font-mono text-[12px] text-ds-faint">{row.id}</span>
+                                <span className="grid gap-1 text-[12px] text-ds-muted sm:grid-cols-4">
+                                  <span>{t('modelPickerContext')}: <b className="font-mono text-ds-ink">{row.contextLength ? formatCompactNumber(row.contextLength) : 'n/a'}</b></span>
+                                  <span>{t('modelPickerInputPrice')}: <b className="font-mono text-ds-ink">{formatUsdPerMillion(row.pricingUsdPerMillion?.input)}</b></span>
+                                  <span>{t('modelPickerOutputPrice')}: <b className="font-mono text-ds-ink">{formatUsdPerMillion(row.pricingUsdPerMillion?.output)}</b></span>
+                                  <span>{t('modelPickerRecommendedUse')}: <b className="font-mono text-ds-ink">{row.capabilities.recommendedUse.join(', ') || 'n/a'}</b></span>
+                                </span>
+                              </button>
+                            )
+                          }) : (
+                            <div className="rounded-xl border border-ds-border-muted bg-ds-card px-3 py-4 text-[13px] text-ds-faint">
+                              {t('modelPickerEmpty')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     }
                   />
                       </div>
@@ -861,6 +1267,71 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                       </div>
                     </AdvancedSettingsDisclosure>
                   </div>
+                </SettingsCard>
+              </div>
+
+              <div className="mt-6">
+                <SettingsCard title={t('userAgentStack')}>
+                  <SettingRow
+                    title={t('userAgentStack')}
+                    description={t('userAgentStackDesc')}
+                    wideControl
+                    control={
+                      <div className="flex w-full flex-col gap-3">
+                        <div className="grid gap-2 text-[12.5px] text-ds-muted sm:grid-cols-4">
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            {userAgentStackImportedLabel}
+                          </div>
+                          <div className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                            {t('userAgentStackSummary', {
+                              skills: userAgentStack.skillRoots?.length ?? 0,
+                              mcp: userAgentStack.mcpServers?.length ?? 0,
+                              cli: userAgentStack.cli?.length ?? 0
+                            })}
+                          </div>
+                          <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-emerald-700 dark:text-emerald-200">
+                            {t('userAgentStackCliReady')}: <span className="font-mono">{userAgentStackReadyCli.length}</span>
+                          </div>
+                          <div className="rounded-xl border border-red-300/50 bg-red-500/10 px-3 py-2 text-red-700 dark:text-red-200">
+                            {t('userAgentStackCliMissing')}: <span className="font-mono">{userAgentStackMissingCli.length}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void importUserAgentStack()}
+                            disabled={userAgentStackBusy}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-ds-userbubble px-3 py-2 text-[13px] font-medium text-ds-userbubbleFg shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            {userAgentStackBusy ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                            ) : null}
+                            {userAgentStackBusy ? t('userAgentStackImporting') : t('userAgentStackImport')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void previewUserAgentStack()}
+                            disabled={userAgentStackBusy}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[13px] font-medium text-ds-ink shadow-sm transition hover:bg-ds-hover disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${userAgentStackBusy ? 'animate-spin' : ''}`} strokeWidth={1.75} />
+                            {userAgentStackBusy ? t('userAgentStackRefreshing') : t('userAgentStackRefresh')}
+                          </button>
+                        </div>
+                        {userAgentStackNotice ? <InlineNoticeView notice={userAgentStackNotice} /> : null}
+                      </div>
+                    }
+                  />
+                  <SettingRow
+                    title={t('userAgentStackPreview')}
+                    description={t('userAgentStackPreviewDesc')}
+                    wideControl
+                    control={
+                      <pre className="max-h-80 min-h-32 w-full overflow-auto rounded-2xl border border-ds-border bg-ds-main/60 px-4 py-3 font-mono text-[12px] leading-5 text-ds-ink shadow-inner">
+                        {userAgentStack.redactedPreviewJson?.trim() || t('userAgentStackPreviewEmpty')}
+                      </pre>
+                    }
+                  />
                 </SettingsCard>
               </div>
 
@@ -1095,6 +1566,261 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
               </div>
 
               <div className="mt-6">
+                <SettingsCard title={t('kunSubagents')}>
+                  <SettingRow
+                    title={t('kunSubagentsEnabled')}
+                    description={t('kunSubagentsEnabledDesc')}
+                    control={
+                      <Toggle
+                        checked={subagents.enabled}
+                        onChange={(enabled) => updateSubagents({ enabled })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunSubagentDefaultModel')}
+                    description={t('kunSubagentDefaultModelDesc')}
+                    control={
+                      <input
+                        type="text"
+                        className="w-56 rounded-xl border border-ds-border bg-ds-card px-3 py-2 font-mono text-[13px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={subagents.defaultModel}
+                        disabled={!subagents.enabled}
+                        onChange={(e) => updateSubagents({ defaultModel: e.target.value })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunSubagentDefaultPreset')}
+                    description={t('kunSubagentDefaultPresetDesc')}
+                    control={
+                      <select
+                        className={selectControlClass}
+                        value={subagents.defaultPreset}
+                        disabled={!subagents.enabled}
+                        onChange={(e) => updateSubagents({ defaultPreset: e.target.value })}
+                      >
+                        <option value="review_swarm">{t('subagentPresetReviewSwarm')}</option>
+                        <option value="implementation_split">{t('subagentPresetImplementationSplit')}</option>
+                        <option value="research_split">{t('subagentPresetResearchSplit')}</option>
+                        <option value="audit_split">{t('subagentPresetAuditSplit')}</option>
+                      </select>
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunSubagentBudgets')}
+                    description={t('kunSubagentBudgetsDesc')}
+                    wideControl
+                    control={
+                      <div className="grid gap-3 sm:grid-cols-5">
+                        <label className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                          {t('kunSubagentMaxParallel')}
+                          <input
+                            type="number"
+                            min={1}
+                            max={64}
+                            className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                            value={subagents.maxParallel}
+                            disabled={!subagents.enabled}
+                            onChange={(e) => updateSubagents({ maxParallel: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                          {t('kunSubagentMaxRuns')}
+                          <input
+                            type="number"
+                            min={1}
+                            max={1000}
+                            className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                            value={subagents.maxChildRuns}
+                            disabled={!subagents.enabled}
+                            onChange={(e) => updateSubagents({ maxChildRuns: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                          {t('kunSubagentMaxTokens')}
+                          <input
+                            type="number"
+                            min={1}
+                            max={10000000}
+                            step={1000}
+                            className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                            value={subagents.maxTotalChildTokens}
+                            disabled={!subagents.enabled}
+                            onChange={(e) => updateSubagents({ maxTotalChildTokens: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                          {t('kunSubagentMaxCost')}
+                          <input
+                            type="number"
+                            min={0}
+                            max={10000}
+                            step={0.01}
+                            className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                            value={subagents.maxChildCostUsd}
+                            disabled={!subagents.enabled}
+                            onChange={(e) => updateSubagents({ maxChildCostUsd: Number(e.target.value) })}
+                          />
+                        </label>
+                        <label className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                          {t('kunSubagentTimeout')}
+                          <input
+                            type="number"
+                            min={1000}
+                            max={600000}
+                            step={1000}
+                            className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                            value={subagents.perAgentTimeoutMs}
+                            disabled={!subagents.enabled}
+                            onChange={(e) => updateSubagents({ perAgentTimeoutMs: Number(e.target.value) })}
+                          />
+                        </label>
+                      </div>
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunSubagentPresets')}
+                    description={t('kunSubagentPresetsDesc')}
+                    wideControl
+                    control={
+                      <div className="grid gap-2 text-[12.5px] text-ds-muted sm:grid-cols-2">
+                        {[
+                          ['review_swarm', t('subagentPresetReviewSwarm')],
+                          ['implementation_split', t('subagentPresetImplementationSplit')],
+                          ['research_split', t('subagentPresetResearchSplit')],
+                          ['audit_split', t('subagentPresetAuditSplit')]
+                        ].map(([id, label]) => {
+                          const preset = subagents.workflowPresets[id as keyof typeof subagents.workflowPresets]
+                          return (
+                            <div key={id} className="rounded-xl border border-ds-border-muted bg-ds-main/40 px-3 py-2">
+                              <div className="font-semibold text-ds-ink">{label}</div>
+                              <div className="mt-1 font-mono text-[11px] text-ds-faint">
+                                {preset.defaultModel} · {preset.maxParallel}/{preset.maxChildRuns} · {formatCompactNumber(preset.maxTotalChildTokens)} · ${Number(preset.maxChildCostUsd).toFixed(2)}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    }
+                  />
+                </SettingsCard>
+              </div>
+
+              <div className="mt-6">
+                <SettingsCard title={t('kunAutomation')}>
+                  <SettingRow
+                    title={t('kunAutomationEnabled')}
+                    description={t('kunAutomationEnabledDesc')}
+                    control={
+                      <Toggle
+                        checked={automation.enabled}
+                        onChange={(enabled) => updateAutomation({ enabled })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunAutomationBrowserWorkbench')}
+                    description={t('kunAutomationBrowserWorkbenchDesc')}
+                    control={
+                      <Toggle
+                        checked={automation.browserWorkbenchEnabled}
+                        onChange={(browserWorkbenchEnabled) => updateAutomation({ browserWorkbenchEnabled })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunAutomationLocalDevOnly')}
+                    description={t('kunAutomationLocalDevOnlyDesc')}
+                    control={
+                      <Toggle
+                        checked={automation.localDevOnly}
+                        disabled={!automation.enabled}
+                        onChange={(localDevOnly) => updateAutomation({ localDevOnly })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunAutomationAllowedHosts')}
+                    description={t('kunAutomationAllowedHostsDesc')}
+                    wideControl
+                    control={
+                      <textarea
+                        value={listSettingsText(automation.allowedHosts)}
+                        onChange={(event) =>
+                          updateAutomation({
+                            allowedHosts: splitSettingsList(event.target.value)
+                          })}
+                        disabled={!automation.enabled || !automation.localDevOnly}
+                        spellCheck={false}
+                        className="min-h-24 w-full rounded-2xl border border-ds-border bg-ds-card px-4 py-3 font-mono text-[13px] leading-6 text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-55"
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunAutomationPermissions')}
+                    description={t('kunAutomationPermissionsDesc')}
+                    wideControl
+                    control={
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {[
+                          ['browserNavigation', t('kunAutomationBrowserNavigation')],
+                          ['browserInteraction', t('kunAutomationBrowserInteraction')],
+                          ['screenshots', t('kunAutomationScreenshots')],
+                          ['localFileAccess', t('kunAutomationLocalFileAccess')],
+                          ['appControl', t('kunAutomationAppControl')]
+                        ].map(([key, label]) => (
+                          <label key={key} className="flex min-w-0 flex-col gap-1.5 text-[12px] font-medium text-ds-muted">
+                            {label}
+                            <select
+                              className={selectControlClass}
+                              value={automation.permissions[key as keyof typeof automation.permissions]}
+                              disabled={!automation.enabled}
+                              onChange={(event) =>
+                                updateAutomationPermission(
+                                  key as keyof typeof automation.permissions,
+                                  event.target.value
+                                )}
+                            >
+                              <option value="deny">{t('automationPermissionDeny')}</option>
+                              <option value="ask">{t('automationPermissionAsk')}</option>
+                              <option value="allow">{t('automationPermissionAllow')}</option>
+                            </select>
+                          </label>
+                        ))}
+                      </div>
+                    }
+                  />
+                  <SettingRow
+                    title={t('kunAutomationAuditLog')}
+                    description={t('kunAutomationAuditLogDesc')}
+                    wideControl
+                    control={
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                        <label className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[13px] font-medium text-ds-muted">
+                          <span>{t('kunAutomationAuditLog')}</span>
+                          <Toggle
+                            checked={automation.auditLog.enabled}
+                            disabled={!automation.enabled}
+                            onChange={(enabled) => updateAutomationAuditLog({ enabled })}
+                          />
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10000}
+                          className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:opacity-55"
+                          value={automation.auditLog.maxEntries}
+                          disabled={!automation.enabled || !automation.auditLog.enabled}
+                          onChange={(event) => updateAutomationAuditLog({ maxEntries: Number(event.target.value) })}
+                        />
+                      </div>
+                    }
+                  />
+                </SettingsCard>
+              </div>
+
+              <div className="mt-6">
                 <SettingsCard title={t('kunDiagnostics')}>
                   <div className="px-3 py-4">
                     <AdvancedSettingsDisclosure
@@ -1112,6 +1838,7 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                           {[
                             ['MCP', runtimeInfo?.capabilities?.mcp?.status],
                             ['Web', runtimeInfo?.capabilities?.web?.status],
+                            ['Automation', runtimeInfo?.capabilities?.automation?.status],
                             ['Skills', runtimeInfo?.capabilities?.skills?.status],
                             ['Subagents', runtimeInfo?.capabilities?.subagents?.status],
                             ['Images', runtimeInfo?.capabilities?.attachments?.status],

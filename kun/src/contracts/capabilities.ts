@@ -150,20 +150,187 @@ export const WebCapabilityConfig = CapabilityToggleConfig.extend({
 }).strict()
 export type WebCapabilityConfig = z.infer<typeof WebCapabilityConfig>
 
+export const AutomationPermissionMode = z.enum(['deny', 'ask', 'allow'])
+export type AutomationPermissionMode = z.infer<typeof AutomationPermissionMode>
+
+export const AutomationPermissionKey = z.enum([
+  'browserNavigation',
+  'browserInteraction',
+  'screenshots',
+  'localFileAccess',
+  'appControl'
+])
+export type AutomationPermissionKey = z.infer<typeof AutomationPermissionKey>
+
+export const DEFAULT_AUTOMATION_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '::1'] as const
+
+export const DEFAULT_AUTOMATION_PERMISSIONS = {
+  browserNavigation: 'ask',
+  browserInteraction: 'ask',
+  screenshots: 'ask',
+  localFileAccess: 'deny',
+  appControl: 'deny'
+} as const satisfies Record<AutomationPermissionKey, AutomationPermissionMode>
+
+export const AutomationPermissionsConfig = z
+  .object({
+    browserNavigation: AutomationPermissionMode.default(DEFAULT_AUTOMATION_PERMISSIONS.browserNavigation),
+    browserInteraction: AutomationPermissionMode.default(DEFAULT_AUTOMATION_PERMISSIONS.browserInteraction),
+    screenshots: AutomationPermissionMode.default(DEFAULT_AUTOMATION_PERMISSIONS.screenshots),
+    localFileAccess: AutomationPermissionMode.default(DEFAULT_AUTOMATION_PERMISSIONS.localFileAccess),
+    appControl: AutomationPermissionMode.default(DEFAULT_AUTOMATION_PERMISSIONS.appControl)
+  })
+  .strict()
+export type AutomationPermissionsConfig = z.infer<typeof AutomationPermissionsConfig>
+
+export const AutomationAuditLogConfig = z
+  .object({
+    enabled: z.boolean().default(true),
+    maxEntries: z.number().int().positive().max(10_000).default(500)
+  })
+  .strict()
+export type AutomationAuditLogConfig = z.infer<typeof AutomationAuditLogConfig>
+
+export const AutomationCapabilityConfig = CapabilityToggleConfig.extend({
+  browserWorkbenchEnabled: z.boolean().default(true),
+  localDevOnly: z.boolean().default(true),
+  allowedHosts: z.array(z.string().min(1)).default(() => [...DEFAULT_AUTOMATION_ALLOWED_HOSTS]),
+  permissions: AutomationPermissionsConfig.default(() => ({ ...DEFAULT_AUTOMATION_PERMISSIONS })),
+  auditLog: AutomationAuditLogConfig.default(() => ({ enabled: true, maxEntries: 500 }))
+}).strict()
+export type AutomationCapabilityConfig = z.infer<typeof AutomationCapabilityConfig>
+
 export const SkillsCapabilityConfig = CapabilityToggleConfig.extend({
   roots: z.array(z.string().min(1)).default([]),
   legacySkillMd: z.boolean().default(true)
 }).strict()
 export type SkillsCapabilityConfig = z.infer<typeof SkillsCapabilityConfig>
 
+export const SubagentWorkflowPresetId = z.enum([
+  'review_swarm',
+  'implementation_split',
+  'research_split',
+  'audit_split'
+])
+export type SubagentWorkflowPresetId = z.infer<typeof SubagentWorkflowPresetId>
+
+export const DEFAULT_SUBAGENT_CHILD_MODEL = 'deepseek-v4-flash'
+
+const NonNegativeInt = z.number().int().nonnegative()
+const NonNegativeNumber = z.number().nonnegative()
+
+const SubagentWorkflowPresetPatchConfig = z
+  .object({
+    id: SubagentWorkflowPresetId.optional(),
+    enabled: z.boolean().optional(),
+    label: z.string().min(1).optional(),
+    defaultModel: z.string().min(1).optional(),
+    maxParallel: NonNegativeInt.optional(),
+    maxChildRuns: NonNegativeInt.optional(),
+    maxTotalChildTokens: NonNegativeInt.optional(),
+    maxChildCostUsd: NonNegativeNumber.optional(),
+    perAgentTimeoutMs: NonNegativeInt.optional()
+  })
+  .strict()
+
+export const DEFAULT_SUBAGENT_WORKFLOW_PRESETS = {
+  review_swarm: {
+    id: 'review_swarm',
+    enabled: true,
+    label: 'Review swarm',
+    defaultModel: DEFAULT_SUBAGENT_CHILD_MODEL,
+    maxParallel: 4,
+    maxChildRuns: 8,
+    maxTotalChildTokens: 80_000,
+    maxChildCostUsd: 1,
+    perAgentTimeoutMs: 90_000
+  },
+  implementation_split: {
+    id: 'implementation_split',
+    enabled: true,
+    label: 'Implementation split',
+    defaultModel: DEFAULT_SUBAGENT_CHILD_MODEL,
+    maxParallel: 2,
+    maxChildRuns: 4,
+    maxTotalChildTokens: 70_000,
+    maxChildCostUsd: 1.5,
+    perAgentTimeoutMs: 180_000
+  },
+  research_split: {
+    id: 'research_split',
+    enabled: true,
+    label: 'Research split',
+    defaultModel: DEFAULT_SUBAGENT_CHILD_MODEL,
+    maxParallel: 3,
+    maxChildRuns: 6,
+    maxTotalChildTokens: 50_000,
+    maxChildCostUsd: 1,
+    perAgentTimeoutMs: 120_000
+  },
+  audit_split: {
+    id: 'audit_split',
+    enabled: true,
+    label: 'Audit split',
+    defaultModel: DEFAULT_SUBAGENT_CHILD_MODEL,
+    maxParallel: 3,
+    maxChildRuns: 6,
+    maxTotalChildTokens: 80_000,
+    maxChildCostUsd: 1.5,
+    perAgentTimeoutMs: 150_000
+  }
+} as const
+
+export const SubagentWorkflowPresetConfig = SubagentWorkflowPresetPatchConfig.required({
+  id: true,
+  enabled: true,
+  defaultModel: true,
+  maxParallel: true,
+  maxChildRuns: true,
+  maxTotalChildTokens: true,
+  maxChildCostUsd: true,
+  perAgentTimeoutMs: true
+})
+export type SubagentWorkflowPresetConfig = z.infer<typeof SubagentWorkflowPresetConfig>
+
+const SubagentWorkflowPresetsPatchConfig = z
+  .object({
+    review_swarm: SubagentWorkflowPresetPatchConfig.optional(),
+    implementation_split: SubagentWorkflowPresetPatchConfig.optional(),
+    research_split: SubagentWorkflowPresetPatchConfig.optional(),
+    audit_split: SubagentWorkflowPresetPatchConfig.optional()
+  })
+  .strict()
+  .default({})
+
 export const SubagentsCapabilityConfig = CapabilityToggleConfig.extend({
   maxParallel: z.number().int().nonnegative().default(0),
   maxChildRuns: z.number().int().nonnegative().default(0),
+  maxTotalChildTokens: NonNegativeInt.default(0),
+  maxChildCostUsd: NonNegativeNumber.default(0),
+  perAgentTimeoutMs: NonNegativeInt.default(0),
+  defaultModel: z.string().min(1).default(DEFAULT_SUBAGENT_CHILD_MODEL),
+  defaultPreset: SubagentWorkflowPresetId.default('research_split'),
+  workflowPresets: SubagentWorkflowPresetsPatchConfig,
   // Accept the removed legacy field so old configs keep loading, but ignore it.
   defaultStepLimit: z.number().int().positive().optional()
 })
   .strict()
-  .transform(({ defaultStepLimit: _legacyDefaultStepLimit, ...config }) => config)
+  .transform(({ defaultStepLimit: _legacyDefaultStepLimit, workflowPresets, ...config }) => {
+    const mergedWorkflowPresets = Object.fromEntries(
+      SubagentWorkflowPresetId.options.map((id) => [
+        id,
+        SubagentWorkflowPresetConfig.parse({
+          ...DEFAULT_SUBAGENT_WORKFLOW_PRESETS[id],
+          ...(workflowPresets[id] ?? {}),
+          id
+        })
+      ])
+    ) as Record<SubagentWorkflowPresetId, SubagentWorkflowPresetConfig>
+    return {
+      ...config,
+      workflowPresets: mergedWorkflowPresets
+    }
+  })
 export type SubagentsCapabilityConfig = z.output<typeof SubagentsCapabilityConfig>
 
 export const DEFAULT_ATTACHMENT_TEXT_FALLBACK_MAX_BASE64_BYTES = 512 * 1024
@@ -190,6 +357,7 @@ export const KunCapabilitiesConfig = z
   .object({
     mcp: McpCapabilityConfig.default(() => McpCapabilityConfig.parse({})),
     web: WebCapabilityConfig.default(() => WebCapabilityConfig.parse({})),
+    automation: AutomationCapabilityConfig.default(() => AutomationCapabilityConfig.parse({})),
     skills: SkillsCapabilityConfig.default(() => SkillsCapabilityConfig.parse({})),
     subagents: SubagentsCapabilityConfig.default(() => SubagentsCapabilityConfig.parse({})),
     attachments: AttachmentsCapabilityConfig.default(() => AttachmentsCapabilityConfig.parse({})),
@@ -231,13 +399,27 @@ export const RuntimeCapabilityManifest = z
       search: RuntimeCapabilityState,
       provider: z.string().optional()
     }).strict(),
+    automation: RuntimeCapabilityState.extend({
+      sidecar: z.string().optional(),
+      browserWorkbenchEnabled: z.boolean(),
+      localDevOnly: z.boolean(),
+      allowedHosts: z.array(z.string().min(1)),
+      permissions: AutomationPermissionsConfig,
+      auditLog: AutomationAuditLogConfig
+    }).strict(),
     skills: RuntimeCapabilityState.extend({
       configuredRoots: z.number().int().nonnegative(),
       discoveredSkills: z.number().int().nonnegative()
     }).strict(),
     subagents: RuntimeCapabilityState.extend({
       maxParallel: z.number().int().nonnegative(),
-      maxChildRuns: z.number().int().nonnegative()
+      maxChildRuns: z.number().int().nonnegative(),
+      maxTotalChildTokens: z.number().int().nonnegative(),
+      maxChildCostUsd: z.number().nonnegative(),
+      perAgentTimeoutMs: z.number().int().nonnegative(),
+      defaultModel: z.string().min(1),
+      defaultPreset: SubagentWorkflowPresetId,
+      workflowPresets: z.record(SubagentWorkflowPresetId, SubagentWorkflowPresetConfig)
     }).strict(),
     attachments: RuntimeCapabilityState.extend({
       maxImageBytes: z.number().int().positive(),
@@ -273,6 +455,11 @@ export function buildRuntimeCapabilityManifest(input: {
     fetchAvailable?: boolean
     searchAvailable?: boolean
     provider?: string
+    reason?: string
+  }
+  automation?: {
+    available?: boolean
+    sidecar?: string
     reason?: string
   }
   skills?: {
@@ -342,6 +529,20 @@ export function buildRuntimeCapabilityManifest(input: {
       search: webSearchState,
       provider: input.web?.provider ?? config.web.provider
     },
+    automation: {
+      ...providerCapabilityState(
+        config.automation.enabled,
+        'experimental automation is disabled by config',
+        input.automation?.available === true,
+        input.automation?.reason ?? 'automation sidecar is unavailable'
+      ),
+      sidecar: input.automation?.sidecar,
+      browserWorkbenchEnabled: config.automation.browserWorkbenchEnabled,
+      localDevOnly: config.automation.localDevOnly,
+      allowedHosts: config.automation.allowedHosts,
+      permissions: config.automation.permissions,
+      auditLog: config.automation.auditLog
+    },
     skills: {
       ...skillsState,
       configuredRoots: configuredSkillRoots,
@@ -355,7 +556,13 @@ export function buildRuntimeCapabilityManifest(input: {
         input.subagents?.reason ?? 'subagent runtime is unavailable'
       ),
       maxParallel: config.subagents.maxParallel,
-      maxChildRuns: config.subagents.maxChildRuns
+      maxChildRuns: config.subagents.maxChildRuns,
+      maxTotalChildTokens: config.subagents.maxTotalChildTokens,
+      maxChildCostUsd: config.subagents.maxChildCostUsd,
+      perAgentTimeoutMs: config.subagents.perAgentTimeoutMs,
+      defaultModel: config.subagents.defaultModel,
+      defaultPreset: config.subagents.defaultPreset,
+      workflowPresets: config.subagents.workflowPresets
     },
     attachments: {
       ...providerCapabilityState(

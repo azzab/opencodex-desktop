@@ -25,6 +25,7 @@ export const RuntimeEventKind = z.enum([
   'tool_result_upload_wait',
   'tool_storm_suppressed',
   'tool_catalog_changed',
+  'automation_audit',
   'tool_call_started',
   'tool_call_finished',
   'approval_requested',
@@ -71,7 +72,10 @@ const RuntimeEventBase = z.object({
     childId: z.string().min(1),
     childLabel: z.string().optional(),
     childStatus: z.enum(['queued', 'running', 'completed', 'failed', 'aborted']),
-    childSeq: z.number().int().nonnegative()
+    childSeq: z.number().int().nonnegative(),
+    childModel: z.string().min(1).optional(),
+    childPreset: z.string().min(1).optional(),
+    childUsage: UsageSnapshotSchema.optional()
   }).optional()
 })
 
@@ -176,6 +180,19 @@ export const ToolCatalogEvent = RuntimeEventBase.extend({
 })
 export type ToolCatalogEvent = z.infer<typeof ToolCatalogEvent>
 
+export const AutomationAuditRuntimeEvent = RuntimeEventBase.extend({
+  kind: z.literal('automation_audit'),
+  runId: z.string().min(1),
+  action: z.string().min(1),
+  permission: z.string().min(1).optional(),
+  decision: z.enum(['allow', 'ask', 'deny']).optional(),
+  status: z.enum(['requested', 'allowed', 'blocked', 'completed', 'failed']),
+  targetSummary: z.string().optional(),
+  sidecar: z.string().optional(),
+  reason: z.string().optional()
+})
+export type AutomationAuditRuntimeEvent = z.infer<typeof AutomationAuditRuntimeEvent>
+
 export const CompactionEvent = RuntimeEventBase.extend({
   kind: z.enum(['compaction_started', 'compaction_completed']),
   summary: z.string().optional(),
@@ -240,6 +257,7 @@ export const RuntimeEvent = z.discriminatedUnion('kind', [
   ToolUploadStatusEvent,
   ToolStormSuppressedEvent,
   ToolCatalogEvent,
+  AutomationAuditRuntimeEvent,
   CompactionEvent,
   GoalEvent,
   TodoEvent,

@@ -7,8 +7,10 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
   defaultKunTokenEconomySettings,
+  getModelProviderSettings,
   isKunRuntimeInsecure,
   resolveKunRuntimeSettings,
+  type ModelProviderCatalogModelV1,
   type KunRuntimeSettingsV1,
   type AppSettingsV1
 } from '../shared/app-settings'
@@ -25,6 +27,7 @@ import {
 } from '../../kun/src/config/kun-config.js'
 import {
   AttachmentsCapabilityConfig,
+  AutomationCapabilityConfig,
   McpCapabilityConfig,
   McpServerConfig,
   MemoryCapabilityConfig,
@@ -211,6 +214,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
   }
   const dataDir = resolveKunDataDir(runtime)
   await syncGuiManagedKunConfig(dataDir, runtime, {
+    settings,
     scheduleMcp: {
       settings,
       launch: {
@@ -273,9 +277,17 @@ export async function syncGuiManagedKunConfig(
   dataDir: string,
   runtime: Pick<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'tokenEconomy' | 'storage' | 'contextCompaction' | 'runtimeTuning'
+    | 'mcpSearch'
+    | 'tokenEconomy'
+    | 'storage'
+    | 'contextCompaction'
+    | 'runtimeTuning'
+    | 'userAgentStack'
+    | 'subagents'
+    | 'automation'
   >,
   options?: {
+    settings?: AppSettingsV1
     scheduleMcp?: {
       settings: AppSettingsV1
       launch: ClawScheduleMcpLaunchConfig
@@ -288,9 +300,10 @@ export async function syncGuiManagedKunConfig(
   const importedMcpServers = await readGuiManagedMcpServers(
     options?.mcpConfigPath ?? resolveKunMcpJsonPath()
   )
+  const profileMcpServers = userAgentStackMcpServersForKun(runtime.userAgentStack)
   const hasImportedEnabledMcpServer = Object.values(importedMcpServers).some(
     (server) => objectValue(server).enabled !== false
-  )
+  ) || Object.values(profileMcpServers).some((server) => objectValue(server).enabled !== false)
 
   const serve = objectValue(existing?.serve)
   const existingTokenEconomy = objectValue(serve.tokenEconomy)
@@ -302,17 +315,23 @@ export async function syncGuiManagedKunConfig(
   const search = objectValue(mcp.search)
   const attachments = objectValue(capabilities.attachments)
   const web = objectValue(capabilities.web)
+  const automation = objectValue(capabilities.automation)
   const skills = objectValue(capabilities.skills)
+  const subagents = objectValue(capabilities.subagents)
   const storage = storageConfigForRuntime(runtime.storage)
   const mcpSearch = runtime.mcpSearch
-  const skillCapability = await skillCapabilityConfigForRuntime(skills, options?.scheduleMcp?.settings)
+  const skillCapability = await skillCapabilityConfigForRuntime(
+    skills,
+    options?.scheduleMcp?.settings,
+    runtime.userAgentStack
+  )
   const next = {
     serve: {
       ...serve,
       storage,
       tokenEconomy: tokenEconomyConfigForRuntime(runtime.tokenEconomy, existingTokenEconomy)
     },
-    models: modelConfigForRuntime(existingModels),
+    models: modelConfigForRuntime(existingModels, options?.settings),
     contextCompaction: contextCompactionConfigForRuntime(runtime.contextCompaction, existingContextCompaction),
     runtime: runtimeTuningConfigForRuntime(runtime.runtimeTuning, existingRuntimeTuning),
     capabilities: {
@@ -326,7 +345,9 @@ export async function syncGuiManagedKunConfig(
         enabled: web.enabled === false ? false : true,
         fetchEnabled: web.fetchEnabled === false ? false : true
       },
+      automation: automationCapabilityConfigForRuntime(runtime.automation, automation),
       skills: skillCapability,
+      subagents: subagentCapabilityConfigForRuntime(runtime.subagents, subagents),
       mcp: {
         ...mcp,
         ...(options?.scheduleMcp || mcpSearch.enabled || hasImportedEnabledMcpServer
@@ -335,6 +356,7 @@ export async function syncGuiManagedKunConfig(
         servers: {
           ...objectValue(mcp.servers),
           ...importedMcpServers,
+          ...profileMcpServers,
           ...(options?.scheduleMcp
           ? {
               [GUI_SCHEDULE_MCP_SERVER_NAME]: buildGuiScheduleKunMcpServer(
@@ -387,11 +409,15 @@ function buildGuiScheduleKunMcpServer(
 
 async function skillCapabilityConfigForRuntime(
   existing: Record<string, unknown>,
-  settings?: AppSettingsV1
+  settings?: AppSettingsV1,
+  userAgentStack?: KunRuntimeSettingsV1['userAgentStack']
 ): Promise<Record<string, unknown>> {
   const roots = uniqueStrings([
     ...stringArrayValue(existing.roots).map(normalizeSkillRootPath),
-    ...(await guiSkillRootsForRuntime(settings)).map((root) => root.path)
+    ...(await guiSkillRootsForRuntime(settings)).map((root) => root.path),
+    ...(userAgentStack?.skillRoots ?? [])
+      .filter((root) => root.available)
+      .map((root) => normalizeSkillRootPath(root.path))
   ])
   return {
     ...existing,
@@ -399,6 +425,62 @@ async function skillCapabilityConfigForRuntime(
     roots,
     legacySkillMd: existing.legacySkillMd === false ? false : true
   }
+}
+
+function subagentCapabilityConfigForRuntime(
+  subagents: KunRuntimeSettingsV1['subagents'],
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...existing,
+    enabled: subagents.enabled,
+    defaultModel: subagents.defaultModel,
+    defaultPreset: subagents.defaultPreset,
+    maxParallel: subagents.maxParallel,
+    maxChildRuns: subagents.maxChildRuns,
+    maxTotalChildTokens: subagents.maxTotalChildTokens,
+    maxChildCostUsd: subagents.maxChildCostUsd,
+    perAgentTimeoutMs: subagents.perAgentTimeoutMs,
+    workflowPresets: subagents.workflowPresets
+  }
+}
+
+function automationCapabilityConfigForRuntime(
+  automation: KunRuntimeSettingsV1['automation'],
+  existing: Record<string, unknown>
+): Record<string, unknown> {
+  return {
+    ...existing,
+    enabled: automation.enabled,
+    browserWorkbenchEnabled: automation.browserWorkbenchEnabled,
+    localDevOnly: automation.localDevOnly,
+    allowedHosts: automation.allowedHosts,
+    permissions: automation.permissions,
+    auditLog: automation.auditLog
+  }
+}
+
+function userAgentStackMcpServersForKun(
+  userAgentStack: KunRuntimeSettingsV1['userAgentStack'] | undefined
+): Record<string, unknown> {
+  const entries = (userAgentStack?.mcpServers ?? [])
+    .map((server) => {
+      const normalized = normalizeGuiManagedMcpServer({
+        enabled: server.enabled,
+        transport: server.transport,
+        command: server.command,
+        args: server.args,
+        url: server.url,
+        headers: server.headers,
+        env: server.env,
+        trustScope: server.trustScope,
+        trustedWorkspaceRoots: server.trustedWorkspaceRoots,
+        timeoutMs: server.timeoutMs
+      })
+      return normalized ? [server.id, normalized] as const : null
+    })
+    .filter((entry): entry is readonly [string, Record<string, unknown>] => entry !== null)
+  return Object.fromEntries(entries)
 }
 
 function stringArrayValue(value: unknown): string[] {
@@ -514,7 +596,10 @@ function positiveIntegerValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
 }
 
-function modelConfigForRuntime(existing: Record<string, unknown>): Record<string, unknown> {
+function modelConfigForRuntime(
+  existing: Record<string, unknown>,
+  settings?: AppSettingsV1
+): Record<string, unknown> {
   const existingProfiles = objectValue(existing.profiles)
   const profiles: Record<string, unknown> = { ...DEFAULT_KUN_MODEL_PROFILES }
   for (const [modelId, profile] of Object.entries(existingProfiles)) {
@@ -529,10 +614,51 @@ function modelConfigForRuntime(existing: Record<string, unknown>): Record<string
       }
     }
   }
+  for (const model of providerCatalogModelsForKun(settings)) {
+    const existingProfile = objectValue(profiles[model.id])
+    const existingContextCompaction = objectValue(existingProfile.contextCompaction)
+    profiles[model.id] = {
+      ...existingProfile,
+      providerId: model.providerId,
+      name: model.name,
+      ...(model.tokenizer ? { tokenizer: model.tokenizer } : {}),
+      ...(model.contextLength
+        ? {
+            contextWindowTokens: model.contextLength,
+            contextCompaction: {
+              ...existingContextCompaction,
+              softThreshold: Math.floor(model.contextLength * 0.9),
+              hardThreshold: Math.floor(model.contextLength * 0.95)
+            }
+          }
+        : {}),
+      ...(model.pricingUsdPerMillion
+        ? { pricingUsdPerMillion: model.pricingUsdPerMillion }
+        : {}),
+      inputModalities: model.capabilities.inputModalities,
+      outputModalities: model.capabilities.outputModalities,
+      supportsToolCalling: model.capabilities.tools,
+      supportsReasoning: model.capabilities.reasoning,
+      recommendedUse: model.capabilities.recommendedUse,
+      messageParts: model.capabilities.inputModalities.includes('image')
+        ? ['text', 'image_url']
+        : ['text']
+    }
+  }
   return {
     ...existing,
     profiles
   }
+}
+
+function providerCatalogModelsForKun(settings: AppSettingsV1 | undefined): ModelProviderCatalogModelV1[] {
+  if (!settings) return []
+  return getModelProviderSettings(settings).providers.flatMap((provider) =>
+    provider.catalogModels.map((model) => ({
+      ...model,
+      providerId: provider.id
+    }))
+  )
 }
 
 function tokenEconomyConfigForRuntime(
@@ -644,6 +770,9 @@ function sanitizeKunCapabilitiesConfig(value: unknown): Record<string, unknown> 
   const next: Record<string, unknown> = {}
   if ('mcp' in raw) next.mcp = parseKunConfigSection(McpCapabilityConfig, raw.mcp)
   if ('web' in raw) next.web = parseKunConfigSection(WebCapabilityConfig, raw.web)
+  if ('automation' in raw) {
+    next.automation = parseKunConfigSection(AutomationCapabilityConfig, raw.automation)
+  }
   if ('skills' in raw) next.skills = parseKunConfigSection(SkillsCapabilityConfig, raw.skills)
   if ('subagents' in raw) {
     next.subagents = parseKunConfigSection(SubagentsCapabilityConfig, raw.subagents)

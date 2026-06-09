@@ -45,6 +45,20 @@ export const ModelContextCompactionProfileConfigSchema = z
 export const ModelContextProfileConfigSchema = z
   .object({
     aliases: z.array(z.string().min(1)).optional(),
+    providerId: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+    tokenizer: z.string().min(1).optional(),
+    pricingUsdPerMillion: z
+      .object({
+        input: z.number().nonnegative(),
+        output: z.number().nonnegative(),
+        cacheRead: z.number().nonnegative().optional(),
+        cacheWrite: z.number().nonnegative().optional()
+      })
+      .strict()
+      .optional(),
+    supportsReasoning: z.boolean().optional(),
+    recommendedUse: z.array(z.string().min(1)).optional(),
     contextWindowTokens: PositiveInt.optional(),
     contextCompaction: ModelContextCompactionProfileConfigSchema.optional(),
     softRatio: PositiveRatio.optional(),

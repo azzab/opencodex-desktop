@@ -124,7 +124,20 @@ export function createChildAgentExecutor(options: ChildAgentExecutorOptions): Ch
         mode: 'agent'
       }
     })
-    const status = await loop.runTurn(thread.id, started.turnId)
+    const interruptOnAbort = (): void => {
+      void turns.interruptTurn({
+        threadId: thread.id,
+        turnId: started.turnId
+      }).catch(() => undefined)
+    }
+    if (input.signal.aborted) interruptOnAbort()
+    else input.signal.addEventListener('abort', interruptOnAbort, { once: true })
+    let status: 'completed' | 'failed' | 'aborted'
+    try {
+      status = await loop.runTurn(thread.id, started.turnId)
+    } finally {
+      input.signal.removeEventListener('abort', interruptOnAbort)
+    }
     const runtimeError = (await sessionStore.loadEventsSince(thread.id, 0))
       .find((event) => event.kind === 'error' && event.turnId === started.turnId)
     if (runtimeError?.kind === 'error') {

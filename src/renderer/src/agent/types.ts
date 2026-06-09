@@ -5,7 +5,8 @@ import type {
   CoreMemoryRecordJson,
   CoreRuntimeInfoJson,
   CoreRuntimeSkillJson,
-  CoreRuntimeToolDiagnosticsJson
+  CoreRuntimeToolDiagnosticsJson,
+  CoreUsageSnapshotJson
 } from './kun-contract'
 
 export type ToolItemKind = 'tool_call' | 'command_execution' | 'file_change'
@@ -27,6 +28,9 @@ export type RuntimeChildMetadata = {
   childLabel?: string
   childStatus: 'queued' | 'running' | 'completed' | 'failed' | 'aborted'
   childSeq: number
+  childModel?: string
+  childPreset?: string
+  childUsage?: CoreUsageSnapshotJson
 }
 
 export type WebCitationSource = {

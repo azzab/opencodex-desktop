@@ -175,7 +175,8 @@ export class OutputAccumulator {
     if (this.shouldUseTempFile()) this.ensureTempFile()
   }
 
-  snapshot(options: { persistIfTruncated?: boolean } = {}): OutputAccumulatorSnapshot {
+  snapshot(options: { persistIfTruncated?: boolean; flushBuffered?: boolean } = {}): OutputAccumulatorSnapshot {
+    if (options.flushBuffered) this.flushBufferedForLiveSnapshot()
     const tailTruncation = truncateTail(this.getSnapshotText(), {
       maxLines: this.maxLines,
       maxBytes: this.maxBytes
@@ -264,6 +265,16 @@ export class OutputAccumulator {
     if (data.length > 0) {
       this.appendDecodedText(this.decoder.decode(data, { stream: true }))
     }
+  }
+
+  private flushBufferedForLiveSnapshot(): void {
+    if (this.decoder || this.decodeBuffer.length === 0) return
+    const encoding = chooseOutputEncoding(this.decodeBuffer, true)
+    if (!encoding) return
+    this.decoder = new TextDecoder(encoding)
+    const buffered = stripKnownBom(this.decodeBuffer, encoding)
+    this.decodeBuffer = Buffer.alloc(0)
+    this.appendDecodedText(this.decoder.decode(buffered, { stream: true }))
   }
 
   private trimTail(): void {

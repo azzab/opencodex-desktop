@@ -246,6 +246,57 @@ describe('JsonSettingsStore', () => {
     expect(saved.agents.kun.approvalPolicy).toBe('on-request')
   })
 
+  it('persists a redacted User Agent Stack profile in Kun settings', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
+    const store = new JsonSettingsStore(userDataDir)
+    await store.load()
+
+    const saved = await store.patch({
+      agents: {
+        kun: {
+          userAgentStack: {
+            importedAt: '2026-06-09T00:00:00.000Z',
+            refreshedAt: '2026-06-09T00:00:00.000Z',
+            sourcePaths: ['/tmp/codex-config.json'],
+            skillRoots: [{
+              path: '/tmp/workspace/.codex/skills',
+              scope: 'project',
+              source: 'workspace-codex',
+              available: true
+            }],
+            mcpServers: [{
+              id: 'github',
+              enabled: true,
+              transport: 'stdio',
+              command: 'npx',
+              args: ['-y', '@modelcontextprotocol/server-github'],
+              headers: {},
+              env: { GITHUB_TOKEN: '<redacted>' },
+              trustScope: 'user',
+              trustedWorkspaceRoots: [],
+              sourcePath: '/tmp/codex-config.json'
+            }],
+            cli: [{
+              name: 'git',
+              available: true,
+              path: '/usr/bin/git',
+              version: 'git version 2.50.0'
+            }],
+            redactedPreviewJson: '{\n  "env": {\n    "GITHUB_TOKEN": "<redacted>"\n  }\n}',
+            validationErrors: []
+          }
+        }
+      }
+    })
+
+    expect(saved.agents.kun.userAgentStack.mcpServers[0]?.env).toEqual({
+      GITHUB_TOKEN: '<redacted>'
+    })
+    const files = await readdir(userDataDir)
+    expect(files).toContain('deepseek-gui-settings.json')
+    expect(await readFile(join(userDataDir, 'deepseek-gui-settings.json'), 'utf8')).toContain('<redacted>')
+  })
+
   it('merges desktop behavior patches without keeping invalid startup state', async () => {
     const userDataDir = await mkdtemp(join(tmpdir(), 'ds-gui-settings-'))
     const store = new JsonSettingsStore(userDataDir)

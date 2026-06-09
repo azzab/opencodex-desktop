@@ -385,7 +385,7 @@ async function showTurnCompleteNotification(
     return { ok: true, shown: false, reason: 'unsupported' }
   }
 
-  const title = normalizeNotificationText(payload.title, 'DeepSeek GUI', 80)
+  const title = normalizeNotificationText(payload.title, 'OpenCodex Desktop', 80)
   const body = normalizeNotificationText(payload.body, 'Conversation complete.', 180)
 
   try {
@@ -980,7 +980,7 @@ app.whenReady().then(async () => {
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error)
   console.error('[deepseek-gui] startup failed:', error)
-  dialog.showErrorBox('DeepSeek GUI failed to start', message)
+  dialog.showErrorBox('OpenCodex Desktop failed to start', message)
   app.quit()
 })
 }

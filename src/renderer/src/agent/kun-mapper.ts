@@ -194,7 +194,10 @@ function normalizeChildMetadata(
     childId: child.childId,
     ...(child.childLabel ? { childLabel: child.childLabel } : {}),
     childStatus: child.childStatus,
-    childSeq: child.childSeq
+    childSeq: child.childSeq,
+    ...(child.childModel ? { childModel: child.childModel } : {}),
+    ...(child.childPreset ? { childPreset: child.childPreset } : {}),
+    ...(child.childUsage ? { childUsage: child.childUsage } : {})
   }
 }
 
@@ -234,7 +237,10 @@ function applyRuntimeDisclosureMeta(
   if (typeof item.skillInjectionBytes === 'number') {
     meta.skillInjectionBytes = item.skillInjectionBytes
   }
-  if (normalizedChild) meta.child = normalizedChild
+  if (normalizedChild) {
+    meta.child = normalizedChild
+    if (normalizedChild.childUsage) meta.childUsage = normalizedChild.childUsage
+  }
 }
 
 function extractToolSources(item: CoreTurnItemJson): Array<Record<string, string>> | undefined {
@@ -932,6 +938,38 @@ function runtimeStatusFromEvent(event: CoreRuntimeEventJson): RuntimeStatusEvent
 	  return null
 	}
 
+function childStatusToToolStatus(
+  status: CoreChildRuntimeMetadataJson['childStatus']
+): ToolEventPayload['status'] {
+  if (status === 'failed' || status === 'aborted') return 'error'
+  if (status === 'running' || status === 'queued') return 'running'
+  return 'success'
+}
+
+function childTraceFromEvent(event: CoreRuntimeEventJson): ToolEventPayload | null {
+  const child = normalizeChildMetadata(event.child)
+  if (!child) return null
+  const label = child.childLabel || child.childId
+  const status = childStatusToToolStatus(child.childStatus)
+  const detailParts = [
+    event.text,
+    child.childPreset ? `Preset: ${child.childPreset}` : '',
+    child.childModel ? `Model: ${child.childModel}` : ''
+  ].filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+  return {
+    itemId: `child_run_${child.childId}`,
+    summary: `Child agent ${label}`,
+    status,
+    toolKind: 'tool_call',
+    ...(detailParts.length > 0 ? { detail: detailParts.join('\n\n') } : {}),
+    meta: {
+      runtimeStatus: 'child_run',
+      child,
+      ...(child.childUsage ? { childUsage: child.childUsage } : {})
+    }
+  }
+}
+
 export async function dispatchKunRuntimeEvent(
   event: CoreRuntimeEventJson,
   sink: ThreadEventSink,
@@ -997,6 +1035,11 @@ export async function dispatchKunRuntimeEvent(
     case 'compaction_completed':
       sink.onCompaction(compactionFromEvent(event, 'success'))
       return
+    case 'turn_started': {
+      const child = childTraceFromEvent(event)
+      if (child) sink.onTool(child)
+      return
+    }
     case 'goal_updated':
       sink.onGoal({
         threadId: event.threadId ?? event.goal?.threadId ?? '',
@@ -1031,10 +1074,21 @@ export async function dispatchKunRuntimeEvent(
       if (event.usage) sink.onUsage?.(usageFromCore(event.usage))
       return
     case 'turn_completed':
-    case 'turn_aborted':
+    case 'turn_aborted': {
+      const child = childTraceFromEvent(event)
+      if (child) {
+        sink.onTool(child)
+        return
+      }
       sink.onTurnComplete()
       return
+    }
     case 'turn_failed': {
+      const child = childTraceFromEvent(event)
+      if (child) {
+        sink.onTool(child)
+        return
+      }
       const payload = runtimeErrorFromEvent(event, 'Kun turn failed')
       sink.onRuntimeError?.(payload)
       sink.onError(errorForRuntimeEvent(payload))

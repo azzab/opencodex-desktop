@@ -138,6 +138,16 @@ describe('app-ipc-schemas', () => {
             historyHygiene: {
               maxToolResultTokens: 4000
             }
+          },
+          automation: {
+            enabled: true,
+            permissions: {
+              browserNavigation: 'allow',
+              browserInteraction: 'ask',
+              screenshots: 'deny',
+              localFileAccess: 'ask',
+              appControl: 'deny'
+            }
           }
         }
       },
@@ -152,6 +162,8 @@ describe('app-ipc-schemas', () => {
     expect(payload.agents?.kun?.port).toBe(9000)
     expect(payload.agents?.kun?.tokenEconomy?.enabled).toBe(true)
     expect(payload.agents?.kun?.tokenEconomy?.historyHygiene?.maxToolResultTokens).toBe(4000)
+    expect(payload.agents?.kun?.automation?.enabled).toBe(true)
+    expect(payload.agents?.kun?.automation?.permissions?.browserNavigation).toBe('allow')
     expect(payload.write?.inlineCompletion?.model).toBe('deepseek-v4-pro')
   })
 

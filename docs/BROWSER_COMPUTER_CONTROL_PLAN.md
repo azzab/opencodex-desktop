@@ -127,6 +127,27 @@ Phase 0.5 must not implement unrestricted browser automation or computer control
 
 This phase may define architecture and safety requirements only. Any future implementation must start behind disabled-by-default settings, typed Kun contracts, permission gates, audit logs, user-visible controls, and verification tests.
 
+## Phase 4 Foundation Status
+
+Phase 4 adds the first safe implementation foundation without granting unrestricted control.
+
+Implemented foundation:
+
+- `agents.kun.automation` settings with an experimental master switch, local/dev host limits, per-action permission modes, and audit-log settings.
+- `capabilities.automation` in Kun config and runtime manifests, synced from the desktop settings layer before Kun starts.
+- Kun automation permission decisions for browser navigation, click/type, screenshots, local file access, and app/computer control.
+- A sidecar port plus mock/no-op adapters. Automation tools can only run through this sidecar boundary; renderer code does not execute Playwright, CDP, OS input, or file access.
+- Automation audit events for requested, allowed, blocked, completed, and failed actions.
+- Settings UI controls for the experimental flag, browser workbench visibility, local/dev target allowlist, permission gates, and audit-log limits.
+
+Current limits:
+
+- Automation is disabled by default.
+- Browser navigation is limited to `localhost`, `127.0.0.1`, and `::1` by default when local/dev-only mode is enabled.
+- Local file access is denied by default and, even when allowed, is constrained to the active workspace.
+- App/computer control is always denied in this phase, even if the stored permission mode says `allow`.
+- The existing renderer workbench browser panel is a manual preview/control surface. It is not the automation executor.
+
 ## Future Verification Targets
 
 Future browser/control implementation should prove:

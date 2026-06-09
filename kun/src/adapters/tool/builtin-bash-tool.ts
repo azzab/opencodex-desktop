@@ -306,7 +306,10 @@ async function sessionPayload(
   if (session.status !== 'running') {
     await finalizeSessionOutput(session)
   }
-  const snapshot = session.output.snapshot({ persistIfTruncated: true })
+  const snapshot = session.output.snapshot({
+    persistIfTruncated: true,
+    flushBuffered: session.status === 'running'
+  })
   const truncated = textSliceFromSnapshot(snapshot)
   return {
     command: session.command,

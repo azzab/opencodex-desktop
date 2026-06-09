@@ -19,16 +19,38 @@ export type ModelContextCompactionProfileConfig = {
 export type ModelContextProfile = ModelContextThresholds & {
   canonicalModel: string
   modelIds: readonly string[]
+  providerId?: string
+  name?: string
+  tokenizer?: string
   contextWindowTokens: number
+  pricingUsdPerMillion?: {
+    input: number
+    output: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
   inputModalities: readonly ModelInputModality[]
   outputModalities: readonly ModelInputModality[]
   supportsToolCalling: boolean
+  supportsReasoning?: boolean
+  recommendedUse?: readonly string[]
   messageParts: readonly ModelMessagePartSupport[]
 }
 
 export type ModelContextProfileConfig = {
   aliases?: readonly string[]
+  providerId?: string
+  name?: string
+  tokenizer?: string
   contextWindowTokens?: number
+  pricingUsdPerMillion?: {
+    input: number
+    output: number
+    cacheRead?: number
+    cacheWrite?: number
+  }
+  supportsReasoning?: boolean
+  recommendedUse?: readonly string[]
   contextCompaction?: ModelContextCompactionProfileConfig
   /** @deprecated Use contextCompaction.softRatio. */
   softRatio?: number
@@ -205,12 +227,24 @@ function mergeModelContextProfile(
   return {
     canonicalModel,
     modelIds,
+    ...(input.providerId ?? current?.providerId ? { providerId: input.providerId ?? current?.providerId } : {}),
+    ...(input.name ?? current?.name ? { name: input.name ?? current?.name } : {}),
+    ...(input.tokenizer ?? current?.tokenizer ? { tokenizer: input.tokenizer ?? current?.tokenizer } : {}),
     contextWindowTokens,
     softThreshold,
     hardThreshold,
+    ...(input.pricingUsdPerMillion ?? current?.pricingUsdPerMillion
+      ? { pricingUsdPerMillion: input.pricingUsdPerMillion ?? current?.pricingUsdPerMillion }
+      : {}),
     inputModalities: uniqueModelCapabilityValues(input.inputModalities ?? current?.inputModalities ?? DEFAULT_MODEL_INPUT_MODALITIES),
     outputModalities: uniqueModelCapabilityValues(input.outputModalities ?? current?.outputModalities ?? DEFAULT_MODEL_OUTPUT_MODALITIES),
     supportsToolCalling: input.supportsToolCalling ?? current?.supportsToolCalling ?? true,
+    ...((input.supportsReasoning ?? current?.supportsReasoning) !== undefined
+      ? { supportsReasoning: input.supportsReasoning ?? current?.supportsReasoning }
+      : {}),
+    ...(input.recommendedUse ?? current?.recommendedUse
+      ? { recommendedUse: uniqueStringValues(input.recommendedUse ?? current?.recommendedUse ?? []) }
+      : {}),
     messageParts: uniqueModelCapabilityValues(input.messageParts ?? current?.messageParts ?? DEFAULT_MODEL_MESSAGE_PARTS)
   }
 }
@@ -263,6 +297,18 @@ function uniqueModelCapabilityValues<T extends string>(values: readonly T[]): T[
     if (seen.has(value)) continue
     seen.add(value)
     out.push(value)
+  }
+  return out
+}
+
+function uniqueStringValues(values: readonly string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    const normalized = value.trim().toLowerCase()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    out.push(normalized)
   }
   return out
 }

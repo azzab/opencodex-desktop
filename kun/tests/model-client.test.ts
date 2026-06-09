@@ -109,6 +109,46 @@ describe('DeepseekCompatModelClient', () => {
     expect(sentBodies[0]).not.toHaveProperty('thinking')
   })
 
+  it('estimates OpenRouter-priced usage without inventing cache telemetry', async () => {
+    const response = {
+      id: 'or_1',
+      model: 'openai/gpt-4.1-mini',
+      choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: 'ok' } }],
+      usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 }
+    }
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    const client = new DeepseekCompatModelClient({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'k',
+      model: 'openai/gpt-4.1-mini',
+      fetchImpl,
+      nonStreaming: true,
+      modelPricingUsdPerMillion: {
+        'openai/gpt-4.1-mini': {
+          input: 0.4,
+          output: 1.6,
+          cacheRead: 0.1
+        }
+      }
+    })
+    const chunks = []
+    const request = buildRequest(new AbortController().signal)
+    request.model = 'openai/gpt-4.1-mini'
+    for await (const chunk of client.stream(request)) {
+      chunks.push(chunk)
+    }
+    const usageChunk = chunks.find((c) => c.kind === 'usage')
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.costUsd : 0).toBeCloseTo(0.0012)
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.costCny : undefined).toBeUndefined()
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.cacheHitTokens : 0).toBeUndefined()
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.cacheMissTokens : 0).toBeUndefined()
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.cacheHitRate : 0).toBeNull()
+  })
+
   it('injects body.thinking on the official DeepSeek host (issue #26 regression guard)', async () => {
     const response = {
       id: 'r4',

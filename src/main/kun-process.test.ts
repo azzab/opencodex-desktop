@@ -214,6 +214,119 @@ describe('syncGuiManagedKunConfig', () => {
     expect(parsed.capabilities.attachments).toMatchObject({ enabled: true })
     expect(parsed.capabilities.web).toMatchObject({ enabled: true, fetchEnabled: true })
     expect(parsed.capabilities.mcp.search).toMatchObject({ enabled: false, mode: 'auto' })
+    expect(parsed.capabilities.subagents).toMatchObject({
+      enabled: false,
+      defaultModel: 'deepseek-v4-flash',
+      defaultPreset: 'research_split',
+      maxParallel: 2,
+      maxChildRuns: 4,
+      maxTotalChildTokens: 50_000,
+      maxChildCostUsd: 1,
+      perAgentTimeoutMs: 120_000
+    })
+    expect(parsed.capabilities.subagents.workflowPresets.review_swarm).toMatchObject({
+      id: 'review_swarm',
+      maxParallel: 4
+    })
+    expect(parsed.capabilities.automation).toMatchObject({
+      enabled: false,
+      browserWorkbenchEnabled: true,
+      localDevOnly: true,
+      allowedHosts: ['localhost', '127.0.0.1', '::1'],
+      permissions: {
+        browserNavigation: 'ask',
+        browserInteraction: 'ask',
+        screenshots: 'ask',
+        localFileAccess: 'deny',
+        appControl: 'deny'
+      },
+      auditLog: {
+        enabled: true,
+        maxEntries: 500
+      }
+    })
+  })
+
+  it('syncs experimental automation settings into Kun runtime capabilities', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const runtime = defaultKunRuntimeSettings()
+    runtime.automation = {
+      ...runtime.automation,
+      enabled: true,
+      browserWorkbenchEnabled: false,
+      allowedHosts: ['localhost', 'dev.local'],
+      permissions: {
+        ...runtime.automation.permissions,
+        browserNavigation: 'allow',
+        screenshots: 'ask'
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+    expect(parsed.capabilities.automation).toMatchObject({
+      enabled: true,
+      browserWorkbenchEnabled: false,
+      localDevOnly: true,
+      allowedHosts: ['localhost', 'dev.local'],
+      permissions: {
+        browserNavigation: 'allow',
+        browserInteraction: 'ask',
+        screenshots: 'ask',
+        localFileAccess: 'deny',
+        appControl: 'deny'
+      }
+    })
+  })
+
+  it('syncs enabled subagent budgets and presets into Kun runtime capabilities', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const runtime = defaultKunRuntimeSettings()
+    runtime.subagents = {
+      ...runtime.subagents,
+      enabled: true,
+      defaultModel: 'openrouter/google/gemini-2.5-flash',
+      defaultPreset: 'review_swarm',
+      maxParallel: 3,
+      maxChildRuns: 7,
+      maxTotalChildTokens: 77_000,
+      maxChildCostUsd: 2.75,
+      perAgentTimeoutMs: 90_000,
+      workflowPresets: {
+        ...runtime.subagents.workflowPresets,
+        review_swarm: {
+          ...runtime.subagents.workflowPresets.review_swarm,
+          maxParallel: 3,
+          maxChildRuns: 7
+        }
+      }
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+    expect(parsed.capabilities.subagents).toMatchObject({
+      enabled: true,
+      defaultModel: 'openrouter/google/gemini-2.5-flash',
+      defaultPreset: 'review_swarm',
+      maxParallel: 3,
+      maxChildRuns: 7,
+      maxTotalChildTokens: 77_000,
+      maxChildCostUsd: 2.75,
+      perAgentTimeoutMs: 90_000
+    })
+    expect(parsed.capabilities.subagents.workflowPresets.review_swarm).toMatchObject({
+      id: 'review_swarm',
+      maxParallel: 3,
+      maxChildRuns: 7
+    })
   })
 
   it('adds the built-in schedule MCP server to Kun runtime capabilities', async () => {
@@ -514,6 +627,54 @@ describe('syncGuiManagedKunConfig', () => {
       url: 'https://mcp.example.test/mcp',
       headers: {
         Authorization: 'Bearer docs-token'
+      },
+      trustScope: 'user'
+    })
+  })
+
+  it('syncs imported User Agent Stack skill roots and redacted MCP servers into Kun config', async () => {
+    if (!tempRoot) throw new Error('temp root not initialized')
+    const configPath = join(tempRoot, 'config.json')
+    const module = await import('./kun-process')
+    const runtime = defaultKunRuntimeSettings()
+    runtime.userAgentStack = {
+      ...runtime.userAgentStack,
+      importedAt: '2026-06-09T00:00:00.000Z',
+      skillRoots: [{
+        path: join(tempRoot, 'imported-skills'),
+        scope: 'user',
+        source: 'codex-user',
+        available: true
+      }],
+      mcpServers: [{
+        id: 'github',
+        enabled: true,
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github', '--token', '<redacted>'],
+        headers: {},
+        env: {
+          GITHUB_TOKEN: '<redacted>'
+        },
+        trustScope: 'user',
+        trustedWorkspaceRoots: [],
+        sourcePath: '/tmp/codex-config.json'
+      }]
+    }
+
+    await module.syncGuiManagedKunConfig(tempRoot, runtime)
+
+    const parsed = JSON.parse(readFileSync(configPath, 'utf8')) as any
+    expect(KunConfigSchema.safeParse(parsed).success).toBe(true)
+    expect(parsed.capabilities.skills.roots).toContain(join(tempRoot, 'imported-skills'))
+    expect(parsed.capabilities.mcp.enabled).toBe(true)
+    expect(parsed.capabilities.mcp.servers.github).toMatchObject({
+      enabled: true,
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github', '--token', '<redacted>'],
+      env: {
+        GITHUB_TOKEN: '<redacted>'
       },
       trustScope: 'user'
     })

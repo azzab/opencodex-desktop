@@ -10,6 +10,7 @@ import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { FileSessionStore, FileThreadStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
 import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
+import type { ModelPricingUsdPerMillion } from '../adapters/model/model-pricing.js'
 import { CapabilityRegistry } from '../adapters/tool/capability-registry.js'
 import { buildGoalLocalTools } from '../adapters/tool/goal-tools.js'
 import { buildTodoLocalTools } from '../adapters/tool/todo-tools.js'
@@ -18,6 +19,7 @@ import { buildMcpToolProviders } from '../adapters/tool/mcp-tool-provider.js'
 import { buildMemoryToolProviders } from '../adapters/tool/memory-tool-provider.js'
 import { buildDelegationToolProviders } from '../adapters/tool/delegation-tool-provider.js'
 import { buildWebToolProviders } from '../adapters/tool/web-tool-provider.js'
+import { buildAutomationToolProviders } from '../adapters/tool/automation-tool-provider.js'
 import { LocalWorkspaceInspector } from '../adapters/workspace/local-workspace-inspector.js'
 import { createImmutablePrefix } from '../cache/immutable-prefix.js'
 import {
@@ -32,8 +34,10 @@ import {
   modelCapabilitiesForModel,
   modelContextProfilesFromConfig,
   type ContextCompactionConfig,
-  type ModelConfig
+  type ModelConfig,
+  type ModelContextProfile
 } from '../loop/model-context-profile.js'
+import type { ConfiguredAutoRouteCandidate } from '../loop/auto-model-router.js'
 import {
   DEFAULT_STORAGE_CONFIG,
   expandHomePath,
@@ -52,6 +56,7 @@ import { TurnService } from '../services/turn-service.js'
 import { ReviewService } from '../services/review-service.js'
 import { UsageService } from '../services/usage-service.js'
 import type { UsageEvent } from '../contracts/events.js'
+import type { AutomationAuditRecord } from '../automation/automation-sidecar.js'
 import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
 import { DelegationRuntime, FileDelegationStore } from '../delegation/delegation-runtime.js'
@@ -135,14 +140,15 @@ export async function createKunServeRuntime(
   })
   const threadService = new ThreadService({ threadStore, sessionStore, events, ids, nowIso })
   await seedUsageCarryover({ threadStore, sessionStore, usageService })
-  const modelClient = new DeepseekCompatModelClient({
-    baseUrl: options.baseUrl,
-    apiKey: options.apiKey,
-    model: options.model
-  })
   const modelProfiles = modelContextProfilesFromConfig({
     contextCompaction: options.contextCompaction,
     models: options.models
+  })
+  const modelClient = new DeepseekCompatModelClient({
+    baseUrl: options.baseUrl,
+    apiKey: options.apiKey,
+    model: options.model,
+    modelPricingUsdPerMillion: modelPricingForProfiles(modelProfiles)
   })
   const reviewService = new ReviewService({
     threadStore,
@@ -158,6 +164,26 @@ export async function createKunServeRuntime(
   })
   const mcpProviders = await buildMcpToolProviders(options.capabilities?.mcp)
   const webProviders = buildWebToolProviders(options.capabilities?.web)
+  const automationProviders = buildAutomationToolProviders(options.capabilities?.automation, {
+    auditLog: {
+      record: async (event: AutomationAuditRecord) => {
+        await events.record({
+          kind: 'automation_audit',
+          threadId: event.threadId,
+          turnId: event.turnId,
+          runId: event.runId,
+          action: event.action,
+          status: event.status,
+          targetSummary: event.targetSummary,
+          ...(event.permission ? { permission: event.permission } : {}),
+          ...(event.decision ? { decision: event.decision } : {}),
+          ...(event.reason ? { reason: event.reason } : {}),
+          ...(event.sidecar ? { sidecar: event.sidecar } : {})
+        })
+      }
+    },
+    nowIso
+  })
   const skillRuntime = await SkillRuntime.create(options.capabilities?.skills)
   const attachmentStore = options.capabilities?.attachments.enabled
     ? new FileAttachmentStore({
@@ -183,6 +209,7 @@ export async function createKunServeRuntime(
     },
     ...mcpProviders.providers,
     ...webProviders.providers,
+    ...automationProviders.providers,
     ...buildMemoryToolProviders(memoryStore)
   ]
   const childRegistry = new CapabilityRegistry(baseToolProviders)
@@ -197,7 +224,7 @@ export async function createKunServeRuntime(
           model: modelClient,
           toolHost: childToolHost,
           prefix,
-          defaultModel: options.model,
+          defaultModel: options.capabilities.subagents.defaultModel || options.model,
           models: options.models,
           contextCompaction: options.contextCompaction,
           approvalPolicy: options.approvalPolicy,
@@ -210,7 +237,7 @@ export async function createKunServeRuntime(
           nowIso
         }),
         recordExternalUsage: (threadId, usage) => {
-          usageService.record(threadId, usage)
+          return usageService.record(threadId, usage)
         }
       })
     : undefined
@@ -233,6 +260,11 @@ export async function createKunServeRuntime(
       searchAvailable: webProviders.searchAvailable,
       provider: webProviders.provider,
       reason: webProviders.diagnostics.find((diagnostic) => diagnostic.reason)?.reason
+    },
+    automation: {
+      available: automationProviders.available,
+      sidecar: automationProviders.sidecar,
+      reason: automationProviders.diagnostics.find((diagnostic) => diagnostic.reason)?.reason
     },
     skills: {
       configuredRoots: options.capabilities?.skills.roots.length,
@@ -285,6 +317,7 @@ export async function createKunServeRuntime(
     ids,
     nowIso,
     modelCapabilities: (model) => modelCapabilitiesForModel(model, modelProfiles),
+    autoModelCandidates: autoModelCandidatesForProfiles(modelProfiles),
     skillRuntime,
     tokenEconomy,
     contextCompaction: options.contextCompaction,
@@ -345,13 +378,32 @@ export async function createKunServeRuntime(
       mcpServers: mcpProviders.diagnostics,
       mcpSearch: mcpProviders.search,
       webProviders: webProviders.diagnostics,
+      automation: automationProviders.diagnostics,
       skills: skillRuntime.diagnostics(),
       attachments: attachmentStore
         ? await attachmentStore.diagnostics()
         : { enabled: false, rootDir: '', count: 0, totalBytes: 0 },
       memory: memoryStore
         ? await memoryStore.diagnostics()
-        : { enabled: false, rootDir: '', activeCount: 0, tombstoneCount: 0, lastInjectedIds: [] }
+        : { enabled: false, rootDir: '', activeCount: 0, tombstoneCount: 0, lastInjectedIds: [] },
+      subagents: delegationRuntime
+        ? await delegationRuntime.diagnostics()
+        : {
+            enabled: false,
+            active: 0,
+            childRuns: [],
+            aggregates: [],
+            usage: {
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: 0,
+              cachedTokens: 0,
+              cacheHitTokens: 0,
+              cacheMissTokens: 0,
+              cacheHitRate: null,
+              turns: 0
+            }
+          }
     }),
     skills: () => skillRuntime.diagnostics(),
     shutdown: async () => {
@@ -362,6 +414,64 @@ export async function createKunServeRuntime(
       }
     }
   }
+}
+
+function modelPricingForProfiles(
+  profiles: readonly ModelContextProfile[]
+): Record<string, ModelPricingUsdPerMillion> {
+  const pricing: Record<string, ModelPricingUsdPerMillion> = {}
+  for (const profile of profiles) {
+    if (!profile.pricingUsdPerMillion) continue
+    for (const modelId of [profile.canonicalModel, ...profile.modelIds]) {
+      const normalized = normalizeModelKey(modelId)
+      if (normalized) pricing[normalized] = profile.pricingUsdPerMillion
+    }
+  }
+  return pricing
+}
+
+function autoModelCandidatesForProfiles(
+  profiles: readonly ModelContextProfile[]
+): ConfiguredAutoRouteCandidate[] {
+  const candidates: ConfiguredAutoRouteCandidate[] = []
+  const seen = new Set<string>()
+  for (const profile of profiles) {
+    const id = normalizeModelKey(profile.canonicalModel)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    candidates.push({
+      id,
+      providerId: profile.providerId ?? providerIdForModel(id),
+      contextWindowTokens: profile.contextWindowTokens,
+      supportsToolCalling: profile.supportsToolCalling,
+      supportsReasoning: profile.supportsReasoning ?? reasoningSupportForModel(id),
+      ...(profile.pricingUsdPerMillion ? { pricingUsdPerMillion: profile.pricingUsdPerMillion } : {}),
+      recommendedUse: profile.recommendedUse ?? recommendedUseForModel(id)
+    })
+  }
+  return candidates
+}
+
+function providerIdForModel(modelId: string): string {
+  return modelId.startsWith('deepseek-') || modelId === 'deepseek-chat' || modelId === 'deepseek-reasoner'
+    ? 'deepseek'
+    : 'custom'
+}
+
+function reasoningSupportForModel(modelId: string): boolean {
+  return /reason|think|gpt-|claude|gemini|deepseek-v4-pro|deepseek-reasoner/i.test(modelId)
+}
+
+function recommendedUseForModel(modelId: string): readonly string[] {
+  if (modelId.includes('flash') || modelId.includes('mini')) return ['chat', 'status']
+  if (modelId.includes('deepseek') || modelId.includes('gpt') || modelId.includes('claude')) {
+    return ['coding', 'debugging', 'review']
+  }
+  return ['chat']
+}
+
+function normalizeModelKey(modelId: string | undefined): string {
+  return (modelId ?? '').trim().toLowerCase()
 }
 
 function tokenEconomyConfigForOptions(

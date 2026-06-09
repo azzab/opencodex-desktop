@@ -25,7 +25,12 @@ describe('DelegationRuntime', () => {
   it('creates child runs, persists records, and emits child event metadata', async () => {
     const sessionStore = new InMemorySessionStore()
     const externalUsage: unknown[] = []
-    const runtime = createRuntime({ sessionStore, recordExternalUsage: (_threadId, usage) => externalUsage.push(usage) })
+    const runtime = createRuntime({
+      sessionStore,
+      recordExternalUsage: (_threadId, usage) => {
+        externalUsage.push(usage)
+      }
+    })
     const result = await runtime.runChild({
       parentThreadId: 'thr_1',
       parentTurnId: 'turn_1',
@@ -149,7 +154,96 @@ describe('DelegationRuntime', () => {
       runs: 2,
       completed: 2,
       totalTokens: 6,
+      cacheHitTokens: 2,
+      cacheMissTokens: 4,
+      cacheHitRate: 2 / 6,
+      summaries: ['done: first', 'done: second'],
       averageTotalTokens: 3
+    })
+    expect(diagnostics.usage).toMatchObject({
+      totalTokens: 6,
+      cacheHitTokens: 2,
+      cacheMissTokens: 4,
+      costUsd: 0.006
+    })
+  })
+
+  it('stops new child runs when aggregate token or cost budget is exhausted', async () => {
+    const tokenBudgeted = createRuntime({ maxTotalChildTokens: 3 })
+    await tokenBudgeted.runChild({
+      parentThreadId: 'thr_1',
+      parentTurnId: 'turn_1',
+      prompt: 'first',
+      signal: new AbortController().signal
+    })
+    await expect(tokenBudgeted.runChild({
+      parentThreadId: 'thr_1',
+      parentTurnId: 'turn_1',
+      prompt: 'second',
+      signal: new AbortController().signal
+    })).rejects.toThrow(/token budget/i)
+
+    const costBudgeted = createRuntime({ maxChildCostUsd: 0.003 })
+    await costBudgeted.runChild({
+      parentThreadId: 'thr_2',
+      parentTurnId: 'turn_1',
+      prompt: 'first',
+      signal: new AbortController().signal
+    })
+    await expect(costBudgeted.runChild({
+      parentThreadId: 'thr_2',
+      parentTurnId: 'turn_1',
+      prompt: 'second',
+      signal: new AbortController().signal
+    })).rejects.toThrow(/cost budget/i)
+  })
+
+  it('records parent usage events for completed child runs', async () => {
+    const sessionStore = new InMemorySessionStore()
+    const usageEvents: unknown[] = []
+    const runtime = createRuntime({
+      sessionStore,
+      recordExternalUsage: (_threadId, usage) => {
+        usageEvents.push(usage)
+        return usage
+      }
+    })
+    const result = await runtime.runChild({
+      parentThreadId: 'thr_1',
+      parentTurnId: 'turn_1',
+      label: 'review',
+      prompt: 'review it',
+      signal: new AbortController().signal
+    })
+
+    expect(result.status).toBe('completed')
+    expect(usageEvents).toEqual([expect.objectContaining({ totalTokens: 3, costUsd: 0.003 })])
+    const events = await sessionStore.loadEventsSince('thr_1', 0)
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'usage',
+        usage: expect.objectContaining({ totalTokens: 3, costUsd: 0.003 })
+      })
+    ]))
+  })
+
+  it('aborts child runs when the per-agent timeout is reached', async () => {
+    const runtime = createRuntime({
+      perAgentTimeoutMs: 5,
+      executor: ({ signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('child observed timeout')), { once: true })
+        setTimeout(() => resolve({ summary: 'late' }), 100)
+      })
+    })
+
+    await expect(runtime.runChild({
+      parentThreadId: 'thr_1',
+      parentTurnId: 'turn_1',
+      prompt: 'slow',
+      signal: new AbortController().signal
+    })).resolves.toMatchObject({
+      status: 'aborted',
+      error: expect.stringMatching(/timed out|timeout|aborted/i)
     })
   })
 
@@ -185,6 +279,9 @@ describe('DelegationRuntime', () => {
   function createRuntime(options: {
     enabled?: boolean
     maxChildRuns?: number
+    maxTotalChildTokens?: number
+    maxChildCostUsd?: number
+    perAgentTimeoutMs?: number
     sessionStore?: InMemorySessionStore
     executor?: ConstructorParameters<typeof DelegationRuntime>[0]['executor']
     recordExternalUsage?: ConstructorParameters<typeof DelegationRuntime>[0]['recordExternalUsage']
@@ -201,7 +298,10 @@ describe('DelegationRuntime', () => {
       subagents: {
         enabled: options.enabled ?? true,
         maxParallel: 1,
-        maxChildRuns: options.maxChildRuns ?? 3
+        maxChildRuns: options.maxChildRuns ?? 3,
+        maxTotalChildTokens: options.maxTotalChildTokens ?? 0,
+        maxChildCostUsd: options.maxChildCostUsd ?? 0,
+        perAgentTimeoutMs: options.perAgentTimeoutMs ?? 0
       }
     }).subagents
     return new DelegationRuntime({
@@ -213,7 +313,15 @@ describe('DelegationRuntime', () => {
       recordExternalUsage: options.recordExternalUsage,
       executor: options.executor ?? (async ({ prompt }) => ({
         summary: `done: ${prompt}`,
-        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }
+        usage: {
+          promptTokens: 1,
+          completionTokens: 2,
+          totalTokens: 3,
+          cacheHitTokens: 1,
+          cacheMissTokens: 2,
+          cacheHitRate: 1 / 3,
+          costUsd: 0.003
+        }
       }))
     })
   }

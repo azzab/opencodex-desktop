@@ -7,13 +7,35 @@ export const AUTO_MODEL_FLASH = 'deepseek-v4-flash'
 export const AUTO_MODEL_PRO = 'deepseek-v4-pro'
 export const AUTO_MODEL_ROUTER_TIMEOUT_MS = 4_000
 
-export type AutoModelRouteSource = 'flash-router' | 'heuristic'
+export type AutoModelRouteSource = 'flash-router' | 'heuristic' | 'configured-heuristic'
 export type AutoRouteReasoningEffort = 'off' | 'high' | 'max'
 
 export type AutoModelRouteSelection = {
-  model: typeof AUTO_MODEL_FLASH | typeof AUTO_MODEL_PRO
+  model: string
   reasoningEffort?: AutoRouteReasoningEffort
   source: AutoModelRouteSource
+}
+
+export type ConfiguredAutoRouteTaskType =
+  | 'chat'
+  | 'coding'
+  | 'debugging'
+  | 'review'
+  | 'research'
+  | 'status'
+
+export type ConfiguredAutoRouteCandidate = {
+  id: string
+  providerId: string
+  contextWindowTokens?: number
+  supportsToolCalling: boolean
+  supportsReasoning: boolean
+  pricingUsdPerMillion?: {
+    input: number
+    output: number
+    cacheRead?: number
+  }
+  recommendedUse: readonly string[]
 }
 
 export const AUTO_MODEL_ROUTER_SYSTEM_PROMPT = [
@@ -105,6 +127,43 @@ export function autoModelHeuristic(input: string, _currentModel = ''): typeof AU
   return AUTO_MODEL_FLASH
 }
 
+export function selectConfiguredAutoRoute(input: {
+  candidates: readonly ConfiguredAutoRouteCandidate[]
+  latestRequest: string
+  estimatedInputTokens: number
+  requiresTools: boolean
+  reasoningNeed: AutoRouteReasoningEffort | 'low'
+  taskType: ConfiguredAutoRouteTaskType
+}): AutoModelRouteSelection {
+  const fallback = fallbackAutoRoute(input.latestRequest, 'auto')
+  const viable = input.candidates.filter((candidate) =>
+    candidate.id.trim() &&
+    candidate.contextWindowTokens !== undefined &&
+    candidate.contextWindowTokens >= input.estimatedInputTokens &&
+    (!input.requiresTools || candidate.supportsToolCalling) &&
+    (input.reasoningNeed === 'off' || input.reasoningNeed === 'low' || candidate.supportsReasoning)
+  )
+  if (viable.length === 0) return fallback
+
+  const ranked = viable
+    .map((candidate) => ({
+      candidate,
+      score: configuredCandidateScore(candidate, input)
+    }))
+    .sort((a, b) =>
+      a.score - b.score ||
+      defaultProviderRank(a.candidate.providerId) - defaultProviderRank(b.candidate.providerId) ||
+      a.candidate.id.localeCompare(b.candidate.id)
+    )
+  const selected = ranked[0]?.candidate
+  if (!selected) return fallback
+  return {
+    model: selected.id,
+    reasoningEffort: configuredReasoningEffort(input.reasoningNeed),
+    source: 'configured-heuristic'
+  }
+}
+
 export function parseAutoRouteRecommendation(raw: string): {
   model: typeof AUTO_MODEL_FLASH | typeof AUTO_MODEL_PRO
   reasoningEffort?: AutoRouteReasoningEffort
@@ -150,6 +209,46 @@ function fallbackAutoRoute(
     reasoningEffort: autoReasoningHeuristic(latestRequest),
     source: 'heuristic'
   }
+}
+
+function configuredCandidateScore(
+  candidate: ConfiguredAutoRouteCandidate,
+  input: {
+    estimatedInputTokens: number
+    reasoningNeed: AutoRouteReasoningEffort | 'low'
+    taskType: ConfiguredAutoRouteTaskType
+  }
+): number {
+  const inputCost = candidate.pricingUsdPerMillion
+    ? (input.estimatedInputTokens / 1_000_000) * candidate.pricingUsdPerMillion.input
+    : 1
+  const outputCost = candidate.pricingUsdPerMillion
+    ? (1_000 / 1_000_000) * candidate.pricingUsdPerMillion.output
+    : 0.01
+  let score = inputCost + outputCost
+  const recommended = new Set(candidate.recommendedUse.map((item) => item.trim().toLowerCase()))
+  if (recommended.has(input.taskType)) score -= 0.02
+  if ((input.taskType === 'coding' || input.taskType === 'debugging' || input.taskType === 'review') && candidate.supportsToolCalling) {
+    score -= 0.01
+  }
+  if (input.reasoningNeed === 'max' && candidate.providerId === 'deepseek') {
+    score -= Math.max(score * 0.15, 0.02)
+  }
+  if (input.taskType === 'status' || input.taskType === 'chat') {
+    score += defaultProviderRank(candidate.providerId) * 0.002
+  }
+  return score
+}
+
+function configuredReasoningEffort(
+  need: AutoRouteReasoningEffort | 'low'
+): AutoRouteReasoningEffort | undefined {
+  if (need === 'low') return 'off'
+  return need
+}
+
+function defaultProviderRank(providerId: string): number {
+  return providerId.trim().toLowerCase() === 'deepseek' ? 0 : 1
 }
 
 function autoRoutePrompt(input: {

@@ -9,6 +9,8 @@ const api = {
   runtimeRequest: (path, method, body) =>
     ipcRenderer.invoke('runtime:request', { path, method, body }),
   fetchUpstreamModels: () => ipcRenderer.invoke('upstream:models'),
+  refreshModelProviderCatalog: (payload) =>
+    ipcRenderer.invoke('model-provider:catalog:refresh', payload),
   getClawStatus: () => ipcRenderer.invoke('claw:status'),
   runClawTask: (taskId) =>
     ipcRenderer.invoke('claw:task:run', taskId),
@@ -33,6 +35,10 @@ const api = {
     ipcRenderer.invoke('deepseek:config:write', content),
   openDeepseekConfigDir: () =>
     ipcRenderer.invoke('deepseek:config:open-dir'),
+  previewUserAgentStackImport: (payload) =>
+    ipcRenderer.invoke('user-agent-stack:preview', payload ?? {}),
+  importUserAgentStack: (payload) =>
+    ipcRenderer.invoke('user-agent-stack:import', payload ?? {}),
   getGitBranches: (workspaceRoot) =>
     ipcRenderer.invoke('git:branches', workspaceRoot),
   switchGitBranch: (workspaceRoot, branch) =>

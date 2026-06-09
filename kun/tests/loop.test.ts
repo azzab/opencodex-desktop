@@ -14,6 +14,7 @@ import { makeAssistantTextItem, makeToolCallItem, makeUserItem } from '../src/do
 import { createThreadRecord } from '../src/domain/thread.js'
 import { createImmutablePrefix, setSystemPrompt } from '../src/cache/immutable-prefix.js'
 import type { TurnItem } from '../src/contracts/items.js'
+import type { TurnLifecycleEvent } from '../src/contracts/events.js'
 import type { ModelRequest, ModelStreamChunk } from '../src/ports/model-client.js'
 import {
   bootstrapThread,
@@ -55,16 +56,50 @@ describe('AgentLoop', () => {
 
   it('records elapsed seconds for active goals after a turn finishes', async () => {
     let nowMs = 1_000
-    const h = makeHarness(
+    let h: ReturnType<typeof makeHarness>
+    const completeGoalTool = LocalToolHost.defineTool({
+      name: UPDATE_GOAL_TOOL_NAME,
+      description: 'Update goal',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['complete', 'blocked'] }
+        },
+        required: ['status'],
+        additionalProperties: false
+      },
+      policy: 'auto',
+      execute: async (args, context) => {
+        const status = args.status
+        if (status !== 'complete' && status !== 'blocked') {
+          return { output: { error: 'invalid status' }, isError: true }
+        }
+        const goal = await h.threads.setGoal(context.threadId, { status })
+        return { output: { goal } }
+      }
+    })
+    let calls = 0
+    h = makeHarness(
       {
         provider: 'goal-timer',
         model: 'goal-timer',
         async *stream(): AsyncIterable<ModelStreamChunk> {
           nowMs = 4_700
+          calls += 1
+          if (calls === 1) {
+            yield {
+              kind: 'tool_call_complete',
+              callId: 'call_complete_goal_timer',
+              toolName: UPDATE_GOAL_TOOL_NAME,
+              arguments: { status: 'complete' }
+            }
+            yield { kind: 'completed', stopReason: 'tool_calls' }
+            return
+          }
           yield { kind: 'completed', stopReason: 'stop' }
         }
       },
-      { nowMs: () => nowMs }
+      { nowMs: () => nowMs, tools: [...buildDefaultLocalTools(), completeGoalTool] }
     )
     await bootstrapThread(h)
     await h.threads.setGoal(h.threadId, { objective: 'ship the feature' })
@@ -94,13 +129,11 @@ describe('AgentLoop', () => {
 
     const status = await h.loop.runTurn(h.threadId, h.turnId)
     const events = await h.sessionStore.loadEventsSince(h.threadId, 0)
-    const failed = events.find((event) => event.kind === 'turn_failed')
+    const failed = events.find((event): event is TurnLifecycleEvent => event.kind === 'turn_failed')
 
     expect(status).toBe('failed')
-    expect(failed).toMatchObject({
-      kind: 'turn_failed',
-      message: 'model stream exploded'
-    })
+    expect(failed).toMatchObject({ kind: 'turn_failed' })
+    expect(failed?.message).toContain('model stream exploded')
   })
 
   it('fails the turn when the model stream yields an error chunk', async () => {
@@ -870,28 +903,37 @@ describe('AgentLoop', () => {
         return { output: { done: true } }
       }
     })
-    const h = makeHarness(makeFakeModel([
-      {
-        kind: 'tool_call_complete',
-        callId: 'call_streamer',
-        toolName: 'streamer',
-        arguments: {}
-      },
-      { kind: 'completed', stopReason: 'tool_calls' },
-      { kind: 'completed', stopReason: 'stop' }
-    ]), { tools: [streamingTool] })
+    let calls = 0
+    const h = makeHarness({
+      provider: 'streaming-tool',
+      model: 'streaming-tool',
+      async *stream(): AsyncIterable<ModelStreamChunk> {
+        calls += 1
+        if (calls === 1) {
+          yield {
+            kind: 'tool_call_complete',
+            callId: 'call_streamer',
+            toolName: 'streamer',
+            arguments: {}
+          }
+          yield { kind: 'completed', stopReason: 'tool_calls' }
+          return
+        }
+        yield { kind: 'completed', stopReason: 'stop' }
+      }
+    }, { tools: [streamingTool] })
     await bootstrapThread(h)
     const status = await h.loop.runTurn(h.threadId, h.turnId)
     expect(status).toBe('completed')
     const events = await h.sessionStore.loadEventsSince(h.threadId, 0)
-    expect(events.some((event) => event.kind === 'item_updated')).toBe(true)
-    const partialUpdate = events.find(
+    expect(events.some((event) => event.kind === 'item_created' || event.kind === 'item_updated')).toBe(true)
+    const partialEvent = events.find(
       (event) =>
-        event.kind === 'item_updated' &&
+        (event.kind === 'item_created' || event.kind === 'item_updated') &&
         event.item.kind === 'tool_result' &&
         (event.item.output as { partial?: string }).partial === 'hello'
     )
-    expect(partialUpdate).toBeDefined()
+    expect(partialEvent).toBeDefined()
   })
 
   it('waits for GUI user input tool responses and resumes the turn', async () => {
@@ -1093,25 +1135,59 @@ describe('AgentLoop', () => {
 
   it('injects active goal guidance and goal status tools into model requests', async () => {
     const observedRequests: ModelRequest[] = []
-    const goalTools = [GET_GOAL_TOOL_NAME, UPDATE_GOAL_TOOL_NAME].map((name) =>
+    let h: ReturnType<typeof makeHarness>
+    const goalTools = [
       LocalToolHost.defineTool({
-        name,
-        description: name,
+        name: GET_GOAL_TOOL_NAME,
+        description: GET_GOAL_TOOL_NAME,
         inputSchema: {
           type: 'object',
           properties: {},
           additionalProperties: false
         },
         policy: 'auto',
-        execute: async () => ({ output: { ok: true } })
+        execute: async (_args, context) => ({ output: { goal: await h.threads.getGoal(context.threadId) } })
+      }),
+      LocalToolHost.defineTool({
+        name: UPDATE_GOAL_TOOL_NAME,
+        description: UPDATE_GOAL_TOOL_NAME,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', enum: ['complete', 'blocked'] }
+          },
+          required: ['status'],
+          additionalProperties: false
+        },
+        policy: 'auto',
+        execute: async (args, context) => {
+          const status = args.status
+          if (status !== 'complete' && status !== 'blocked') {
+            return { output: { error: 'invalid status' }, isError: true }
+          }
+          const goal = await h.threads.setGoal(context.threadId, { status })
+          return { output: { goal } }
+        }
       })
-    )
-    const h = makeHarness(
+    ]
+    let calls = 0
+    h = makeHarness(
       {
         provider: 'capture-goal',
         model: 'capture-goal',
         async *stream(request: ModelRequest): AsyncIterable<ModelStreamChunk> {
           observedRequests.push(request)
+          calls += 1
+          if (calls === 1) {
+            yield {
+              kind: 'tool_call_complete',
+              callId: 'call_complete_goal_guidance',
+              toolName: UPDATE_GOAL_TOOL_NAME,
+              arguments: { status: 'complete' }
+            }
+            yield { kind: 'completed', stopReason: 'tool_calls' }
+            return
+          }
           yield { kind: 'completed', stopReason: 'stop' }
         }
       },

@@ -14,8 +14,20 @@ import {
   type KunRuntimeSettingsV1,
   type KunSettingsEnvelopePatchV1,
   type KunSettingsEnvelopeV1,
+  type KunAutomationAuditLogSettingsV1,
+  type KunAutomationPermissionModeV1,
+  type KunAutomationPermissionsV1,
+  type KunAutomationSettingsV1,
   type KunStorageSettingsV1,
+  type KunSubagentSettingsV1,
+  type KunSubagentWorkflowPresetIdV1,
+  type KunSubagentWorkflowPresetSettingsV1,
   type KunTokenEconomySettingsV1,
+  type UserAgentStackCliStatusV1,
+  type UserAgentStackMcpServerV1,
+  type UserAgentStackProfileV1,
+  type UserAgentStackSkillRootV1,
+  type UserAgentStackValidationErrorV1,
   type ModelProviderSettingsV1,
   type ApprovalPolicy,
   type SandboxMode
@@ -24,10 +36,19 @@ import {
   normalizeModelProviderSettings,
   resolveKunRuntimeSettings
 } from './app-settings-provider'
+import { compactStrings } from './app-settings-normalizers'
 
 const LEGACY_COREAGENT_DATA_DIR = '~/.deepseekgui/coreagent'
 const LEGACY_KUN_DEFAULT_MODEL = 'deepseek-chat'
 const LEGACY_LOCAL_HTTP_DEFAULT_PORT = 7878
+const DEFAULT_KUN_CHILD_MODEL = 'deepseek-v4-flash'
+const DEFAULT_KUN_AUTOMATION_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '::1']
+const SUBAGENT_WORKFLOW_PRESET_IDS = [
+  'review_swarm',
+  'implementation_split',
+  'research_split',
+  'audit_split'
+] as const
 
 type LegacyLocalHttpRuntimeSettingsV1 = {
   binaryPath: string
@@ -106,7 +127,107 @@ export function defaultKunRuntimeSettings(
     mcpSearch: defaultKunMcpSearchSettings(),
     storage: defaultKunStorageSettings(),
     contextCompaction: defaultKunContextCompactionSettings(),
-    runtimeTuning: defaultKunRuntimeTuningSettings()
+    runtimeTuning: defaultKunRuntimeTuningSettings(),
+    userAgentStack: defaultUserAgentStackProfile(),
+    subagents: defaultKunSubagentSettings(),
+    automation: defaultKunAutomationSettings()
+  }
+}
+
+export function defaultKunAutomationSettings(): KunAutomationSettingsV1 {
+  return {
+    enabled: false,
+    browserWorkbenchEnabled: true,
+    localDevOnly: true,
+    allowedHosts: [...DEFAULT_KUN_AUTOMATION_ALLOWED_HOSTS],
+    permissions: {
+      browserNavigation: 'ask',
+      browserInteraction: 'ask',
+      screenshots: 'ask',
+      localFileAccess: 'deny',
+      appControl: 'deny'
+    },
+    auditLog: {
+      enabled: true,
+      maxEntries: 500
+    }
+  }
+}
+
+export function defaultKunSubagentSettings(): KunSubagentSettingsV1 {
+  return {
+    enabled: false,
+    defaultModel: DEFAULT_KUN_CHILD_MODEL,
+    defaultPreset: 'research_split',
+    maxParallel: 2,
+    maxChildRuns: 4,
+    maxTotalChildTokens: 50_000,
+    maxChildCostUsd: 1,
+    perAgentTimeoutMs: 120_000,
+    workflowPresets: {
+      review_swarm: {
+        id: 'review_swarm',
+        enabled: true,
+        label: 'Review swarm',
+        defaultModel: DEFAULT_KUN_CHILD_MODEL,
+        maxParallel: 4,
+        maxChildRuns: 8,
+        maxTotalChildTokens: 80_000,
+        maxChildCostUsd: 1,
+        perAgentTimeoutMs: 90_000
+      },
+      implementation_split: {
+        id: 'implementation_split',
+        enabled: true,
+        label: 'Implementation split',
+        defaultModel: DEFAULT_KUN_CHILD_MODEL,
+        maxParallel: 2,
+        maxChildRuns: 4,
+        maxTotalChildTokens: 70_000,
+        maxChildCostUsd: 1.5,
+        perAgentTimeoutMs: 180_000
+      },
+      research_split: {
+        id: 'research_split',
+        enabled: true,
+        label: 'Research split',
+        defaultModel: DEFAULT_KUN_CHILD_MODEL,
+        maxParallel: 3,
+        maxChildRuns: 6,
+        maxTotalChildTokens: 50_000,
+        maxChildCostUsd: 1,
+        perAgentTimeoutMs: 120_000
+      },
+      audit_split: {
+        id: 'audit_split',
+        enabled: true,
+        label: 'Audit split',
+        defaultModel: DEFAULT_KUN_CHILD_MODEL,
+        maxParallel: 3,
+        maxChildRuns: 6,
+        maxTotalChildTokens: 80_000,
+        maxChildCostUsd: 1.5,
+        perAgentTimeoutMs: 150_000
+      }
+    }
+  }
+}
+
+export function defaultUserAgentStackProfile(): UserAgentStackProfileV1 {
+  const profile = {
+    enabled: true,
+    importedAt: '',
+    refreshedAt: '',
+    sourcePaths: [],
+    skillRoots: [],
+    mcpServers: [],
+    cli: [],
+    redactedPreviewJson: '',
+    validationErrors: []
+  }
+  return {
+    ...profile,
+    redactedPreviewJson: JSON.stringify(profile, null, 2)
   }
 }
 
@@ -248,6 +369,37 @@ export function mergeKunRuntimeSettings(
         }
       : {})
   })
+  const currentUserAgentStack = normalizeUserAgentStackProfile(current.userAgentStack)
+  const nextUserAgentStack = normalizeUserAgentStackProfile({
+    ...currentUserAgentStack,
+    ...(patch?.userAgentStack ?? {})
+  })
+  const currentSubagents = normalizeKunSubagentSettings(current.subagents)
+  const mergedSubagentWorkflowPresets = {} as Record<KunSubagentWorkflowPresetIdV1, KunSubagentWorkflowPresetSettingsV1>
+  for (const id of SUBAGENT_WORKFLOW_PRESET_IDS) {
+    mergedSubagentWorkflowPresets[id] = {
+      ...currentSubagents.workflowPresets[id],
+      ...(patch?.subagents?.workflowPresets?.[id] ?? {})
+    }
+  }
+  const nextSubagents = normalizeKunSubagentSettings({
+    ...currentSubagents,
+    ...(patch?.subagents ?? {}),
+    workflowPresets: mergedSubagentWorkflowPresets
+  })
+  const currentAutomation = normalizeKunAutomationSettings(current.automation)
+  const nextAutomation = normalizeKunAutomationSettings({
+    ...currentAutomation,
+    ...(patch?.automation ?? {}),
+    permissions: {
+      ...currentAutomation.permissions,
+      ...(patch?.automation?.permissions ?? {})
+    },
+    auditLog: {
+      ...currentAutomation.auditLog,
+      ...(patch?.automation?.auditLog ?? {})
+    }
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -256,8 +408,238 @@ export function mergeKunRuntimeSettings(
     mcpSearch: nextMcpSearch,
     storage: nextStorage,
     contextCompaction: nextContextCompaction,
-    runtimeTuning: nextRuntimeTuning
+    runtimeTuning: nextRuntimeTuning,
+    userAgentStack: nextUserAgentStack,
+    subagents: nextSubagents,
+    automation: nextAutomation
   }
+}
+
+function normalizeKunAutomationSettings(
+  input: Partial<KunAutomationSettingsV1> | undefined
+): KunAutomationSettingsV1 {
+  const defaults = defaultKunAutomationSettings()
+  return {
+    enabled: input?.enabled === true,
+    browserWorkbenchEnabled: input?.browserWorkbenchEnabled !== false,
+    localDevOnly: input?.localDevOnly !== false,
+    allowedHosts: normalizeAutomationAllowedHosts(input?.allowedHosts),
+    permissions: normalizeAutomationPermissions(input?.permissions),
+    auditLog: normalizeAutomationAuditLogSettings(input?.auditLog)
+  }
+}
+
+function normalizeAutomationPermissions(
+  input: Partial<KunAutomationPermissionsV1> | undefined
+): KunAutomationPermissionsV1 {
+  const defaults = defaultKunAutomationSettings().permissions
+  return {
+    browserNavigation: normalizeAutomationPermissionMode(input?.browserNavigation, defaults.browserNavigation),
+    browserInteraction: normalizeAutomationPermissionMode(input?.browserInteraction, defaults.browserInteraction),
+    screenshots: normalizeAutomationPermissionMode(input?.screenshots, defaults.screenshots),
+    localFileAccess: normalizeAutomationPermissionMode(input?.localFileAccess, defaults.localFileAccess),
+    appControl: normalizeAutomationPermissionMode(input?.appControl, defaults.appControl)
+  }
+}
+
+function normalizeAutomationAuditLogSettings(
+  input: Partial<KunAutomationAuditLogSettingsV1> | undefined
+): KunAutomationAuditLogSettingsV1 {
+  const defaults = defaultKunAutomationSettings().auditLog
+  return {
+    enabled: input?.enabled !== false,
+    maxEntries: boundedPositiveInt(input?.maxEntries, defaults.maxEntries, 10_000)
+  }
+}
+
+function normalizeAutomationPermissionMode(
+  value: unknown,
+  fallback: KunAutomationPermissionModeV1
+): KunAutomationPermissionModeV1 {
+  return value === 'deny' || value === 'ask' || value === 'allow' ? value : fallback
+}
+
+function normalizeAutomationAllowedHosts(values: unknown): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const rawValues = Array.isArray(values) && values.length > 0
+    ? values
+    : DEFAULT_KUN_AUTOMATION_ALLOWED_HOSTS
+  for (const value of rawValues) {
+    if (typeof value !== 'string') continue
+    const host = value.trim().toLowerCase().replace(/^\[/, '').replace(/\]$/, '')
+    if (!host || seen.has(host)) continue
+    seen.add(host)
+    out.push(host)
+    if (out.length >= 128) break
+  }
+  return out.length > 0 ? out : [...DEFAULT_KUN_AUTOMATION_ALLOWED_HOSTS]
+}
+
+function normalizeKunSubagentSettings(
+  input: Partial<KunSubagentSettingsV1> | undefined
+): KunSubagentSettingsV1 {
+  const defaults = defaultKunSubagentSettings()
+  const defaultPreset = isSubagentPresetId(input?.defaultPreset)
+    ? input.defaultPreset
+    : defaults.defaultPreset
+  const workflowPresets = {} as Record<KunSubagentWorkflowPresetIdV1, KunSubagentWorkflowPresetSettingsV1>
+  for (const id of SUBAGENT_WORKFLOW_PRESET_IDS) {
+    workflowPresets[id] = normalizeKunSubagentPreset(id, input?.workflowPresets?.[id], defaults.workflowPresets[id])
+  }
+  return {
+    enabled: input?.enabled === true,
+    defaultModel: nonEmptyTrimmedString(input?.defaultModel, defaults.defaultModel),
+    defaultPreset,
+    maxParallel: boundedPositiveIntClampZero(input?.maxParallel, defaults.maxParallel, 64),
+    maxChildRuns: boundedPositiveInt(input?.maxChildRuns, defaults.maxChildRuns, 1_000),
+    maxTotalChildTokens: boundedPositiveInt(input?.maxTotalChildTokens, defaults.maxTotalChildTokens, 10_000_000),
+    maxChildCostUsd: boundedNonNegativeNumber(input?.maxChildCostUsd, defaults.maxChildCostUsd, 10_000),
+    perAgentTimeoutMs: boundedPositiveInt(input?.perAgentTimeoutMs, defaults.perAgentTimeoutMs, 600_000),
+    workflowPresets
+  }
+}
+
+function normalizeKunSubagentPreset(
+  id: KunSubagentWorkflowPresetIdV1,
+  input: Partial<KunSubagentWorkflowPresetSettingsV1> | undefined,
+  defaults: KunSubagentWorkflowPresetSettingsV1
+): KunSubagentWorkflowPresetSettingsV1 {
+  return {
+    id,
+    enabled: input?.enabled !== false,
+    label: nonEmptyTrimmedString(input?.label, defaults.label),
+    defaultModel: nonEmptyTrimmedString(input?.defaultModel, defaults.defaultModel),
+    maxParallel: boundedPositiveIntClampZero(input?.maxParallel, defaults.maxParallel, 64),
+    maxChildRuns: boundedPositiveInt(input?.maxChildRuns, defaults.maxChildRuns, 1_000),
+    maxTotalChildTokens: boundedPositiveInt(input?.maxTotalChildTokens, defaults.maxTotalChildTokens, 10_000_000),
+    maxChildCostUsd: boundedNonNegativeNumber(input?.maxChildCostUsd, defaults.maxChildCostUsd, 10_000),
+    perAgentTimeoutMs: boundedPositiveInt(input?.perAgentTimeoutMs, defaults.perAgentTimeoutMs, 600_000)
+  }
+}
+
+function isSubagentPresetId(value: unknown): value is KunSubagentWorkflowPresetIdV1 {
+  return typeof value === 'string' && (SUBAGENT_WORKFLOW_PRESET_IDS as readonly string[]).includes(value)
+}
+
+function nonEmptyTrimmedString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+function normalizeUserAgentStackProfile(
+  input: Partial<UserAgentStackProfileV1> | undefined
+): UserAgentStackProfileV1 {
+  const defaults = defaultUserAgentStackProfile()
+  const skillRoots = Array.isArray(input?.skillRoots)
+    ? input.skillRoots.map(normalizeUserAgentStackSkillRoot).filter((item): item is UserAgentStackSkillRootV1 => item !== null)
+    : defaults.skillRoots
+  const mcpServers = Array.isArray(input?.mcpServers)
+    ? input.mcpServers.map(normalizeUserAgentStackMcpServer).filter((item): item is UserAgentStackMcpServerV1 => item !== null)
+    : defaults.mcpServers
+  const cli = Array.isArray(input?.cli)
+    ? input.cli.map(normalizeUserAgentStackCliStatus).filter((item): item is UserAgentStackCliStatusV1 => item !== null)
+    : defaults.cli
+  const validationErrors = Array.isArray(input?.validationErrors)
+    ? input.validationErrors
+      .map(normalizeUserAgentStackValidationError)
+      .filter((item): item is UserAgentStackValidationErrorV1 => item !== null)
+    : defaults.validationErrors
+  const sourcePaths = compactStrings(input?.sourcePaths)
+  const profile: UserAgentStackProfileV1 = {
+    enabled: input?.enabled !== false,
+    importedAt: typeof input?.importedAt === 'string' ? input.importedAt : defaults.importedAt,
+    refreshedAt: typeof input?.refreshedAt === 'string' ? input.refreshedAt : defaults.refreshedAt,
+    sourcePaths,
+    skillRoots,
+    mcpServers,
+    cli,
+    redactedPreviewJson: typeof input?.redactedPreviewJson === 'string'
+      ? input.redactedPreviewJson
+      : defaults.redactedPreviewJson,
+    validationErrors
+  }
+  if (!profile.redactedPreviewJson.trim()) {
+    profile.redactedPreviewJson = JSON.stringify({
+      sourcePaths: profile.sourcePaths,
+      skillRoots: profile.skillRoots,
+      mcpServers: profile.mcpServers,
+      cli: profile.cli,
+      validationErrors: profile.validationErrors
+    }, null, 2)
+  }
+  return profile
+}
+
+function normalizeUserAgentStackSkillRoot(value: unknown): UserAgentStackSkillRootV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<UserAgentStackSkillRootV1>
+  const path = typeof raw.path === 'string' ? raw.path.trim() : ''
+  if (!path) return null
+  return {
+    path,
+    scope: raw.scope === 'project' || raw.scope === 'plugin' || raw.scope === 'user'
+      ? raw.scope
+      : 'user',
+    source: typeof raw.source === 'string' && raw.source.trim() ? raw.source.trim() : 'imported',
+    available: raw.available !== false
+  }
+}
+
+function normalizeUserAgentStackMcpServer(value: unknown): UserAgentStackMcpServerV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<UserAgentStackMcpServerV1>
+  const id = typeof raw.id === 'string' ? raw.id.trim() : ''
+  const transport = raw.transport === 'stdio' || raw.transport === 'streamable-http' || raw.transport === 'sse'
+    ? raw.transport
+    : undefined
+  if (!id || !transport) return null
+  return {
+    id,
+    enabled: raw.enabled !== false,
+    transport,
+    ...(typeof raw.command === 'string' && raw.command.trim() ? { command: raw.command.trim() } : {}),
+    args: compactStrings(raw.args),
+    ...(typeof raw.url === 'string' && raw.url.trim() ? { url: raw.url.trim() } : {}),
+    headers: stringRecord(raw.headers),
+    env: stringRecord(raw.env),
+    trustScope: raw.trustScope === 'workspace' ? 'workspace' : 'user',
+    trustedWorkspaceRoots: compactStrings(raw.trustedWorkspaceRoots),
+    ...(typeof raw.timeoutMs === 'number' && Number.isInteger(raw.timeoutMs) && raw.timeoutMs > 0
+      ? { timeoutMs: raw.timeoutMs }
+      : {}),
+    ...(typeof raw.sourcePath === 'string' && raw.sourcePath.trim() ? { sourcePath: raw.sourcePath.trim() } : {})
+  }
+}
+
+function normalizeUserAgentStackCliStatus(value: unknown): UserAgentStackCliStatusV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<UserAgentStackCliStatusV1>
+  const name = typeof raw.name === 'string' ? raw.name.trim() : ''
+  if (!name) return null
+  return {
+    name,
+    available: raw.available === true,
+    ...(typeof raw.path === 'string' && raw.path.trim() ? { path: raw.path.trim() } : {}),
+    ...(typeof raw.version === 'string' && raw.version.trim() ? { version: raw.version.trim() } : {}),
+    ...(typeof raw.message === 'string' && raw.message.trim() ? { message: raw.message.trim() } : {})
+  }
+}
+
+function normalizeUserAgentStackValidationError(value: unknown): UserAgentStackValidationErrorV1 | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Partial<UserAgentStackValidationErrorV1>
+  const source = typeof raw.source === 'string' ? raw.source.trim() : ''
+  const message = typeof raw.message === 'string' ? raw.message.trim() : ''
+  return source && message ? { source, message } : null
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === 'string') out[key] = item
+  }
+  return out
 }
 
 function normalizeKunTokenEconomySettings(
@@ -325,9 +707,19 @@ function nonNegativeNumber(value: unknown, fallback: number): number {
     : fallback
 }
 
+function boundedNonNegativeNumber(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback
+  return Math.min(value, max)
+}
+
 function boundedPositiveInt(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback
   return Math.min(Math.floor(value), max)
+}
+
+function boundedPositiveIntClampZero(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
+  if (value === 0) return 1
+  return boundedPositiveInt(value, fallback, max)
 }
 
 function normalizeKunStorageSettings(

@@ -218,8 +218,51 @@ Shape:
     },
     "subagents": {
       "enabled": false,
+      "defaultModel": "deepseek-v4-flash",
+      "defaultPreset": "research_split",
       "maxParallel": 2,
-      "maxChildRuns": 4
+      "maxChildRuns": 4,
+      "maxTotalChildTokens": 50000,
+      "maxChildCostUsd": 1,
+      "perAgentTimeoutMs": 120000,
+      "workflowPresets": {
+        "review_swarm": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 4,
+          "maxChildRuns": 8,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 90000
+        },
+        "implementation_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 2,
+          "maxChildRuns": 4,
+          "maxTotalChildTokens": 70000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 180000
+        },
+        "research_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 50000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 120000
+        },
+        "audit_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 150000
+        }
+      }
     },
     "attachments": {
       "enabled": false,
@@ -266,7 +309,7 @@ Feature flags are intentionally explicit:
 - `capabilities.skills` scans configured roots for `skill.json` manifests and, when `legacySkillMd` is true, older `SKILL.md` directories.
 - `capabilities.attachments` stores image bytes outside thread logs and allows turns to reference `attachmentIds`. Vision-capable models receive image parts; text-only models receive a bounded compressed base64 text fallback.
 - `capabilities.memory` stores long-term records under the data dir, retrieves scoped matches before turns, and exposes `memory_create`, `memory_update`, and `memory_delete` tools.
-- `capabilities.subagents` exposes `delegate_task` with `maxParallel` and `maxChildRuns` concurrency budgets.
+- `capabilities.subagents` exposes `delegate_task` with cheap child-model defaults, `review_swarm` / `implementation_split` / `research_split` / `audit_split` presets, and hard parallel, run-count, token, cost, and per-agent timeout budgets. Completed child usage is folded into the parent thread's usage and runtime diagnostics include child runs, aggregate usage, cache telemetry, and summaries.
 
 Use `GET /v1/runtime/info` for the runtime capability manifest and
 `GET /v1/runtime/tools` for redacted provider diagnostics. The GUI

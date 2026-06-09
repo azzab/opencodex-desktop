@@ -19,7 +19,11 @@ export function buildDelegationToolProviders(runtime: DelegationRuntime | undefi
             label: { type: 'string' },
             prompt: { type: 'string' },
             workspace: { type: 'string' },
-            model: { type: 'string' }
+            model: { type: 'string' },
+            preset: {
+              type: 'string',
+              enum: ['review_swarm', 'implementation_split', 'research_split', 'audit_split']
+            }
           },
           required: ['prompt'],
           additionalProperties: false
@@ -35,13 +39,16 @@ export function buildDelegationToolProviders(runtime: DelegationRuntime | undefi
             label: typeof args.label === 'string' ? args.label : undefined,
             prompt,
             workspace: typeof args.workspace === 'string' ? args.workspace : context.workspace,
-            model: typeof args.model === 'string' ? args.model : context.model?.id,
+            model: typeof args.model === 'string' ? args.model : undefined,
+            preset: typeof args.preset === 'string' ? args.preset : undefined,
             signal: context.abortSignal
           })
           return {
             output: {
               childId: record.id,
               status: record.status,
+              preset: record.preset,
+              model: record.model,
               summary: record.summary,
               error: record.error,
               usage: record.usage,

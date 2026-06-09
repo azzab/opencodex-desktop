@@ -21,9 +21,14 @@ import type {
   RuntimeRequestResult,
   SystemNotificationResult,
   TurnCompleteNotificationPayload,
+  ModelProviderCatalogRefreshResult,
   UpstreamModelsResult,
   WorkspacePickResult
 } from '../../shared/ds-gui-api'
+import {
+  getModelProviderProfile,
+  getModelProviderSettings
+} from '../../shared/app-settings-provider'
 import type { GuiUpdateDownloadResult, GuiUpdateInfo, GuiUpdateInstallResult, GuiUpdateState } from '../../shared/gui-update'
 import {
   clawMirrorPayloadSchema,
@@ -35,6 +40,7 @@ import {
   gitBranchPayloadSchema,
   guiUpdateChannelSchema,
   logErrorPayloadSchema,
+  modelProviderCatalogPayloadSchema,
   notificationPayloadSchema,
   openEditorPathPayloadSchema,
   rootPathSchema,
@@ -45,6 +51,7 @@ import {
   skillSaveFilePayloadSchema,
   settingsPatchSchema,
   streamIdSchema,
+  userAgentStackImportPayloadSchema,
   workspaceDirectoryCreatePayloadSchema,
   workspaceClipboardImageSavePayloadSchema,
   workspaceDirectoryTargetPayloadSchema,
@@ -88,6 +95,8 @@ import {
 } from '../services/write-inline-completion-service'
 import { copyWriteDocumentAsRichText, exportWriteDocument } from '../services/write-export-service'
 import { listGuiSkills } from '../services/skill-service'
+import { discoverUserAgentStackProfile } from '../services/user-agent-stack-service'
+import { fetchModelProviderCatalog } from '../upstream-models'
 
 type GuiUpdaterModule = typeof import('../gui-updater')
 
@@ -147,6 +156,15 @@ function validateMcpConfigContent(content: string): void {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('MCP config must be a JSON object.')
   }
+}
+
+function mergeProviderModelIds(current: readonly string[], next: readonly string[]): string[] {
+  const ids = new Set<string>()
+  for (const id of [...current, ...next]) {
+    const trimmed = id.trim()
+    if (trimmed) ids.add(trimmed)
+  }
+  return [...ids].sort((a, b) => a.localeCompare(b))
 }
 
 function runDesktopCommand(
@@ -330,6 +348,46 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
   })
 
   ipcMain.handle('upstream:models', async () => fetchUpstreamModels())
+  ipcMain.handle('model-provider:catalog:refresh', async (_event, payload: unknown): Promise<ModelProviderCatalogRefreshResult> => {
+    const request = parseIpcPayload(
+      'model-provider:catalog:refresh',
+      modelProviderCatalogPayloadSchema,
+      payload
+    )
+    const settings = await store.load()
+    const providerSettings = getModelProviderSettings(settings)
+    const provider = getModelProviderProfile(settings, request.providerId)
+    const result = await fetchModelProviderCatalog({ provider })
+    if (!result.ok) {
+      return { ok: false, message: result.message }
+    }
+    const catalogModelIds = result.catalogModels.map((model) => model.id)
+    const providers = providerSettings.providers.map((profile) =>
+      profile.id === provider.id
+        ? {
+            ...profile,
+            models: mergeProviderModelIds(profile.models, catalogModelIds),
+            catalogUpdatedAt: result.catalogUpdatedAt,
+            catalogError: '',
+            catalogModels: result.catalogModels
+          }
+        : profile
+    )
+    const nextSettings = await applySettingsPatch({
+      provider: {
+        apiKey: providerSettings.apiKey,
+        baseUrl: providerSettings.baseUrl,
+        providers
+      }
+    })
+    const nextProvider = getModelProviderProfile(nextSettings, provider.id)
+    return {
+      ok: true,
+      provider: nextProvider,
+      catalogModels: nextProvider.catalogModels,
+      settings: nextSettings
+    }
+  })
 
   ipcMain.handle('claw:status', async (): Promise<ClawRuntimeStatus> =>
     getClawRuntime()?.status() ?? {
@@ -564,6 +622,53 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
       const dirPath = dirname(path)
       await mkdir(dirPath, { recursive: true })
       return openPathWithShell(dirPath)
+    } catch (error) {
+      return {
+        ok: false as const,
+        message: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+
+  ipcMain.handle('user-agent-stack:preview', async (_, payload: unknown) => {
+    try {
+      const request = parseIpcPayload(
+        'user-agent-stack:preview',
+        userAgentStackImportPayloadSchema,
+        payload ?? {}
+      )
+      const settings = await store.load()
+      const profile = await discoverUserAgentStackProfile({
+        workspaceRoot: request.workspaceRoot || settings.workspaceRoot
+      })
+      return { ok: true as const, profile }
+    } catch (error) {
+      return {
+        ok: false as const,
+        message: error instanceof Error ? error.message : String(error)
+      }
+    }
+  })
+
+  ipcMain.handle('user-agent-stack:import', async (_, payload: unknown) => {
+    try {
+      const request = parseIpcPayload(
+        'user-agent-stack:import',
+        userAgentStackImportPayloadSchema,
+        payload ?? {}
+      )
+      const settings = await store.load()
+      const profile = await discoverUserAgentStackProfile({
+        workspaceRoot: request.workspaceRoot || settings.workspaceRoot
+      })
+      const nextSettings = await applySettingsPatch({
+        agents: {
+          kun: {
+            userAgentStack: profile
+          }
+        }
+      })
+      return { ok: true as const, profile, settings: nextSettings }
     } catch (error) {
       return {
         ok: false as const,

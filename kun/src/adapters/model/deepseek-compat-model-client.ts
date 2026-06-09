@@ -2,6 +2,11 @@ import type { ModelClient, ModelRequest, ModelStreamChunk, ModelToolSpec } from 
 import type { TurnItem } from '../../contracts/items.js'
 import { emptyUsageSnapshot, type UsageSnapshot } from '../../contracts/usage.js'
 import { estimateDeepseekCacheSavings, estimateDeepseekCost } from './deepseek-pricing.js'
+import {
+  estimateModelCacheSavings,
+  estimateModelUsageCost,
+  type ModelPricingUsdPerMillion
+} from './model-pricing.js'
 import { isToolResultBridgeItem, repairModelHistoryItems } from '../../domain/model-history-repair.js'
 import { repairToolArguments } from './tool-argument-repair.js'
 import { isDeepSeekHost, probeDeepSeekReachable } from './model-error-probe.js'
@@ -26,6 +31,8 @@ export type DeepseekCompatConfig = {
   nonStreaming?: boolean
   /** Maximum idle time between streaming chunks before the turn fails. */
   streamIdleTimeoutMs?: number
+  /** Catalog-backed USD prices by model id, expressed per 1M tokens. */
+  modelPricingUsdPerMillion?: Record<string, ModelPricingUsdPerMillion>
 }
 
 type ChatMessage = {
@@ -149,14 +156,18 @@ export class DeepseekCompatModelClient implements ModelClient {
     }
     if (this.config.nonStreaming || response.headers.get('content-type')?.includes('application/json')) {
       const json = (await response.json()) as ChatCompletionResponse
-      yield* this.materializeNonStreaming(json)
+      yield* this.materializeNonStreaming(json, typeof body.model === 'string' ? body.model : undefined)
       return
     }
     if (!response.body) {
       yield { kind: 'error', message: 'model response had no body' }
       return
     }
-    yield* this.streamSse(response.body, request.abortSignal)
+    yield* this.streamSse(
+      response.body,
+      request.abortSignal,
+      typeof body.model === 'string' ? body.model : undefined
+    )
   }
 
   private buildUrl(path: string): string {
@@ -435,7 +446,8 @@ export class DeepseekCompatModelClient implements ModelClient {
 
   private async *streamSse(
     body: ReadableStream<Uint8Array>,
-    signal: AbortSignal
+    signal: AbortSignal,
+    requestedModel?: string
   ): AsyncIterable<ModelStreamChunk> {
     const decoder = new TextDecoder('utf-8')
     const reader = body.getReader()
@@ -490,7 +502,8 @@ export class DeepseekCompatModelClient implements ModelClient {
             payload as Record<string, unknown>,
             pendingArguments,
             textAccumulator,
-            reasoningAccumulator
+            reasoningAccumulator,
+            requestedModel
           )
           textAccumulator = result.text
           reasoningAccumulator = result.reasoning
@@ -531,7 +544,8 @@ export class DeepseekCompatModelClient implements ModelClient {
     payload: Record<string, unknown>,
     pendingArguments: Map<string, PendingToolCall>,
     textAccumulator: string,
-    reasoningAccumulator: string
+    reasoningAccumulator: string,
+    requestedModel?: string
   ): {
     chunks: ModelStreamChunk[]
     text: string
@@ -591,7 +605,10 @@ export class DeepseekCompatModelClient implements ModelClient {
     }
     const usagePayload = payload.usage as Record<string, unknown> | undefined
     if (usagePayload) {
-      usage = this.mapUsage(usagePayload)
+      usage = this.mapUsage(
+        usagePayload,
+        typeof payload.model === 'string' ? payload.model : requestedModel
+      )
     }
     if (finishReason === 'tool_calls' && pendingArguments.size > 0) {
       for (const [callId, value] of pendingArguments) {
@@ -610,7 +627,8 @@ export class DeepseekCompatModelClient implements ModelClient {
   }
 
   private *materializeNonStreaming(
-    payload: ChatCompletionResponse
+    payload: ChatCompletionResponse,
+    requestedModel?: string
   ): Generator<ModelStreamChunk> {
     const choice = payload.choices?.[0]
     if (!choice) {
@@ -637,7 +655,7 @@ export class DeepseekCompatModelClient implements ModelClient {
       }
     }
     if (payload.usage) {
-      yield { kind: 'usage', usage: this.mapUsage(payload.usage) }
+      yield { kind: 'usage', usage: this.mapUsage(payload.usage, payload.model || requestedModel) }
     }
     let stopReason: 'stop' | 'tool_calls' | 'length' | 'error' = 'stop'
     if (choice.finish_reason === 'tool_calls') stopReason = 'tool_calls'
@@ -646,57 +664,136 @@ export class DeepseekCompatModelClient implements ModelClient {
     yield { kind: 'completed', stopReason }
   }
 
-  private mapUsage(usage: Record<string, unknown>): UsageSnapshot {
+  private mapUsage(usage: Record<string, unknown>, model?: string): UsageSnapshot {
+    const resolvedModel = model?.trim() || this.config.model
     const promptTokens = Number(usage.prompt_tokens ?? usage.prompt_eval_count ?? 0) || 0
     const completionTokens = Number(usage.completion_tokens ?? usage.eval_count ?? 0) || 0
     const totalTokens = Number(usage.total_tokens ?? promptTokens + completionTokens) || 0
-    const promptDetails = usage.prompt_tokens_details as
-      | { cached_tokens?: number }
-      | undefined
-    const nativeHit = Number(usage.prompt_cache_hit_tokens ?? 0) || 0
-    const nativeMiss = Number(usage.prompt_cache_miss_tokens ?? 0) || 0
-    const hasNativeCache = nativeHit > 0 || nativeMiss > 0
-    const cachedTokens = Number(promptDetails?.cached_tokens ?? 0) || 0
-    const cacheRead = Number(usage.cache_read_input_tokens ?? 0) || 0
-    const cacheCreation = Number(usage.cache_creation_input_tokens ?? 0) || 0
-    const cacheHit = hasNativeCache ? nativeHit : (cachedTokens > 0 ? cachedTokens : cacheRead)
-    const cacheMiss = hasNativeCache ? nativeMiss : Math.max(promptTokens - cacheHit, 0)
-    const cacheTotal = cacheHit + cacheMiss
-    const cacheHitRate = cacheTotal === 0 ? null : cacheHit / cacheTotal
-    const estimatedCost = estimateDeepseekCost({
-      model: this.config.model,
-      providerHost: this.config.baseUrl,
-      cacheHitTokens: cacheHit,
-      cacheMissTokens: cacheMiss,
-      outputTokens: completionTokens
-    })
-    const estimatedSavings = estimateDeepseekCacheSavings({
-      model: this.config.model,
-      providerHost: this.config.baseUrl,
-      cacheHitTokens: cacheHit
-    })
+    const cache = usageCacheTelemetry(usage, promptTokens)
+    const catalogPricing = this.modelPricingFor(resolvedModel)
+    const estimatedModelCost = catalogPricing
+      ? estimateModelUsageCost({
+          model: resolvedModel,
+          pricingUsdPerMillion: catalogPricing,
+          inputTokens: promptTokens,
+          ...(cache.cacheHitTokens !== undefined ? { cacheHitTokens: cache.cacheHitTokens } : {}),
+          ...(cache.cacheMissTokens !== undefined ? { cacheMissTokens: cache.cacheMissTokens } : {}),
+          outputTokens: completionTokens
+        })
+      : null
+    const estimatedModelSavings = catalogPricing && cache.cacheHitTokens !== undefined
+      ? estimateModelCacheSavings({
+          model: resolvedModel,
+          pricingUsdPerMillion: catalogPricing,
+          cacheHitTokens: cache.cacheHitTokens
+        })
+      : null
+    const estimatedDeepseekCost = catalogPricing
+      ? null
+      : estimateDeepseekCost({
+          model: resolvedModel,
+          providerHost: this.config.baseUrl,
+          cacheHitTokens: cache.cacheHitTokens ?? 0,
+          cacheMissTokens: cache.cacheMissTokens ?? promptTokens,
+          outputTokens: completionTokens
+        })
+    const estimatedDeepseekSavings = catalogPricing
+      ? null
+      : estimateDeepseekCacheSavings({
+          model: resolvedModel,
+          providerHost: this.config.baseUrl,
+          cacheHitTokens: cache.cacheHitTokens ?? 0
+        })
     const reportedCostUsd = Number(usage.cost_usd ?? usage.costUsd)
     const reportedCostCny = Number(usage.cost_cny ?? usage.costCny)
-    return {
+    const snapshot: UsageSnapshot = {
       ...emptyUsageSnapshot(),
       promptTokens,
       completionTokens,
       totalTokens,
-      cachedTokens: cacheHit || cachedTokens || cacheRead || 0,
-      cacheHitTokens: cacheHit,
-      cacheMissTokens: cacheMiss,
-      cacheHitRate,
+      cachedTokens: cache.cachedTokens ?? 0,
+      cacheHitTokens: cache.cacheHitTokens,
+      cacheMissTokens: cache.cacheMissTokens,
+      cacheHitRate: cache.cacheHitRate,
       turns: 1,
-      costUsd: Number.isFinite(reportedCostUsd) ? reportedCostUsd : estimatedCost?.costUsd,
-      costCny: Number.isFinite(reportedCostCny) ? reportedCostCny : estimatedCost?.costCny,
-      cacheSavingsUsd: estimatedSavings?.costUsd,
-      cacheSavingsCny: estimatedSavings?.costCny
+      costUsd: Number.isFinite(reportedCostUsd)
+        ? reportedCostUsd
+        : estimatedModelCost?.costUsd ?? estimatedDeepseekCost?.costUsd,
+      costCny: Number.isFinite(reportedCostCny) ? reportedCostCny : estimatedDeepseekCost?.costCny,
+      cacheSavingsUsd: estimatedModelSavings?.costUsd ?? estimatedDeepseekSavings?.costUsd,
+      cacheSavingsCny: estimatedDeepseekSavings?.costCny
     }
+    if (cache.cacheHitTokens === undefined) delete snapshot.cacheHitTokens
+    if (cache.cacheMissTokens === undefined) delete snapshot.cacheMissTokens
+    return snapshot
   }
 
   private parseToolArguments(raw: string): Record<string, unknown> {
     return repairToolArguments(raw).arguments
   }
+
+  private modelPricingFor(model: string): ModelPricingUsdPerMillion | undefined {
+    const normalized = normalizeModelKey(model)
+    if (!normalized) return undefined
+    const configured = this.config.modelPricingUsdPerMillion ?? {}
+    return configured[normalized] ?? configured[normalizeModelKey(this.config.model)]
+  }
+}
+
+function usageCacheTelemetry(
+  usage: Record<string, unknown>,
+  promptTokens: number
+): {
+  cachedTokens?: number
+  cacheHitTokens?: number
+  cacheMissTokens?: number
+  cacheHitRate: number | null
+} {
+  const promptDetails = usage.prompt_tokens_details as
+    | { cached_tokens?: unknown }
+    | undefined
+  const nativeHit = numberField(usage, 'prompt_cache_hit_tokens')
+  const nativeMiss = numberField(usage, 'prompt_cache_miss_tokens')
+  const hasNativeCache = nativeHit !== undefined || nativeMiss !== undefined
+  const detailCached = nonNegativeNumber(promptDetails?.cached_tokens)
+  const cacheRead = numberField(usage, 'cache_read_input_tokens')
+  const cacheCreation = numberField(usage, 'cache_creation_input_tokens')
+
+  let cacheHitTokens: number | undefined
+  let cacheMissTokens: number | undefined
+  if (hasNativeCache) {
+    cacheHitTokens = nativeHit ?? 0
+    cacheMissTokens = nativeMiss ?? Math.max(promptTokens - cacheHitTokens, 0)
+  } else if (detailCached !== undefined || cacheRead !== undefined) {
+    cacheHitTokens = detailCached ?? cacheRead ?? 0
+    cacheMissTokens = Math.max(promptTokens - cacheHitTokens, 0)
+  }
+
+  const cachedTokens = cacheHitTokens !== undefined || cacheCreation !== undefined
+    ? (cacheHitTokens ?? 0) + (cacheCreation ?? 0)
+    : undefined
+  const cacheTotal = (cacheHitTokens ?? 0) + (cacheMissTokens ?? 0)
+  return {
+    ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+    ...(cacheHitTokens !== undefined ? { cacheHitTokens } : {}),
+    ...(cacheMissTokens !== undefined ? { cacheMissTokens } : {}),
+    cacheHitRate: cacheTotal === 0 ? null : (cacheHitTokens ?? 0) / cacheTotal
+  }
+}
+
+function numberField(record: Record<string, unknown>, key: string): number | undefined {
+  return Object.prototype.hasOwnProperty.call(record, key)
+    ? nonNegativeNumber(record[key]) ?? 0
+    : undefined
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : undefined
+}
+
+function normalizeModelKey(model: string | undefined): string {
+  return (model ?? '').trim().toLowerCase()
 }
 
 function normalizeToolSpecs(tools: ModelToolSpec[]): ModelToolSpec[] {

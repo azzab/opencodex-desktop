@@ -188,6 +188,17 @@ export type CoreRuntimeCapabilityManifestJson = {
     search: CoreRuntimeCapabilityStateJson
     provider?: string
   }
+  automation?: CoreRuntimeCapabilityStateJson & {
+    sidecar?: string
+    browserWorkbenchEnabled?: boolean
+    localDevOnly?: boolean
+    allowedHosts?: string[]
+    permissions?: Record<string, string>
+    auditLog?: {
+      enabled?: boolean
+      maxEntries?: number
+    }
+  }
   skills: CoreRuntimeCapabilityStateJson & {
     configuredRoots: number
     discoveredSkills: number
@@ -195,6 +206,22 @@ export type CoreRuntimeCapabilityManifestJson = {
   subagents: CoreRuntimeCapabilityStateJson & {
     maxParallel: number
     maxChildRuns: number
+    maxTotalChildTokens?: number
+    maxChildCostUsd?: number
+    perAgentTimeoutMs?: number
+    defaultModel?: string
+    defaultPreset?: string
+    workflowPresets?: Record<string, {
+      id?: string
+      enabled?: boolean
+      label?: string
+      defaultModel?: string
+      maxParallel?: number
+      maxChildRuns?: number
+      maxTotalChildTokens?: number
+      maxChildCostUsd?: number
+      perAgentTimeoutMs?: number
+    }>
   }
   attachments: CoreRuntimeCapabilityStateJson & {
     maxImageBytes: number
@@ -243,6 +270,7 @@ export type CoreRuntimeToolDiagnosticsJson = {
 	    catalogDrift?: boolean
 	  }
   webProviders?: Array<Record<string, unknown>>
+  automation?: Array<Record<string, unknown>>
   skills?: {
     enabled?: boolean
     roots?: Array<Record<string, unknown>>
@@ -256,6 +284,8 @@ export type CoreRuntimeToolDiagnosticsJson = {
     enabled?: boolean
     active?: number
     childRuns?: Array<Record<string, unknown>>
+    aggregates?: Array<Record<string, unknown>>
+    usage?: CoreUsageSnapshotJson
   }
 }
 
@@ -289,6 +319,9 @@ export type CoreChildRuntimeMetadataJson = {
   childLabel?: string
   childStatus: 'queued' | 'running' | 'completed' | 'failed' | 'aborted'
   childSeq: number
+  childModel?: string
+  childPreset?: string
+  childUsage?: CoreUsageSnapshotJson
 }
 
 export type CoreWebSourceJson = {
@@ -463,7 +496,7 @@ export type CoreUsageSnapshotJson = {
   cachedTokens?: number
   cacheHitTokens?: number
   cacheMissTokens?: number
-  cacheHitRate?: number
+  cacheHitRate?: number | null
   turns?: number
   costUsd?: number
   costCny?: number
@@ -507,6 +540,7 @@ export type CoreRuntimeEventJson = {
   label?: string
   details?: unknown
   summary?: string
+  text?: string
   prompt?: string
   inputId?: string
   questions?: Array<{

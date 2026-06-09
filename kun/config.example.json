@@ -95,8 +95,51 @@
     },
     "subagents": {
       "enabled": false,
-      "maxParallel": 0,
-      "maxChildRuns": 0
+      "defaultModel": "deepseek-v4-flash",
+      "defaultPreset": "research_split",
+      "maxParallel": 2,
+      "maxChildRuns": 4,
+      "maxTotalChildTokens": 50000,
+      "maxChildCostUsd": 1,
+      "perAgentTimeoutMs": 120000,
+      "workflowPresets": {
+        "review_swarm": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 4,
+          "maxChildRuns": 8,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 90000
+        },
+        "implementation_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 2,
+          "maxChildRuns": 4,
+          "maxTotalChildTokens": 70000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 180000
+        },
+        "research_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 50000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 120000
+        },
+        "audit_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 150000
+        }
+      }
     },
     "attachments": {
       "enabled": false,

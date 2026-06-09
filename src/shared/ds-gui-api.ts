@@ -6,7 +6,10 @@ import type {
   ClawRuntimeStatus,
   ScheduleRunResult,
   ScheduleRuntimeStatus,
-  ScheduleTaskFromTextResult
+  ScheduleTaskFromTextResult,
+  ModelProviderCatalogModelV1,
+  ModelProviderProfileV1,
+  UserAgentStackProfileV1
 } from './app-settings'
 import type { EditorListResult, EditorOpenResult, OpenEditorPathOptions } from './editor'
 import type { GitBranchesResult } from './git-branches'
@@ -89,6 +92,13 @@ export type SkillListResult =
   | { ok: false; message: string }
 export type DeepseekConfigFileResult = { path: string; content: string; exists: boolean }
 export type DeepseekConfigSaveResult = { ok: true; path: string }
+export type UserAgentStackImportPayload = { workspaceRoot?: string }
+export type UserAgentStackPreviewResult =
+  | { ok: true; profile: UserAgentStackProfileV1 }
+  | { ok: false; message: string }
+export type UserAgentStackImportResult =
+  | { ok: true; profile: UserAgentStackProfileV1; settings: AppSettingsV1 }
+  | { ok: false; message: string }
 export type TurnCompleteNotificationPayload = {
   threadId?: string
   title: string
@@ -105,7 +115,16 @@ export type ClawChannelMirrorResult =
   | { ok: true }
   | { ok: false; message: string }
 export type UpstreamModelsResult =
-  | { ok: true; modelIds: string[]; modelGroups?: ModelProviderModelGroup[] }
+  | { ok: true; modelIds: string[]; modelGroups?: ModelProviderModelGroup[]; catalogModels?: ModelProviderCatalogModelV1[] }
+  | { ok: false; message: string }
+export type ModelProviderCatalogRefreshPayload = { providerId: string }
+export type ModelProviderCatalogRefreshResult =
+  | {
+      ok: true
+      provider: ModelProviderProfileV1
+      catalogModels: ModelProviderCatalogModelV1[]
+      settings: AppSettingsV1
+    }
   | { ok: false; message: string }
 export type ModelProviderModelGroup = {
   providerId: string
@@ -129,6 +148,9 @@ export type DsGuiApi = {
   setSettings: (partial: AppSettingsPatch) => Promise<AppSettingsV1>
   runtimeRequest: (path: string, method?: string, body?: string) => Promise<RuntimeRequestResult>
   fetchUpstreamModels: () => Promise<UpstreamModelsResult>
+  refreshModelProviderCatalog: (
+    payload: ModelProviderCatalogRefreshPayload
+  ) => Promise<ModelProviderCatalogRefreshResult>
   getClawStatus: () => Promise<ClawRuntimeStatus>
   runClawTask: (taskId: string) => Promise<ClawRunResult>
   getScheduleStatus: () => Promise<ScheduleRuntimeStatus>
@@ -148,6 +170,8 @@ export type DsGuiApi = {
   getDeepseekConfigFile: () => Promise<DeepseekConfigFileResult>
   setDeepseekConfigFile: (content: string) => Promise<DeepseekConfigSaveResult>
   openDeepseekConfigDir: () => Promise<PathOpenResult>
+  previewUserAgentStackImport: (payload?: UserAgentStackImportPayload) => Promise<UserAgentStackPreviewResult>
+  importUserAgentStack: (payload?: UserAgentStackImportPayload) => Promise<UserAgentStackImportResult>
   getGitBranches: (workspaceRoot: string) => Promise<GitBranchesResult>
   switchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>
   createAndSwitchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>

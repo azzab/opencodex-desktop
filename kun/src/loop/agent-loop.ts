@@ -58,9 +58,14 @@ import {
 import { applyRequestHistoryHygiene } from './request-history-hygiene.js'
 import { estimateModelRequestInputTokens } from './model-request-estimator.js'
 import { estimateDeepseekInputTokenCost } from '../adapters/model/deepseek-pricing.js'
+import { estimateModelUsageCost } from '../adapters/model/model-pricing.js'
 import {
   recentAutoRouterContext,
   resolveAutoModelRoute,
+  selectConfiguredAutoRoute,
+  type ConfiguredAutoRouteCandidate,
+  type ConfiguredAutoRouteTaskType,
+  type AutoRouteReasoningEffort,
   type AutoModelRouteSelection
 } from './auto-model-router.js'
 import { ToolStormBreaker, type ToolStormBreakerOptions } from './tool-storm-breaker.js'
@@ -240,6 +245,7 @@ export type AgentLoopOptions = {
   nowIso: () => string
   nowMs?: () => number
   modelCapabilities?: (model: string) => ModelCapabilityMetadata
+  autoModelCandidates?: readonly ConfiguredAutoRouteCandidate[]
   skillRuntime?: SkillRuntime
   attachmentStore?: AttachmentStore
   memoryStore?: MemoryStore
@@ -1476,7 +1482,7 @@ export class AgentLoop {
   }): Promise<void> {
     const savedTokens = Math.max(0, Math.floor(input.rawInputTokens - input.sentInputTokens))
     if (savedTokens <= 0) return
-    const estimatedCost = estimateDeepseekInputTokenCost({
+    const estimatedCost = this.estimateInputTokenSavingsCost({
       model: input.model,
       inputTokens: savedTokens
     })
@@ -1491,6 +1497,27 @@ export class AgentLoop {
       turnId: input.turnId,
       model: input.model,
       usage
+    })
+  }
+
+  private estimateInputTokenSavingsCost(input: {
+    model: string
+    inputTokens: number
+  }): { costUsd: number; costCny?: number } | null {
+    const modelId = normalizeConfiguredModelId(input.model)
+    const candidate = (this.opts.autoModelCandidates ?? [])
+      .find((item) => normalizeConfiguredModelId(item.id) === modelId)
+    if (candidate?.pricingUsdPerMillion) {
+      return estimateModelUsageCost({
+        model: input.model,
+        pricingUsdPerMillion: candidate.pricingUsdPerMillion,
+        inputTokens: input.inputTokens,
+        outputTokens: 0
+      })
+    }
+    return estimateDeepseekInputTokenCost({
+      model: input.model,
+      inputTokens: input.inputTokens
     })
   }
 
@@ -1671,6 +1698,18 @@ export class AgentLoop {
         reasoningEffort: requestedReasoningEffort ?? cached.reasoningEffort
       }
     }
+    const configuredRoute = this.resolveConfiguredTurnModel({
+      latestRequest: input.latestRequest,
+      items: input.items,
+      requestedReasoningEffort
+    })
+    if (configuredRoute) {
+      this.autoModelRoutes.set(key, configuredRoute)
+      return {
+        model: configuredRoute.model,
+        reasoningEffort: requestedReasoningEffort ?? configuredRoute.reasoningEffort
+      }
+    }
     const route = await resolveAutoModelRoute({
       modelClient: this.opts.model,
       threadId: input.threadId,
@@ -1685,6 +1724,26 @@ export class AgentLoop {
       model: route.model,
       reasoningEffort: requestedReasoningEffort ?? route.reasoningEffort
     }
+  }
+
+  private resolveConfiguredTurnModel(input: {
+    latestRequest: string
+    items: readonly TurnItem[]
+    requestedReasoningEffort?: string
+  }): AutoModelRouteSelection | null {
+    const candidates = this.opts.autoModelCandidates ?? []
+    if (!candidates.some((candidate) => candidate.providerId !== 'deepseek')) return null
+    const taskType = configuredTaskType(input.latestRequest)
+    const reasoningNeed = configuredReasoningNeed(input.latestRequest, input.requestedReasoningEffort)
+    const route = selectConfiguredAutoRoute({
+      candidates,
+      latestRequest: input.latestRequest,
+      estimatedInputTokens: estimateConfiguredRouteInputTokens(input.items, input.latestRequest),
+      requiresTools: configuredTaskRequiresTools(taskType, input.latestRequest),
+      reasoningNeed,
+      taskType
+    })
+    return route.source === 'configured-heuristic' ? route : null
   }
 
   private async resolveAttachments(input: {
@@ -1972,6 +2031,60 @@ function normalizeRequestedReasoningEffort(effort: string | undefined): string |
 
 function autoModelRouteKey(threadId: string, turnId: string): string {
   return `${threadId}:${turnId}`
+}
+
+function configuredTaskType(prompt: string): ConfiguredAutoRouteTaskType {
+  const lower = prompt.toLowerCase()
+  if (/\b(debug|trace|stack|error|failing|failure|regression|broken)\b/.test(lower)) return 'debugging'
+  if (/\b(review|audit|security|risk|qa|verify)\b/.test(lower)) return 'review'
+  if (/\b(research|compare|investigate|lookup|citations?|current|latest)\b/.test(lower)) return 'research'
+  if (/\b(implement|build|fix|refactor|edit|patch|test|typecheck|compile|ui|component)\b/.test(lower)) return 'coding'
+  if (/\b(status|progress|where are we|what changed|summarize)\b/.test(lower)) return 'status'
+  return 'chat'
+}
+
+function configuredTaskRequiresTools(
+  taskType: ConfiguredAutoRouteTaskType,
+  prompt: string
+): boolean {
+  if (taskType === 'coding' || taskType === 'debugging' || taskType === 'review') return true
+  return /\b(run|read|write|file|repo|workspace|terminal|command|git|npm|test)\b/i.test(prompt)
+}
+
+function configuredReasoningNeed(
+  prompt: string,
+  requestedReasoningEffort: string | undefined
+): AutoRouteReasoningEffort | 'low' {
+  switch (requestedReasoningEffort?.trim().toLowerCase()) {
+    case 'max':
+    case 'high':
+    case 'off':
+      return requestedReasoningEffort.trim().toLowerCase() as AutoRouteReasoningEffort
+  }
+  const lower = prompt.toLowerCase()
+  if (/\b(architecture|security|migration|release|multi-step|production|audit|debug|root cause)\b/.test(lower)) {
+    return 'max'
+  }
+  if (/\b(implement|refactor|review|test|analyze|investigate)\b/.test(lower)) return 'high'
+  if (prompt.length < 120) return 'low'
+  return 'high'
+}
+
+function estimateConfiguredRouteInputTokens(
+  items: readonly TurnItem[],
+  latestRequest: string
+): number {
+  let chars = latestRequest.length
+  try {
+    chars += JSON.stringify(items).length
+  } catch {
+    chars += items.length * 200
+  }
+  return Math.max(1, Math.ceil(chars / 4))
+}
+
+function normalizeConfiguredModelId(model: string): string {
+  return model.trim().toLowerCase()
 }
 
 function memoryInstructions(memories: Array<{ id: string; content: string; scope: string }>): string[] {

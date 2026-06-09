@@ -12,7 +12,12 @@ import {
   defaultWriteSettings,
   type AppSettingsV1
 } from '../shared/app-settings'
-import { fetchUpstreamModelIds, readConfiguredKunModelIds } from './upstream-models'
+import {
+  fetchModelProviderCatalog,
+  fetchUpstreamModelIds,
+  parseOpenRouterModelCatalog,
+  readConfiguredKunModelIds
+} from './upstream-models'
 
 function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
   const provider = defaultModelProviderSettings()
@@ -30,7 +35,8 @@ function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
           name: 'Custom Provider',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
-          models: ['custom-provider-model']
+          models: ['custom-provider-model'],
+          catalogModels: []
         }
       ]
     },
@@ -125,6 +131,145 @@ describe('upstream model picker list', () => {
           modelIds: expect.arrayContaining(['deepseek-chat', 'deepseek-reasoner'])
         })
       ]))
+    }
+  })
+
+  it('maps OpenRouter catalog rows into durable model metadata', () => {
+    const catalog = parseOpenRouterModelCatalog({
+      data: [{
+        id: 'openai/gpt-4.1-mini',
+        name: 'OpenAI: GPT-4.1 Mini',
+        context_length: 1047576,
+        architecture: {
+          input_modalities: ['text'],
+          output_modalities: ['text'],
+          tokenizer: 'GPT'
+        },
+        pricing: {
+          prompt: '0.0000004',
+          completion: '0.0000016',
+          input_cache_read: '0.0000001',
+          input_cache_write: '0.0000004'
+        },
+        supported_parameters: [
+          'tools',
+          'tool_choice',
+          'reasoning',
+          'include_reasoning',
+          'response_format'
+        ]
+      }]
+    })
+
+    expect(catalog).toEqual([{
+      id: 'openai/gpt-4.1-mini',
+      name: 'OpenAI: GPT-4.1 Mini',
+      providerId: 'openrouter',
+      contextLength: 1047576,
+      tokenizer: 'GPT',
+      pricingUsdPerMillion: {
+        input: 0.4,
+        output: 1.6,
+        cacheRead: 0.1,
+        cacheWrite: 0.4
+      },
+      capabilities: {
+        inputModalities: ['text'],
+        outputModalities: ['text'],
+        reasoning: true,
+        tools: true,
+        recommendedUse: ['coding', 'review', 'research']
+      }
+    }])
+  })
+
+  it('fetches OpenRouter models from the first-class catalog endpoint', async () => {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = []
+    const fetchImpl = async (url: URL | RequestInfo, init?: RequestInit): Promise<Response> => {
+      calls.push({
+        url: String(url),
+        headers: Object.fromEntries(new Headers(init?.headers).entries())
+      })
+      return new Response(JSON.stringify({
+        data: [{
+          id: 'anthropic/claude-sonnet-4.5',
+          name: 'Anthropic: Claude Sonnet 4.5',
+          context_length: 200000,
+          architecture: {
+            input_modalities: ['text'],
+            output_modalities: ['text'],
+            tokenizer: 'Claude'
+          },
+          pricing: {
+            prompt: '0.000003',
+            completion: '0.000015'
+          },
+          supported_parameters: ['tools', 'reasoning']
+        }]
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+
+    const result = await fetchModelProviderCatalog({
+      provider: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        apiKey: 'sk-openrouter-secret',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: []
+      },
+      fetchImpl,
+      nowIso: () => '2026-06-09T00:00:00.000Z'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      providerId: 'openrouter',
+      catalogUpdatedAt: '2026-06-09T00:00:00.000Z'
+    })
+    if (result.ok) {
+      expect(result.catalogModels[0]).toMatchObject({
+        id: 'anthropic/claude-sonnet-4.5',
+        providerId: 'openrouter',
+        pricingUsdPerMillion: {
+          input: 3,
+          output: 15
+        }
+      })
+    }
+    expect(calls).toEqual([{
+      url: 'https://openrouter.ai/api/v1/models',
+      headers: expect.objectContaining({
+        accept: 'application/json',
+        authorization: 'Bearer sk-openrouter-secret'
+      })
+    }])
+  })
+
+  it('redacts provider secrets from catalog fetch errors', async () => {
+    const fetchImpl = async (): Promise<Response> =>
+      new Response('Authorization: Bearer sk-openrouter-secret token=sk-openrouter-secret', {
+        status: 401,
+        headers: { 'content-type': 'text/plain' }
+      })
+
+    const result = await fetchModelProviderCatalog({
+      provider: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        apiKey: 'sk-openrouter-secret',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        models: []
+      },
+      fetchImpl
+    })
+
+    expect(result).toMatchObject({ ok: false, providerId: 'openrouter' })
+    if (!result.ok) {
+      expect(result.message).toContain('<redacted>')
+      expect(result.message).not.toContain('sk-openrouter-secret')
     }
   })
 })

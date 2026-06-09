@@ -159,6 +159,13 @@ const sandboxModeSchema = z.enum(['read-only', 'workspace-write', 'danger-full-a
 const mcpSearchModeSchema = z.enum(['direct', 'search', 'auto'])
 const kunStorageBackendSchema = z.enum(['hybrid', 'file'])
 const kunCompactionSummaryModeSchema = z.enum(['heuristic', 'model'])
+const kunAutomationPermissionModeSchema = z.enum(['deny', 'ask', 'allow'])
+const kunSubagentWorkflowPresetIdSchema = z.enum([
+  'review_swarm',
+  'implementation_split',
+  'research_split',
+  'audit_split'
+])
 const clawRunModeSchema = z.enum(['agent', 'plan'])
 const clawImProviderSchema = z.enum(['feishu', 'weixin'])
 const clawScheduleKindSchema = z.enum(['manual', 'interval', 'daily', 'at'])
@@ -178,8 +185,34 @@ const modelProviderPatchSchema = z.object({
     name: z.string().trim().min(1).max(80).optional(),
     apiKey: z.string().max(MAX_BODY_BYTES).optional(),
     baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
-    models: z.array(z.string().trim().min(1).max(128)).max(200).optional()
+    models: z.array(z.string().trim().min(1).max(256)).max(500).optional(),
+    catalogUpdatedAt: z.string().trim().max(128).optional(),
+    catalogError: z.string().trim().max(512).optional(),
+    catalogModels: z.array(z.object({
+      id: z.string().trim().min(1).max(256),
+      name: z.string().trim().min(1).max(160),
+      providerId: z.string().trim().min(1).max(64),
+      contextLength: z.number().int().positive().optional(),
+      tokenizer: z.string().trim().min(1).max(80).optional(),
+      pricingUsdPerMillion: z.object({
+        input: z.number().nonnegative(),
+        output: z.number().nonnegative(),
+        cacheRead: z.number().nonnegative().optional(),
+        cacheWrite: z.number().nonnegative().optional()
+      }).strict().optional(),
+      capabilities: z.object({
+        inputModalities: z.array(z.string().trim().min(1).max(40)).max(20),
+        outputModalities: z.array(z.string().trim().min(1).max(40)).max(20),
+        reasoning: z.boolean(),
+        tools: z.boolean(),
+        recommendedUse: z.array(z.string().trim().min(1).max(40)).max(20)
+      }).strict()
+    }).strict()).max(500).optional()
   }).strict()).max(50).optional()
+}).strict()
+
+export const modelProviderCatalogPayloadSchema = z.object({
+  providerId: z.string().trim().min(1).max(64)
 }).strict()
 
 const kunRuntimePatchSchema = z.object({
@@ -239,7 +272,90 @@ const kunRuntimePatchSchema = z.object({
     toolArgumentRepair: z.object({
       maxStringBytes: z.number().int().positive().max(16 * 1024 * 1024).optional()
     }).strict().optional()
+  }).strict().optional(),
+  subagents: z.object({
+    enabled: z.boolean().optional(),
+    defaultModel: z.string().trim().min(1).max(128).optional(),
+    defaultPreset: kunSubagentWorkflowPresetIdSchema.optional(),
+    maxParallel: z.number().int().nonnegative().max(64).optional(),
+    maxChildRuns: z.number().int().nonnegative().max(1_000).optional(),
+    maxTotalChildTokens: z.number().int().nonnegative().max(10_000_000).optional(),
+    maxChildCostUsd: z.number().nonnegative().max(10_000).optional(),
+    perAgentTimeoutMs: z.number().int().nonnegative().max(600_000).optional(),
+    workflowPresets: z.partialRecord(
+      kunSubagentWorkflowPresetIdSchema,
+      z.object({
+        id: kunSubagentWorkflowPresetIdSchema.optional(),
+        enabled: z.boolean().optional(),
+        label: z.string().trim().min(1).max(80).optional(),
+        defaultModel: z.string().trim().min(1).max(128).optional(),
+        maxParallel: z.number().int().nonnegative().max(64).optional(),
+        maxChildRuns: z.number().int().nonnegative().max(1_000).optional(),
+        maxTotalChildTokens: z.number().int().nonnegative().max(10_000_000).optional(),
+        maxChildCostUsd: z.number().nonnegative().max(10_000).optional(),
+        perAgentTimeoutMs: z.number().int().nonnegative().max(600_000).optional()
+      }).strict()
+    ).optional()
+  }).strict().optional(),
+  automation: z.object({
+    enabled: z.boolean().optional(),
+    browserWorkbenchEnabled: z.boolean().optional(),
+    localDevOnly: z.boolean().optional(),
+    allowedHosts: z.array(z.string().trim().min(1).max(255)).max(128).optional(),
+    permissions: z.object({
+      browserNavigation: kunAutomationPermissionModeSchema.optional(),
+      browserInteraction: kunAutomationPermissionModeSchema.optional(),
+      screenshots: kunAutomationPermissionModeSchema.optional(),
+      localFileAccess: kunAutomationPermissionModeSchema.optional(),
+      appControl: kunAutomationPermissionModeSchema.optional()
+    }).strict().optional(),
+    auditLog: z.object({
+      enabled: z.boolean().optional(),
+      maxEntries: z.number().int().positive().max(10_000).optional()
+    }).strict().optional()
+  }).strict().optional(),
+  userAgentStack: z.object({
+    enabled: z.boolean().optional(),
+    importedAt: z.string().max(128).optional(),
+    refreshedAt: z.string().max(128).optional(),
+    sourcePaths: z.array(z.string().trim().min(1).max(MAX_PATH_LENGTH)).max(512).optional(),
+    skillRoots: z.array(z.object({
+      path: z.string().trim().min(1).max(MAX_PATH_LENGTH),
+      scope: z.enum(['project', 'user', 'plugin']),
+      source: z.string().trim().min(1).max(128),
+      available: z.boolean()
+    }).strict()).max(512).optional(),
+    mcpServers: z.array(z.object({
+      id: z.string().trim().min(1).max(MAX_ID_LENGTH),
+      enabled: z.boolean(),
+      transport: z.enum(['stdio', 'streamable-http', 'sse']),
+      command: z.string().trim().min(1).max(MAX_PATH_LENGTH).optional(),
+      args: z.array(z.string().max(MAX_BODY_BYTES)).max(256).optional(),
+      url: z.string().trim().max(MAX_URL_LENGTH).optional(),
+      headers: z.record(z.string().min(1).max(512), z.string().max(MAX_BODY_BYTES)).optional(),
+      env: z.record(z.string().min(1).max(512), z.string().max(MAX_BODY_BYTES)).optional(),
+      trustScope: z.enum(['user', 'workspace']),
+      trustedWorkspaceRoots: z.array(z.string().trim().min(1).max(MAX_PATH_LENGTH)).max(256).optional(),
+      timeoutMs: z.number().int().positive().max(600_000).optional(),
+      sourcePath: z.string().trim().max(MAX_PATH_LENGTH).optional()
+    }).strict()).max(512).optional(),
+    cli: z.array(z.object({
+      name: z.string().trim().min(1).max(128),
+      available: z.boolean(),
+      path: z.string().trim().max(MAX_PATH_LENGTH).optional(),
+      version: z.string().max(2048).optional(),
+      message: z.string().max(2048).optional()
+    }).strict()).max(128).optional(),
+    redactedPreviewJson: z.string().max(MAX_BODY_BYTES).optional(),
+    validationErrors: z.array(z.object({
+      source: z.string().max(MAX_PATH_LENGTH),
+      message: z.string().max(2048)
+    }).strict()).max(512).optional()
   }).strict().optional()
+}).strict()
+
+export const userAgentStackImportPayloadSchema = z.object({
+  workspaceRoot: z.string().trim().max(MAX_PATH_LENGTH).optional()
 }).strict()
 
 const logPatchSchema = z.object({

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   mergeScheduleSettings,
+  mergeKunRuntimeSettings,
   defaultClawSettings,
   defaultKeyboardShortcuts,
   defaultKunRuntimeSettings,
@@ -27,6 +28,39 @@ vi.mock('electron', () => ({
       handlers.set(channel, handler)
     })
   }
+}))
+
+vi.mock('../services/user-agent-stack-service', () => ({
+  discoverUserAgentStackProfile: vi.fn(async () => ({
+    enabled: true,
+    importedAt: '2026-06-09T00:00:00.000Z',
+    refreshedAt: '2026-06-09T00:00:00.000Z',
+    sourcePaths: ['/tmp/codex-config.json'],
+    skillRoots: [{
+      path: '/tmp/workspace/.codex/skills',
+      scope: 'project',
+      source: 'workspace-codex',
+      available: true
+    }],
+    mcpServers: [{
+      id: 'github',
+      enabled: true,
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+      env: { GITHUB_TOKEN: '<redacted>' },
+      trustScope: 'user',
+      sourcePath: '/tmp/codex-config.json'
+    }],
+    cli: [{
+      name: 'git',
+      available: true,
+      path: '/usr/bin/git',
+      version: 'git version 2.50.0'
+    }],
+    redactedPreviewJson: '{\n  "env": {\n    "GITHUB_TOKEN": "<redacted>"\n  }\n}',
+    validationErrors: []
+  }))
 }))
 
 function settings(): AppSettingsV1 {
@@ -113,6 +147,61 @@ describe('registerAppIpcHandlers', () => {
     const handler = handlers.get('settings:set')
     await expect(handler?.({}, payload)).resolves.toEqual(settings())
     expect(applySettingsPatch).toHaveBeenCalledWith(payload)
+  })
+
+  it('previews the User Agent Stack import without saving settings', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+    const applySettingsPatch = vi.fn(async () => settings())
+
+    registerAppIpcHandlers(registerOptions({ applySettingsPatch }))
+
+    const handler = handlers.get('user-agent-stack:preview')
+    await expect(handler?.({}, { workspaceRoot: '/tmp/workspace' })).resolves.toMatchObject({
+      ok: true,
+      profile: {
+        redactedPreviewJson: expect.stringContaining('<redacted>'),
+        cli: [expect.objectContaining({ name: 'git', available: true })]
+      }
+    })
+    expect(applySettingsPatch).not.toHaveBeenCalled()
+  })
+
+  it('imports the User Agent Stack profile through the Kun settings patch', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+    const applySettingsPatch = vi.fn(async (partial: AppSettingsPatch): Promise<AppSettingsV1> => {
+      const current = settings()
+      return {
+        ...current,
+        agents: {
+          kun: mergeKunRuntimeSettings(current.agents.kun, partial.agents?.kun)
+        }
+      }
+    })
+
+    registerAppIpcHandlers(registerOptions({ applySettingsPatch }))
+
+    const handler = handlers.get('user-agent-stack:import')
+    await expect(handler?.({}, { workspaceRoot: '/tmp/workspace' })).resolves.toMatchObject({
+      ok: true,
+      settings: {
+        agents: {
+          kun: {
+            userAgentStack: {
+              redactedPreviewJson: expect.stringContaining('<redacted>')
+            }
+          }
+        }
+      }
+    })
+    expect(applySettingsPatch).toHaveBeenCalledWith({
+      agents: {
+        kun: {
+          userAgentStack: expect.objectContaining({
+            redactedPreviewJson: expect.stringContaining('<redacted>')
+          })
+        }
+      }
+    })
   })
 
   it('accepts the full settings snapshot emitted by SettingsView auto-apply', async () => {

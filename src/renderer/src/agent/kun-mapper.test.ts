@@ -176,6 +176,73 @@ describe('review mapping', () => {
   })
 })
 
+describe('child run mapping', () => {
+  it('maps child lifecycle events to tool trace rows without completing the parent turn', async () => {
+    const tools: unknown[] = []
+    let turnCompleteCalled = false
+    const sink: ThreadEventSink = {
+      ...makeSink(),
+      onTool: (event) => {
+        tools.push(event)
+      },
+      onTurnComplete: () => {
+        turnCompleteCalled = true
+      }
+    }
+
+    await dispatchKunRuntimeEvent({
+      kind: 'turn_completed',
+      seq: 31,
+      timestamp: '2026-06-09T00:00:00.000Z',
+      threadId: 'parent_thread',
+      turnId: 'parent_turn',
+      text: 'Reviewed the auth changes.',
+      child: {
+        parentThreadId: 'parent_thread',
+        parentTurnId: 'parent_turn',
+        childId: 'child_review_1',
+        childLabel: 'review',
+        childStatus: 'completed',
+        childSeq: 2,
+        childModel: 'deepseek-v4-flash',
+        childPreset: 'review_swarm',
+        childUsage: {
+          promptTokens: 10,
+          completionTokens: 5,
+          totalTokens: 15,
+          cacheHitTokens: 6,
+          cacheMissTokens: 4,
+          cacheHitRate: 0.6,
+          turns: 1,
+          costUsd: 0.002
+        }
+      }
+    }, sink, async () => undefined)
+
+    expect(turnCompleteCalled).toBe(false)
+    expect(tools).toEqual([
+      expect.objectContaining({
+        itemId: 'child_run_child_review_1',
+        summary: expect.stringContaining('review'),
+        status: 'success',
+        detail: expect.stringContaining('Reviewed the auth changes.'),
+        meta: expect.objectContaining({
+          child: expect.objectContaining({
+            childId: 'child_review_1',
+            childStatus: 'completed',
+            childModel: 'deepseek-v4-flash',
+            childPreset: 'review_swarm'
+          }),
+          childUsage: expect.objectContaining({
+            totalTokens: 15,
+            costUsd: 0.002
+          })
+        })
+      })
+    ])
+  })
+})
+
 describe('create_plan tool mapping', () => {
   it('surfaces turn failure messages from Kun lifecycle events', async () => {
     let capturedError: string | null = null

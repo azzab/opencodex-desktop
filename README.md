@@ -41,6 +41,11 @@ This matters because OpenCodex Desktop should not add a second agent runtime. Ne
 
 ## Phase Roadmap
 
+Paste-ready phase launchers are stored under
+[docs/prompts](docs/prompts/README.md). Each prompt includes the recommended
+GPT version, reasoning level, deliverables, guardrails, and verification gates
+for a fresh agent window.
+
 ### Phase 0: Fork, Rebrand, Arabic Foundation
 
 Phase 0 establishes identity and documentation:
@@ -75,27 +80,36 @@ Read:
 
 The User Agent Stack Import profile will make the app usable across any user's existing local projects and agent setup.
 
-Planned imports:
+Current imports:
 
 - global Codex Skills from `~/.codex/skills`;
 - project Skills from `.codex/skills`;
 - project Skills from `.agents/skills`;
 - Codex plugin cache Skill roots;
-- Claude Code and other compatible skill roots where available;
-- MCP server definitions from Codex, Claude Code, and compatible config files, with secret redaction;
-- CLI availability for `codex`, `gh`, `hcloud`, `node`, `npm`, `git`, `rg`, and related tools.
+- user Skills from `~/.agents/skills`;
+- MCP server definitions from Codex/user config files, with secret redaction;
+- CLI availability for `codex`, `gh`, `hcloud`, `node`, `npm`, `pnpm`, `bun`, `git`, `docker`, `python`, `uv`, `npx`, `playwright`, and common agent CLIs when present.
 
 The profile should persist through Kun config so the packaged Electron app and browser/dev mode use the same setup.
+
+Open Settings -> AI assistant -> User Agent Stack to refresh a redacted preview or import the profile. The imported profile is stored under `agents.kun.userAgentStack`; GUI-managed Kun config sync then writes available skill roots and redacted MCP server definitions into `<dataDir>/config.json`.
+
+The preview and persisted profile are intentionally display/export-safe. Secret-like environment variables, authorization headers, token query parameters, passwords, API keys, and command arguments following secret flags are replaced with `<redacted>`.
+
+Read:
+
+- [docs/PHASE_1_USER_AGENT_STACK_SPEC.md](docs/PHASE_1_USER_AGENT_STACK_SPEC.md)
+- [docs/PHASE_1_VERIFICATION_REPORT.md](docs/PHASE_1_VERIFICATION_REPORT.md)
 
 ### Phase 2: Multi-Provider Model Runtime
 
 OpenCodex Desktop keeps DeepSeek as the default provider and adds OpenRouter as a first-class provider.
 
-Planned model runtime work:
+Implemented model runtime support:
 
 - OpenRouter provider profile with `https://openrouter.ai/api/v1`;
-- model catalog refresh from OpenRouter's `/models` endpoint;
-- context length and pricing metadata;
+- model catalog refresh from OpenRouter's `https://openrouter.ai/api/v1/models` endpoint;
+- context length, tokenizer, capability, and input/output/cache pricing metadata;
 - model picker instead of a free-text model field;
 - `auto` routing across configured models;
 - task-aware routing by coding, debugging, review, research, context size, tool support, reasoning need, and cost;
@@ -104,11 +118,16 @@ Planned model runtime work:
 
 When a provider does not report cache hit/miss data, the UI should report unknown cache telemetry rather than pretending the cache hit rate is zero.
 
+Read:
+
+- [docs/PHASE_2_MULTI_PROVIDER_MODEL_RUNTIME_SPEC.md](docs/PHASE_2_MULTI_PROVIDER_MODEL_RUNTIME_SPEC.md)
+- [docs/PHASE_2_VERIFICATION_REPORT.md](docs/PHASE_2_VERIFICATION_REPORT.md)
+
 ### Phase 3: Subagents And Swarm Workflows
 
-Kun already exposes a `delegate_task` capability. OpenCodex Desktop will surface it safely.
+Kun already exposes a `delegate_task` capability. OpenCodex Desktop surfaces it through guarded settings and runtime budgets.
 
-Planned controls:
+Implemented controls:
 
 - enable or disable subagents;
 - default cheaper child model;
@@ -120,93 +139,130 @@ Planned controls:
 
 The product goal is controlled subagents, not an unbounded swarm. Child-agent usage and cost should roll up into parent thread usage.
 
-### Phase 4: Codex-Style Workspace Control
+Read:
 
-OpenCodex Desktop should add a stronger project control surface:
+- [docs/PHASE_3_SUBAGENTS_SWARM_SPEC.md](docs/PHASE_3_SUBAGENTS_SWARM_SPEC.md)
+- [docs/PHASE_3_VERIFICATION_REPORT.md](docs/PHASE_3_VERIFICATION_REPORT.md)
 
-- workspace onboarding with repo trust boundaries;
+### Phase 3.5: Goal, Loop, And Automations
+
+OpenCodex Desktop should add independent `/goal` and `/loop` equivalents:
+
+- `/goal` is condition-driven continuation toward a measurable done state;
+- `/loop` is scheduled recurring prompts, not infinite continuation;
+- goal evaluators should be tool-free and budgeted;
+- scheduled work should have list, cancel, expiry, resume, and usage accounting;
+- automations must not bypass permissions, budgets, approvals, or audit events.
+
+Current state: goal-style continuation exists in the Kun loop, but the full tool-free evaluator and `/loop` scheduler are not proven complete.
+
+Read:
+
+- [docs/prompts/PHASE_3_5_GOAL_LOOP_AUTOMATIONS.md](docs/prompts/PHASE_3_5_GOAL_LOOP_AUTOMATIONS.md)
+
+### Phase 4: Browser Automation And Computer Control Foundation
+
+OpenCodex Desktop has a disabled-by-default automation foundation:
+
+- automation settings under `agents.kun.automation`;
+- local/dev host limits;
+- permission gates for navigation, click/type, screenshots, local file access, and app control;
+- app/computer control denied in the foundation phase;
+- Kun automation contracts, permission service, audit events, sidecar port, and mock/no-op adapter;
+- Settings controls for experimental automation and audit-log limits.
+
+This phase does not prove real browser control, screenshots, DOM/network evidence, external Chrome automation, or OS-level computer control.
+
+Read:
+
+- [docs/PHASE_4_BROWSER_AUTOMATION_SECURITY_SPEC.md](docs/PHASE_4_BROWSER_AUTOMATION_SECURITY_SPEC.md)
+- [docs/PHASE_4_VERIFICATION_REPORT.md](docs/PHASE_4_VERIFICATION_REPORT.md)
+- [docs/BROWSER_COMPUTER_CONTROL_PLAN.md](docs/BROWSER_COMPUTER_CONTROL_PLAN.md)
+
+### Phase 4.5: Remote Relay And Mobile Access
+
+OpenCodex Desktop needs a separate remote/mobile design that does not rely on the legacy Chinese IM infrastructure inherited from the upstream fork:
+
+- mobile and browser clients are control surfaces;
+- the desktop host owns files, projects, Kun, MCP, Skills, provider credentials, browser sessions, and computer-control permissions;
+- relay services handle identity, pairing, routing, presence, push, and minimal metadata;
+- host connection should be outbound-only;
+- OAuth/OIDC login and device-pairing flows should be documented before implementation;
+- relay must not store source code, raw terminal output, browser cookies, MCP secrets, screenshots by default, or provider credentials.
+
+Read:
+
+- [docs/prompts/PHASE_4_5_REMOTE_RELAY_MOBILE_ACCESS.md](docs/prompts/PHASE_4_5_REMOTE_RELAY_MOBILE_ACCESS.md)
+
+### Phase 5: Codex-Like Desktop Workbench UX
+
+OpenCodex Desktop should expose the actual workbench as the first screen:
+
+- active project and trust state;
+- thread, goal, plan, and todo state;
+- files, search, and attachments;
+- diff/review surface;
+- terminal state;
+- browser/evidence surface;
+- Skills, MCP, provider/model, subagent, usage/cost/cache, and permission diagnostics.
+
+### Phase 6: Git, Worktrees, Handoff, And Review
+
+OpenCodex Desktop should add safer Git and worktree workflows:
+
 - Git status, branch, and diff awareness;
-- guarded file read/write permissions;
-- command allowlists and denylists;
-- terminal session tracking;
-- checkpoint and rewind support;
-- test/build command discovery;
+- managed worktrees for background tasks;
+- safe handoff between local and worktree sessions;
+- stage/revert by file or hunk with destructive-action confirmation;
+- commit, push, and PR preparation behind explicit user action;
 - handoff summaries that can restart work without chat history.
 
-### Phase 5: Skills, Plugins, And MCP Marketplace
+### Phase 7: Skills, Plugins, Hooks, Rules, And Memory
 
-The app should make reusable capabilities visible instead of hidden in dotfiles:
+The app should make reusable capabilities visible and controllable instead of hidden in dotfiles:
 
 - skill browser with source, scope, triggers, and enablement state;
 - MCP server browser with redacted environment variables;
 - local plugin registry;
 - import/export for user profiles;
+- hook lifecycle and trust review;
+- user/project rules and memory visibility;
 - compatibility diagnostics for Codex, Claude Code, and MCP conventions;
 - per-project overrides that do not mutate global config without permission.
 
-### Phase 6: Agentic Coding Workflow System
+### Phase 8: App Server, CLI Bridge, And IDE Bridge
 
-OpenCodex Desktop should support repeatable coding workflows:
+OpenCodex Desktop should expose one shared protocol for all clients:
 
-- plan-first execution;
-- TDD task loops;
-- review-before-merge flows;
-- bug forensics and systematic debugging flows;
-- UI audit flows;
-- release and deployment checklists;
-- Markdown handoff prompts for opening fresh agent windows.
+- Electron desktop;
+- local CLI;
+- IDE extension;
+- mobile/browser control surfaces;
+- remote relay clients.
 
-### Phase 7: Observability, Cost, And Token Economy
+The app-server protocol should cover projects, threads, turns, streamed events, approvals, artifacts, goals, loops, subagents, automation, and usage through the same Kun kernel.
 
-The usage layer should become a real operator dashboard:
+### Phase 9: Remote Runners, SSH Hosts, And Optional Cloud Workers
 
-- provider-level token and cost reporting;
-- cache reads, cache writes, and estimated cache savings;
-- per-thread, per-project, and per-model cost views;
-- budget warnings;
-- exportable usage reports;
-- child-agent cost aggregation;
-- unknown telemetry states when a provider does not expose cache details.
+OpenCodex Desktop should support safe remote execution options after the local kernel and app-server protocol are stable:
 
-### Phase 8: Browser, Computer Control, And App Automation
+- local desktop runner;
+- SSH host runner;
+- optional cloud worker;
+- capability handshake;
+- remote workspace trust model;
+- credential redaction;
+- approval, budget, audit, stop, resume, and reconnect semantics.
 
-The workbench should support guarded GUI automation:
+### Phase 10: Parity Hardening, Security, And Release
 
-- browser preview and screenshot verification;
-- in-app browser automation;
-- Appshot-style app/window context capture;
-- guarded computer control;
-- local web app smoke tests;
-- Electron app smoke tests;
-- accessibility checks for core flows;
-- computer-control workflows behind explicit permissions;
-- durable automation logs.
+The long-term target is to reach a near-Codex local desktop experience while staying independent:
 
-### Phase 9: Team Profiles, Sync, And Portable Workspaces
-
-The app should let users carry their setup across machines and teams:
-
-- encrypted profile export/import;
-- team-safe shared presets without secrets;
-- project templates;
-- per-workspace policy files;
-- deterministic bootstrap checks;
-- offline-first sync boundaries.
-
-### Phase 10: Codex-Like Parity Target
-
-The long-term target is to reach roughly 99% of the local Codex-style desktop experience while staying independent:
-
-- rich planning and execution modes;
-- fast codebase search and editing;
-- tool and MCP orchestration;
-- model routing;
-- subagents;
-- browser/app verification;
-- cost controls;
-- durable memory and handoff;
-- English, Arabic, and Chinese UI quality;
-- clean upstream merge discipline.
+- evidence-backed parity matrix;
+- security review for renderer, IPC, secrets, MCP, browser/computer control, remote/mobile, hooks, plugins, and updater;
+- localization review for English, Arabic RTL, and Chinese;
+- packaging and update-channel review;
+- release-readiness report before any publish.
 
 ## Language Support
 

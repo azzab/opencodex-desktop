@@ -14,6 +14,7 @@ import {
   resolveWriteInlineCompletionBaseUrl,
   resolveWriteInlineCompletionModel,
   type AppSettingsV1,
+  type UserAgentStackProfileV1,
 } from '@shared/app-settings'
 import { rendererRuntimeClient } from '../agent/runtime-client'
 import { getProvider } from '../agent/registry'
@@ -108,6 +109,11 @@ export function SettingsView(): ReactElement {
   const [memoryRecords, setMemoryRecords] = useState<CoreMemoryRecordJson[]>([])
   const [runtimeDiagnosticsBusy, setRuntimeDiagnosticsBusy] = useState(false)
   const [runtimeDiagnosticsNotice, setRuntimeDiagnosticsNotice] = useState<InlineNotice | null>(null)
+  const [userAgentStackPreview, setUserAgentStackPreview] = useState<UserAgentStackProfileV1 | null>(null)
+  const [userAgentStackBusy, setUserAgentStackBusy] = useState(false)
+  const [userAgentStackNotice, setUserAgentStackNotice] = useState<InlineNotice | null>(null)
+  const [modelCatalogBusy, setModelCatalogBusy] = useState(false)
+  const [modelCatalogNotice, setModelCatalogNotice] = useState<InlineNotice | null>(null)
   const [writeDebugModalOpen, setWriteDebugModalOpen] = useState(false)
   const [writeCompletionDebugEntries, setWriteCompletionDebugEntries] = useState<WriteInlineCompletionDebugEntry[]>([])
   const [writeCompletionDebugSelectedId, setWriteCompletionDebugSelectedId] = useState<string | null>(null)
@@ -437,6 +443,104 @@ export function SettingsView(): ReactElement {
         tone: 'error',
         message: error instanceof Error ? error.message : String(error)
       })
+    }
+  }
+
+  const previewUserAgentStack = async (): Promise<void> => {
+    if (typeof window.dsGui?.previewUserAgentStackImport !== 'function') return
+    setUserAgentStackBusy(true)
+    setUserAgentStackNotice(null)
+    try {
+      const result = await window.dsGui.previewUserAgentStackImport({
+        workspaceRoot: normalizeWorkspaceRoot(formWorkspaceRoot)
+      })
+      if (!result.ok) {
+        setUserAgentStackNotice({ tone: 'error', message: result.message })
+        return
+      }
+      setUserAgentStackPreview(result.profile)
+      setUserAgentStackNotice({
+        tone: 'info',
+        message: t('userAgentStackPreviewReady')
+      })
+    } catch (error) {
+      setUserAgentStackNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      })
+    } finally {
+      setUserAgentStackBusy(false)
+    }
+  }
+
+  const importUserAgentStack = async (): Promise<void> => {
+    if (typeof window.dsGui?.importUserAgentStack !== 'function') return
+    setUserAgentStackBusy(true)
+    setUserAgentStackNotice(null)
+    try {
+      await flushPendingSave()
+      const result = await window.dsGui.importUserAgentStack({
+        workspaceRoot: normalizeWorkspaceRoot(formWorkspaceRoot)
+      })
+      if (!result.ok) {
+        setUserAgentStackNotice({ tone: 'error', message: result.message })
+        return
+      }
+      const next = coerceRendererSettings(result.settings)
+      setForm(next)
+      setUserAgentStackPreview(result.profile)
+      emitRendererSettingsChanged(next)
+      await applyI18n(next.locale)
+      void reloadUiSettings()
+      void probeRuntime('background')
+      setSaveStatus('saved')
+      setUserAgentStackNotice({
+        tone: 'success',
+        message: t('userAgentStackImportedNotice')
+      })
+    } catch (error) {
+      setUserAgentStackNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      })
+      setSaveStatus('error')
+    } finally {
+      setUserAgentStackBusy(false)
+    }
+  }
+
+  const refreshModelProviderCatalog = async (providerId: string): Promise<void> => {
+    if (typeof window.dsGui?.refreshModelProviderCatalog !== 'function') return
+    setModelCatalogBusy(true)
+    setModelCatalogNotice(null)
+    try {
+      await flushPendingSave()
+      const result = await window.dsGui.refreshModelProviderCatalog({ providerId })
+      if (!result.ok) {
+        setModelCatalogNotice({ tone: 'error', message: result.message })
+        return
+      }
+      const next = coerceRendererSettings(result.settings)
+      setForm(next)
+      emitRendererSettingsChanged(next)
+      void reloadUiSettings()
+      void probeRuntime('background')
+      setSaveStatus('saved')
+      setModelCatalogNotice({
+        tone: 'success',
+        message: t('modelPickerCatalogUpdated', {
+          count: result.catalogModels.length,
+          provider: result.provider.name
+        })
+      })
+    } catch (error) {
+      setModelCatalogNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      })
+      setSaveStatus('error')
+    } finally {
+      setModelCatalogBusy(false)
     }
   }
 
@@ -781,6 +885,14 @@ export function SettingsView(): ReactElement {
     refreshKunDiagnostics,
     disableMemoryRecord,
     deleteMemoryRecord,
+    userAgentStackPreview: userAgentStackPreview ?? kun.userAgentStack,
+    userAgentStackBusy,
+    userAgentStackNotice,
+    previewUserAgentStack,
+    importUserAgentStack,
+    modelCatalogBusy,
+    modelCatalogNotice,
+    refreshModelProviderCatalog,
     pickClawWorkspace,
     resetClawWorkspaceToDefault,
     clawWorkspacePickerError,

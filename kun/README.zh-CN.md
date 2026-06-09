@@ -207,8 +207,51 @@ Kun 使用 JSON 配置文件管理运行时行为，避免重建后重配或硬�
     },
     "subagents": {
       "enabled": false,
+      "defaultModel": "deepseek-v4-flash",
+      "defaultPreset": "research_split",
       "maxParallel": 2,
-      "maxChildRuns": 4
+      "maxChildRuns": 4,
+      "maxTotalChildTokens": 50000,
+      "maxChildCostUsd": 1,
+      "perAgentTimeoutMs": 120000,
+      "workflowPresets": {
+        "review_swarm": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 4,
+          "maxChildRuns": 8,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 90000
+        },
+        "implementation_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 2,
+          "maxChildRuns": 4,
+          "maxTotalChildTokens": 70000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 180000
+        },
+        "research_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 50000,
+          "maxChildCostUsd": 1,
+          "perAgentTimeoutMs": 120000
+        },
+        "audit_split": {
+          "enabled": true,
+          "defaultModel": "deepseek-v4-flash",
+          "maxParallel": 3,
+          "maxChildRuns": 6,
+          "maxTotalChildTokens": 80000,
+          "maxChildCostUsd": 1.5,
+          "perAgentTimeoutMs": 150000
+        }
+      }
     },
     "attachments": {
       "enabled": false,
@@ -243,7 +286,7 @@ Kun 默认使用混合存储：`threads/{threadId}/messages.jsonl` 与 `events.j
 - `capabilities.skills` 扫描 `roots` 下的 `skill.json`，并在 `legacySkillMd` 为 `true` 时兼容 `SKILL.md`。
 - `capabilities.attachments` 将图片二进制从线程日志剥离，允许回合记录引用 `attachmentIds`。视觉模型直接接收图片部分，纯文本模型走受限文本 fallback。
 - `capabilities.memory` 在数据目录下持久化跨会话记忆，按作用域检索并注入上下文；也会公开 `memory_create`、`memory_update`、`memory_delete` 工具。
-- `capabilities.subagents` 通过 `maxParallel` 与 `maxChildRuns` 限制委派任务并发。
+- `capabilities.subagents` 暴露 `delegate_task`，默认使用低成本子模型，提供 `review_swarm` / `implementation_split` / `research_split` / `audit_split` 预设，并强制限制并行数、子运行数、子 token、子成本和单代理超时。已完成子运行的用量会汇总到父线程，诊断中会显示子运行、聚合用量、缓存遥测和摘要。
 
 在渲染端使用 `GET /v1/runtime/info` 获取运行时能力清单，使用
 `GET /v1/runtime/tools` 查看 provider 诊断。GUI 设置页会读取这两条接口。

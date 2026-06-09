@@ -21,6 +21,7 @@ export type ClawTaskStatus = ScheduleTaskStatus
 export type ClawModel = ScheduleModel
 
 export const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com'
+export const DEFAULT_OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 export const DEFAULT_CLAW_MODEL = 'auto'
 export const CLAW_MODEL_IDS = ['auto', 'deepseek-v4-pro', 'deepseek-v4-flash'] as const
 export const DEFAULT_SCHEDULE_MODEL = DEFAULT_CLAW_MODEL
@@ -43,12 +44,38 @@ export const DEFAULT_WRITE_INLINE_LONG_COMPLETION_MAX_TOKENS = 256
 export const DEFAULT_KUN_PORT = 8899
 export const DEFAULT_WEIXIN_BRIDGE_RPC_URL = 'http://127.0.0.1:18790/api/v1/admin/rpc'
 export const DEFAULT_MODEL_PROVIDER_ID = 'deepseek'
+export const OPENROUTER_PROVIDER_ID = 'openrouter'
+export type ModelProviderPricingUsdPerMillionV1 = {
+  input: number
+  output: number
+  cacheRead?: number
+  cacheWrite?: number
+}
+export type ModelProviderCapabilityMetadataV1 = {
+  inputModalities: string[]
+  outputModalities: string[]
+  reasoning: boolean
+  tools: boolean
+  recommendedUse: string[]
+}
+export type ModelProviderCatalogModelV1 = {
+  id: string
+  name: string
+  providerId: string
+  contextLength?: number
+  tokenizer?: string
+  pricingUsdPerMillion?: ModelProviderPricingUsdPerMillionV1
+  capabilities: ModelProviderCapabilityMetadataV1
+}
 export type ModelProviderProfileV1 = {
   id: string
   name: string
   apiKey: string
   baseUrl: string
   models: string[]
+  catalogUpdatedAt?: string
+  catalogError?: string
+  catalogModels: ModelProviderCatalogModelV1[]
 }
 export type ModelProviderSettingsV1 = {
   apiKey: string
@@ -61,6 +88,116 @@ export type ModelProviderSettingsPatchV1 = Partial<
   Omit<ModelProviderSettingsV1, 'providers'>
 > & {
   providers?: ModelProviderProfilePatchV1[]
+}
+
+export type UserAgentStackSkillRootScopeV1 = 'project' | 'user' | 'plugin'
+
+export type UserAgentStackSkillRootV1 = {
+  path: string
+  scope: UserAgentStackSkillRootScopeV1
+  source: string
+  available: boolean
+}
+
+export type UserAgentStackMcpTransportV1 = 'stdio' | 'streamable-http' | 'sse'
+export type UserAgentStackMcpTrustScopeV1 = 'user' | 'workspace'
+
+export type UserAgentStackMcpServerV1 = {
+  id: string
+  enabled: boolean
+  transport: UserAgentStackMcpTransportV1
+  command?: string
+  args: string[]
+  url?: string
+  headers: Record<string, string>
+  env: Record<string, string>
+  trustScope: UserAgentStackMcpTrustScopeV1
+  trustedWorkspaceRoots: string[]
+  timeoutMs?: number
+  sourcePath?: string
+}
+
+export type UserAgentStackCliStatusV1 = {
+  name: string
+  available: boolean
+  path?: string
+  version?: string
+  message?: string
+}
+
+export type UserAgentStackValidationErrorV1 = {
+  source: string
+  message: string
+}
+
+export type UserAgentStackProfileV1 = {
+  enabled: boolean
+  importedAt: string
+  refreshedAt: string
+  sourcePaths: string[]
+  skillRoots: UserAgentStackSkillRootV1[]
+  mcpServers: UserAgentStackMcpServerV1[]
+  cli: UserAgentStackCliStatusV1[]
+  redactedPreviewJson: string
+  validationErrors: UserAgentStackValidationErrorV1[]
+}
+
+export const KUN_SUBAGENT_WORKFLOW_PRESET_IDS = [
+  'review_swarm',
+  'implementation_split',
+  'research_split',
+  'audit_split'
+] as const
+
+export type KunSubagentWorkflowPresetIdV1 = typeof KUN_SUBAGENT_WORKFLOW_PRESET_IDS[number]
+
+export type KunSubagentWorkflowPresetSettingsV1 = {
+  id: KunSubagentWorkflowPresetIdV1
+  enabled: boolean
+  label: string
+  defaultModel: string
+  maxParallel: number
+  maxChildRuns: number
+  maxTotalChildTokens: number
+  maxChildCostUsd: number
+  perAgentTimeoutMs: number
+}
+
+export type KunSubagentSettingsV1 = {
+  enabled: boolean
+  defaultModel: string
+  defaultPreset: KunSubagentWorkflowPresetIdV1
+  maxParallel: number
+  maxChildRuns: number
+  maxTotalChildTokens: number
+  maxChildCostUsd: number
+  perAgentTimeoutMs: number
+  workflowPresets: Record<KunSubagentWorkflowPresetIdV1, KunSubagentWorkflowPresetSettingsV1>
+}
+
+export const KUN_AUTOMATION_PERMISSION_MODES = ['deny', 'ask', 'allow'] as const
+export type KunAutomationPermissionModeV1 = typeof KUN_AUTOMATION_PERMISSION_MODES[number]
+
+export type KunAutomationPermissionsV1 = {
+  browserNavigation: KunAutomationPermissionModeV1
+  browserInteraction: KunAutomationPermissionModeV1
+  screenshots: KunAutomationPermissionModeV1
+  localFileAccess: KunAutomationPermissionModeV1
+  appControl: KunAutomationPermissionModeV1
+}
+
+export type KunAutomationAuditLogSettingsV1 = {
+  enabled: boolean
+  maxEntries: number
+}
+
+export type KunAutomationSettingsV1 = {
+  enabled: boolean
+  browserWorkbenchEnabled: boolean
+  localDevOnly: boolean
+  allowedHosts: string[]
+  permissions: KunAutomationPermissionsV1
+  auditLog: KunAutomationAuditLogSettingsV1
 }
 
 export type KunRuntimeSettingsV1 = {
@@ -92,6 +229,12 @@ export type KunRuntimeSettingsV1 = {
   contextCompaction: KunContextCompactionSettingsV1
   /** Low-level loop guards and model argument repair tuning. */
   runtimeTuning: KunRuntimeTuningSettingsV1
+  /** Imported Skills, MCP, and CLI availability from the user's local agent stack. */
+  userAgentStack: UserAgentStackProfileV1
+  /** Controlled child-agent delegation through Kun's delegate_task tool. */
+  subagents: KunSubagentSettingsV1
+  /** Experimental browser automation and future computer-control gates. */
+  automation: KunAutomationSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -181,7 +324,14 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
-    'mcpSearch' | 'storage' | 'contextCompaction' | 'runtimeTuning' | 'tokenEconomy'
+    | 'mcpSearch'
+    | 'storage'
+    | 'contextCompaction'
+    | 'runtimeTuning'
+    | 'tokenEconomy'
+    | 'userAgentStack'
+    | 'subagents'
+    | 'automation'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -189,6 +339,18 @@ export type KunRuntimeSettingsPatchV1 = Partial<
   storage?: Partial<KunStorageSettingsV1>
   contextCompaction?: Partial<KunContextCompactionSettingsV1>
   runtimeTuning?: KunRuntimeTuningSettingsPatchV1
+  userAgentStack?: Partial<UserAgentStackProfileV1>
+  subagents?: Partial<
+    Omit<KunSubagentSettingsV1, 'workflowPresets'>
+  > & {
+    workflowPresets?: Partial<Record<KunSubagentWorkflowPresetIdV1, Partial<KunSubagentWorkflowPresetSettingsV1>>>
+  }
+  automation?: Partial<
+    Omit<KunAutomationSettingsV1, 'permissions' | 'auditLog'>
+  > & {
+    permissions?: Partial<KunAutomationPermissionsV1>
+    auditLog?: Partial<KunAutomationAuditLogSettingsV1>
+  }
 }
 
 export type KunSettingsEnvelopePatchV1 = {

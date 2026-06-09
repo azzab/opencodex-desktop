@@ -21,10 +21,13 @@ export type EventSourcedChildRunProjection = {
   parentThreadId: string
   parentTurnId: string
   label?: string
+  model?: string
+  preset?: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'aborted'
   seq: number
   updatedAt: string
   text?: string
+  usage?: UsageSnapshot
 }
 
 export type EventSourcedRuntimeProjection = {
@@ -241,10 +244,13 @@ function upsertChildRun(
     parentThreadId: child.parentThreadId,
     parentTurnId: child.parentTurnId,
     ...(child.childLabel ? { label: child.childLabel } : {}),
+    ...(child.childModel ? { model: child.childModel } : {}),
+    ...(child.childPreset ? { preset: child.childPreset } : {}),
     status: child.childStatus,
     seq: child.childSeq,
     updatedAt: event.timestamp,
-    ...(event.text ? { text: event.text } : {})
+    ...(event.text ? { text: event.text } : {}),
+    ...(child.childUsage ? { usage: child.childUsage } : {})
   }
   if (existingIndex >= 0) projection.childRuns[existingIndex] = next
   else projection.childRuns.push(next)

@@ -119,6 +119,20 @@ describe('kun defaults', () => {
     })
   })
 
+  it('defaults the User Agent Stack profile to an empty imported state', () => {
+    expect(defaultKunRuntimeSettings().userAgentStack).toMatchObject({
+      enabled: true,
+      importedAt: '',
+      refreshedAt: '',
+      sourcePaths: [],
+      skillRoots: [],
+      mcpServers: [],
+      cli: [],
+      validationErrors: []
+    })
+    expect(defaultKunRuntimeSettings().userAgentStack.redactedPreviewJson).toContain('"skillRoots": []')
+  })
+
   it('preserves Arabic as a supported UI locale', () => {
     const next = normalizeAppSettings({ ...settings(), locale: 'ar' })
     expect(next.locale).toBe('ar')
@@ -147,6 +161,139 @@ describe('kun defaults', () => {
         toolArgumentRepair: {
           maxStringBytes: 524288
         }
+      }
+    })
+  })
+
+  it('defaults subagents to disabled cheap-model budget controls', () => {
+    expect(defaultKunRuntimeSettings().subagents).toMatchObject({
+      enabled: false,
+      defaultModel: 'deepseek-v4-flash',
+      defaultPreset: 'research_split',
+      maxParallel: 2,
+      maxChildRuns: 4,
+      maxTotalChildTokens: 50_000,
+      maxChildCostUsd: 1,
+      perAgentTimeoutMs: 120_000,
+      workflowPresets: {
+        review_swarm: expect.objectContaining({
+          id: 'review_swarm',
+          maxParallel: 4
+        }),
+        implementation_split: expect.objectContaining({
+          id: 'implementation_split',
+          maxParallel: 2
+        }),
+        research_split: expect.objectContaining({
+          id: 'research_split',
+          maxChildRuns: 6
+        }),
+        audit_split: expect.objectContaining({
+          id: 'audit_split',
+          maxTotalChildTokens: 80_000
+        })
+      }
+    })
+  })
+
+  it('defaults experimental automation to disabled local/dev-only browser gates', () => {
+    expect(defaultKunRuntimeSettings().automation).toMatchObject({
+      enabled: false,
+      browserWorkbenchEnabled: true,
+      localDevOnly: true,
+      allowedHosts: ['localhost', '127.0.0.1', '::1'],
+      permissions: {
+        browserNavigation: 'ask',
+        browserInteraction: 'ask',
+        screenshots: 'ask',
+        localFileAccess: 'deny',
+        appControl: 'deny'
+      },
+      auditLog: {
+        enabled: true,
+        maxEntries: 500
+      }
+    })
+  })
+
+  it('normalizes automation settings without weakening denied gates', () => {
+    const normalized = applyKunRuntimePatch(settings(), {
+      automation: {
+        enabled: true,
+        browserWorkbenchEnabled: false,
+        localDevOnly: true,
+        allowedHosts: [' LOCALHOST ', 'example.com', 'localhost', ''],
+        permissions: {
+          browserNavigation: 'allow',
+          browserInteraction: 'ask',
+          screenshots: 'allow',
+          localFileAccess: 'allow',
+          appControl: 'allow'
+        },
+        auditLog: {
+          enabled: true,
+          maxEntries: 20_000
+        }
+      }
+    }).agents.kun.automation
+
+    expect(normalized).toMatchObject({
+      enabled: true,
+      browserWorkbenchEnabled: false,
+      localDevOnly: true,
+      allowedHosts: ['localhost', 'example.com'],
+      permissions: {
+        browserNavigation: 'allow',
+        browserInteraction: 'ask',
+        screenshots: 'allow',
+        localFileAccess: 'allow',
+        appControl: 'allow'
+      },
+      auditLog: {
+        enabled: true,
+        maxEntries: 10_000
+      }
+    })
+  })
+
+  it('normalizes subagent settings patch values without losing preset defaults', () => {
+    const normalized = applyKunRuntimePatch(settings(), {
+      subagents: {
+        enabled: true,
+        defaultModel: ' openrouter/google/gemini-2.5-flash ',
+        defaultPreset: 'audit_split',
+        maxParallel: 0,
+        maxChildRuns: -2,
+        maxTotalChildTokens: 12_345.9,
+        maxChildCostUsd: 2.5,
+        perAgentTimeoutMs: 1_000_000,
+        workflowPresets: {
+          review_swarm: {
+            maxParallel: 9,
+            maxChildRuns: 11
+          }
+        }
+      }
+    }).agents.kun.subagents
+
+    expect(normalized).toMatchObject({
+      enabled: true,
+      defaultModel: 'openrouter/google/gemini-2.5-flash',
+      defaultPreset: 'audit_split',
+      maxParallel: 1,
+      maxChildRuns: 4,
+      maxTotalChildTokens: 12_345,
+      maxChildCostUsd: 2.5,
+      perAgentTimeoutMs: 600_000,
+      workflowPresets: {
+        review_swarm: expect.objectContaining({
+          id: 'review_swarm',
+          maxParallel: 9,
+          maxChildRuns: 11
+        }),
+        research_split: expect.objectContaining({
+          id: 'research_split'
+        })
       }
     })
   })
@@ -334,6 +481,45 @@ describe('mergeKunRuntimeSettings', () => {
     expect(next.mcpSearch.mode).toBe('search')
     expect(next.mcpSearch.topKDefault).toBe(3)
     expect(next.mcpSearch.topKMax).toBe(current.mcpSearch.topKMax)
+  })
+
+  it('replaces imported User Agent Stack arrays while preserving profile defaults', () => {
+    const current = defaultKunRuntimeSettings()
+    const next = mergeKunRuntimeSettings(current, {
+      userAgentStack: {
+        importedAt: '2026-06-09T00:00:00.000Z',
+        skillRoots: [{
+          path: '/workspace/.codex/skills',
+          scope: 'project',
+          source: 'workspace-codex',
+          available: true
+        }],
+        cli: [{
+          name: 'git',
+          available: true,
+          path: '/usr/bin/git',
+          version: 'git version 2.50.0'
+        }]
+      }
+    })
+
+    expect(next.userAgentStack).toMatchObject({
+      enabled: true,
+      importedAt: '2026-06-09T00:00:00.000Z',
+      skillRoots: [{
+        path: '/workspace/.codex/skills',
+        scope: 'project',
+        source: 'workspace-codex',
+        available: true
+      }],
+      mcpServers: [],
+      cli: [{
+        name: 'git',
+        available: true,
+        path: '/usr/bin/git',
+        version: 'git version 2.50.0'
+      }]
+    })
   })
 
   it('deep-merges advanced Kun settings', () => {

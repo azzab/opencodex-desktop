@@ -9,7 +9,22 @@ const labels: Record<string, string> = {
   agentsQuickSkill: 'Skills',
   agentsQuickMcp: 'MCP',
   agentsQuickPermissions: 'Permissions',
+  agentsQuickUserStack: 'User stack',
   agents: 'Agents',
+  userAgentStack: 'User Agent Stack',
+  userAgentStackDesc: 'Import a redacted local agent setup into Kun settings.',
+  userAgentStackImport: 'Import stack',
+  userAgentStackRefresh: 'Refresh preview',
+  userAgentStackImported: 'Imported {{date}}',
+  userAgentStackNeverImported: 'Not imported yet',
+  userAgentStackSummary: 'Skills {{skills}} · MCP {{mcp}} · CLI {{cli}}',
+  userAgentStackCliReady: 'Ready CLI',
+  userAgentStackCliMissing: 'Missing CLI',
+  userAgentStackPreview: 'Redacted preview',
+  userAgentStackPreviewDesc: 'Preview never shows secret values.',
+  userAgentStackPreviewEmpty: 'Refresh to preview importable skills, MCP servers, and CLI status.',
+  userAgentStackImporting: 'Importing',
+  userAgentStackRefreshing: 'Refreshing',
   kunProvider: 'Provider',
   kunProviderDesc: 'Provider description',
   kunApiKey: 'Kun API key',
@@ -37,6 +52,24 @@ const labels: Record<string, string> = {
   kunDataDirDesc: 'Data dir description',
   kunModel: 'Model',
   kunModelDesc: 'Model description',
+  kunModelPicker: 'Model picker',
+  kunModelPickerDesc: 'Pick a catalog model and filter by provider, context, price, reasoning, tools, and use.',
+  modelPickerProviderFilter: 'Provider filter',
+  modelPickerAllProviders: 'All providers',
+  modelPickerMinContext: 'Minimum context',
+  modelPickerMaxInputPrice: 'Max input price',
+  modelPickerReasoning: 'Reasoning',
+  modelPickerTools: 'Tools',
+  modelPickerRecommendedUse: 'Recommended use',
+  modelPickerAnyUse: 'Any use',
+  modelPickerRefreshCatalog: 'Refresh catalog',
+  modelPickerRefreshing: 'Refreshing catalog',
+  modelPickerContext: 'Context',
+  modelPickerInputPrice: 'Input',
+  modelPickerOutputPrice: 'Output',
+  modelPickerReasoningBadge: 'Reasoning',
+  modelPickerToolsBadge: 'Tools',
+  modelPickerEmpty: 'No matching models',
   kunTokenEconomy: 'Token-saving mode',
   kunTokenEconomyDesc: 'Token-saving mode description',
   kunTokenEconomySavings: 'Saved {{tokens}} / {{cost}}',
@@ -102,6 +135,49 @@ const labels: Record<string, string> = {
   kunToolStormThreshold: 'Tool storm threshold',
   kunToolArgumentRepair: 'Tool argument repair',
   kunToolArgumentRepairDesc: 'Tool argument repair description',
+  kunSubagents: 'Subagents',
+  kunSubagentsDesc: 'Delegate bounded child agent work through Kun.',
+  kunSubagentsEnabled: 'Enable delegate_task',
+  kunSubagentsEnabledDesc: 'Advertise delegate_task when budgets allow it.',
+  kunSubagentDefaultModel: 'Child model',
+  kunSubagentDefaultModelDesc: 'Default cheap child model.',
+  kunSubagentDefaultPreset: 'Default preset',
+  kunSubagentDefaultPresetDesc: 'Default workflow preset.',
+  kunSubagentBudgets: 'Subagent budgets',
+  kunSubagentBudgetsDesc: 'Hard child-agent budget limits.',
+  kunSubagentMaxParallel: 'Max parallel agents',
+  kunSubagentMaxRuns: 'Max child runs',
+  kunSubagentMaxTokens: 'Max child tokens',
+  kunSubagentMaxCost: 'Max child cost',
+  kunSubagentTimeout: 'Per-agent timeout',
+  kunSubagentPresets: 'Workflow presets',
+  kunSubagentPresetsDesc: 'Preset budget profiles.',
+  subagentPresetReviewSwarm: 'Review swarm',
+  subagentPresetImplementationSplit: 'Implementation split',
+  subagentPresetResearchSplit: 'Research split',
+  subagentPresetAuditSplit: 'Audit split',
+  kunAutomation: 'Automation foundation',
+  kunAutomationDesc: 'Safe browser automation and future computer control stay behind Kun gates.',
+  kunAutomationEnabled: 'Experimental automation',
+  kunAutomationEnabledDesc: 'Advertise sidecar-backed automation tools only after explicit opt-in.',
+  kunAutomationBrowserWorkbench: 'Browser workbench panel',
+  kunAutomationBrowserWorkbenchDesc: 'Manual browser preview remains a renderer view, not an automation executor.',
+  kunAutomationLocalDevOnly: 'Local/dev targets only',
+  kunAutomationLocalDevOnlyDesc: 'Navigation is limited to localhost and configured development hosts.',
+  kunAutomationAllowedHosts: 'Allowed dev hosts',
+  kunAutomationAllowedHostsDesc: 'Hostnames allowed while local/dev-only mode is active.',
+  kunAutomationPermissions: 'Automation permission gates',
+  kunAutomationPermissionsDesc: 'Each action class can be denied, approval-gated, or allowed.',
+  kunAutomationBrowserNavigation: 'Browser navigation',
+  kunAutomationBrowserInteraction: 'Click and type',
+  kunAutomationScreenshots: 'Screenshots',
+  kunAutomationLocalFileAccess: 'Local file access',
+  kunAutomationAppControl: 'App/computer control',
+  kunAutomationAuditLog: 'Automation audit log',
+  kunAutomationAuditLogDesc: 'Automation requests, decisions, sidecar calls, and results are recorded as Kun audit events.',
+  automationPermissionDeny: 'Deny',
+  automationPermissionAsk: 'Ask',
+  automationPermissionAllow: 'Allow',
   kunDiagnostics: 'Kun diagnostics',
   kunDiagnosticsAdvanced: 'Detailed diagnostics',
   kunDiagnosticsAdvancedDesc: 'Detailed diagnostics description',
@@ -185,8 +261,12 @@ const labels: Record<string, string> = {
   sandboxExternal: 'External sandbox'
 }
 
-function t(key: string): string {
-  return labels[key] ?? key
+function t(key: string, options?: Record<string, unknown>): string {
+  let value = labels[key] ?? key
+  for (const [optionKey, optionValue] of Object.entries(options ?? {})) {
+    value = value.replace(new RegExp(`{{${optionKey}}}`, 'g'), String(optionValue))
+  }
+  return value
 }
 
 function baseCtx(): Record<string, unknown> {
@@ -284,6 +364,38 @@ function baseCtx(): Record<string, unknown> {
     refreshKunDiagnostics: asyncNoop,
     disableMemoryRecord: asyncNoop,
     deleteMemoryRecord: asyncNoop,
+    userAgentStackPreview: {
+      enabled: true,
+      importedAt: '2026-06-09T00:00:00.000Z',
+      refreshedAt: '2026-06-09T00:00:00.000Z',
+      sourcePaths: ['/tmp/codex-config.json'],
+      skillRoots: [{
+        path: '/tmp/project/.codex/skills',
+        scope: 'project',
+        source: 'workspace-codex',
+        available: true
+      }],
+      mcpServers: [{
+        id: 'github',
+        enabled: true,
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        env: { GITHUB_TOKEN: '<redacted>' },
+        trustScope: 'user',
+        sourcePath: '/tmp/codex-config.json'
+      }],
+      cli: [
+        { name: 'git', available: true, path: '/usr/bin/git', version: 'git version 2.50.0' },
+        { name: 'hcloud', available: false }
+      ],
+      redactedPreviewJson: '{\n  "GITHUB_TOKEN": "<redacted>"\n}',
+      validationErrors: []
+    },
+    userAgentStackBusy: false,
+    userAgentStackNotice: null,
+    previewUserAgentStack: asyncNoop,
+    importUserAgentStack: asyncNoop,
     pickClawWorkspace: asyncNoop,
     resetClawWorkspaceToDefault: noop,
     clawWorkspacePickerError: '',
@@ -300,6 +412,20 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(html).toContain('Token-saving advanced settings')
     expect(html).toContain('MCP advanced settings')
     expect(html).not.toContain('<details open')
+  })
+
+  it('renders User Agent Stack import status and a redacted preview', () => {
+    const html = renderToStaticMarkup(createElement(AgentsSettingsSection, { ctx: baseCtx() }))
+
+    expect(html).toContain('User Agent Stack')
+    expect(html).toContain('Import stack')
+    expect(html).toContain('Refresh preview')
+    expect(html).toContain('Skills 1')
+    expect(html).toContain('MCP 1')
+    expect(html).toContain('Ready CLI')
+    expect(html).toContain('Missing CLI')
+    expect(html).toContain('&lt;redacted&gt;')
+    expect(html).not.toContain('ghp_secret')
   })
 
   it('renders pure JSONL as a selectable storage backend', () => {
@@ -322,6 +448,134 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(html).toContain('980,000')
     expect(html).toContain('990,000')
     expect(html).toContain('Fallback compaction thresholds')
+  })
+
+  it('renders a catalog-backed Kun model picker with provider, context, price, reasoning, and tool filters', () => {
+    const ctx = {
+      ...baseCtx(),
+      provider: {
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com',
+        providers: [
+          {
+            id: 'deepseek',
+            name: 'DeepSeek',
+            apiKey: '',
+            baseUrl: 'https://api.deepseek.com',
+            models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+            catalogModels: []
+          },
+          {
+            id: 'openrouter',
+            name: 'OpenRouter',
+            apiKey: '',
+            baseUrl: 'https://openrouter.ai/api/v1',
+            models: ['openai/gpt-4.1-mini'],
+            catalogUpdatedAt: '2026-06-09T00:00:00.000Z',
+            catalogModels: [{
+              id: 'openai/gpt-4.1-mini',
+              name: 'OpenAI: GPT-4.1 Mini',
+              providerId: 'openrouter',
+              contextLength: 1047576,
+              tokenizer: 'GPT',
+              pricingUsdPerMillion: {
+                input: 0.4,
+                output: 1.6,
+                cacheRead: 0.1
+              },
+              capabilities: {
+                inputModalities: ['text'],
+                outputModalities: ['text'],
+                reasoning: true,
+                tools: true,
+                recommendedUse: ['coding', 'review']
+              }
+            }]
+          }
+        ]
+      }
+    }
+    const html = renderToStaticMarkup(createElement(AgentsSettingsSection, { ctx }))
+
+    expect(html).toContain('Model picker')
+    expect(html).toContain('Provider filter')
+    expect(html).toContain('Minimum context')
+    expect(html).toContain('Max input price')
+    expect(html).toContain('Recommended use')
+    expect(html).toContain('OpenRouter')
+    expect(html).toContain('OpenAI: GPT-4.1 Mini')
+    expect(html).toContain('openai/gpt-4.1-mini')
+    expect(html).toContain('Reasoning')
+    expect(html).toContain('Tools')
+    expect(html).toContain('$0.40')
+    expect(html).not.toContain('sk-openrouter-secret')
+  })
+
+  it('renders subagent enablement, cheap child model, budgets, and workflow presets', () => {
+    const ctx = {
+      ...baseCtx(),
+      kun: {
+        ...(baseCtx().kun as any),
+        subagents: {
+          ...defaultKunRuntimeSettings().subagents,
+          enabled: true,
+          defaultModel: 'deepseek-v4-flash',
+          defaultPreset: 'review_swarm',
+          maxParallel: 3,
+          maxChildRuns: 8,
+          maxTotalChildTokens: 77_000,
+          maxChildCostUsd: 2.75,
+          perAgentTimeoutMs: 90_000
+        }
+      }
+    }
+
+    const html = renderToStaticMarkup(createElement(AgentsSettingsSection, { ctx }))
+
+    expect(html).toContain('Subagents')
+    expect(html).toContain('Enable delegate_task')
+    expect(html).toContain('Child model')
+    expect(html).toContain('deepseek-v4-flash')
+    expect(html).toContain('Max parallel agents')
+    expect(html).toContain('Max child tokens')
+    expect(html).toContain('Max child cost')
+    expect(html).toContain('Per-agent timeout')
+    expect(html).toContain('Review swarm')
+    expect(html).toContain('Implementation split')
+    expect(html).toContain('Research split')
+    expect(html).toContain('Audit split')
+  })
+
+  it('renders experimental automation settings and explicit permission gates', () => {
+    const ctx = {
+      ...baseCtx(),
+      kun: {
+        ...(baseCtx().kun as any),
+        automation: {
+          ...defaultKunRuntimeSettings().automation,
+          enabled: true,
+          permissions: {
+            ...defaultKunRuntimeSettings().automation.permissions,
+            browserNavigation: 'allow',
+            screenshots: 'ask'
+          }
+        }
+      }
+    }
+
+    const html = renderToStaticMarkup(createElement(AgentsSettingsSection, { ctx }))
+
+    expect(html).toContain('Automation foundation')
+    expect(html).toContain('Experimental automation')
+    expect(html).toContain('Browser workbench panel')
+    expect(html).toContain('Local/dev targets only')
+    expect(html).toContain('Allowed dev hosts')
+    expect(html).toContain('Browser navigation')
+    expect(html).toContain('Click and type')
+    expect(html).toContain('Screenshots')
+    expect(html).toContain('Local file access')
+    expect(html).toContain('App/computer control')
+    expect(html).toContain('Automation audit log')
   })
 
   it('renders MCP, Skill, web, attachment, and memory diagnostics', () => {

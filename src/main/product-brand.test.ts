@@ -17,7 +17,7 @@ describe('OpenCodex Desktop brand documents', () => {
     expect(readme).toContain('# OpenCodex Desktop')
     expect(readme).toContain('An independent open agent workbench. Not affiliated with OpenAI.')
     expect(readme).toContain('User Agent Stack Import')
-    expect(readme).toContain('Phase 10: Codex-Like Parity Target')
+    expect(readme).toContain('Phase 10: Parity Hardening, Security, And Release')
     expect(readme).toContain('Arabic')
     expect(readme).toContain('upstream')
   })
@@ -30,6 +30,23 @@ describe('OpenCodex Desktop brand documents', () => {
     expect(landing).toContain('Arabic')
     expect(landing).toContain('OpenRouter')
     expect(landing).toContain('subagents')
+  })
+
+  it('uses OpenCodex Desktop in primary product-facing locale strings', () => {
+    const enCommon = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'en', 'common.json'), 'utf8')
+    const zhCommon = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'zh', 'common.json'), 'utf8')
+    const arCommon = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'ar', 'common.json'), 'utf8')
+    const enSettings = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'en', 'settings.json'), 'utf8')
+    const zhSettings = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'zh', 'settings.json'), 'utf8')
+    const arSettings = readFileSync(join(repoRoot, 'src', 'renderer', 'src', 'locales', 'ar', 'settings.json'), 'utf8')
+
+    for (const content of [enCommon, zhCommon, arCommon, enSettings, zhSettings, arSettings]) {
+      expect(content).toContain('OpenCodex Desktop')
+    }
+
+    expect(enCommon).toContain('"appName": "OpenCodex Desktop"')
+    expect(zhCommon).toContain('"appName": "OpenCodex Desktop"')
+    expect(arCommon).toContain('"appName": "OpenCodex Desktop"')
   })
 
   it('documents the Phase 0.5 Codex-parity reference plan', () => {

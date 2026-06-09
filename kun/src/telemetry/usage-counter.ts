@@ -35,15 +35,21 @@ export class UsageCounter {
     const totalTokens = promptTokens + completionTokens
     const cachedTokens =
       (current.cachedTokens ?? 0) + (snapshot.cachedTokens ?? 0)
-    const cacheHitTokens =
-      (current.cacheHitTokens ?? 0) + (snapshot.cacheHitTokens ?? 0)
-    const cacheMissTokens =
-      (current.cacheMissTokens ?? 0) + (snapshot.cacheMissTokens ?? 0)
-    const cacheTotal = cacheHitTokens + cacheMissTokens
+    const cacheHitTokens = addOptionalCounter(
+      current.cacheHitTokens,
+      snapshot.cacheHitTokens,
+      current.turns > 0
+    )
+    const cacheMissTokens = addOptionalCounter(
+      current.cacheMissTokens,
+      snapshot.cacheMissTokens,
+      current.turns > 0
+    )
+    const cacheTotal = (cacheHitTokens ?? 0) + (cacheMissTokens ?? 0)
     const cacheHitRate =
       cacheTotal === 0
         ? null
-        : cacheHitTokens / cacheTotal
+        : (cacheHitTokens ?? 0) / cacheTotal
     const turns = current.turns + (snapshot.turns > 0 ? snapshot.turns : 1)
     const costUsd =
       current.costUsd === undefined && snapshot.costUsd === undefined
@@ -128,6 +134,16 @@ export class UsageCounter {
   forThread(threadId: string): UsageSnapshot {
     return this.perThread.get(threadId) ?? emptyUsageSnapshot()
   }
+}
+
+function addOptionalCounter(
+  current: number | undefined,
+  next: number | undefined,
+  hasCurrentUsage: boolean
+): number | undefined {
+  if (next === undefined && current === undefined) return undefined
+  if (next === undefined && !hasCurrentUsage) return undefined
+  return (current ?? 0) + (next ?? 0)
 }
 
 function normalizeUsageSnapshot(snapshot: UsageSnapshot): UsageSnapshot {

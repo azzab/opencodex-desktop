@@ -17,6 +17,8 @@ import {
   MemoryRecord,
   KunErrorBody,
   KunCapabilitiesConfig,
+  AutomationAuditRuntimeEvent,
+  AutomationCapabilityConfig,
   RuntimeCapabilityManifest,
   buildRuntimeCapabilityManifest,
   emptyUsageSnapshot,
@@ -271,6 +273,52 @@ describe('contracts', () => {
       message: 'model does not support image input'
     }).code).toBe('model_modality_unsupported')
   })
+
+  it('accepts automation capability and audit event contracts', () => {
+    const capabilities = KunCapabilitiesConfig.parse({
+      automation: {
+        enabled: true,
+        browserWorkbenchEnabled: true,
+        localDevOnly: true,
+        allowedHosts: ['localhost'],
+        permissions: {
+          browserNavigation: 'allow',
+          browserInteraction: 'ask',
+          screenshots: 'ask',
+          localFileAccess: 'deny',
+          appControl: 'deny'
+        },
+        auditLog: {
+          enabled: true,
+          maxEntries: 500
+        }
+      }
+    })
+    expect(AutomationCapabilityConfig.parse(capabilities.automation).enabled).toBe(true)
+    const manifest = buildRuntimeCapabilityManifest({
+      config: capabilities,
+      model: modelCapabilitiesForModel('deepseek-v4-pro'),
+      automation: {
+        available: true,
+        sidecar: 'mock'
+      }
+    })
+    expect(RuntimeCapabilityManifest.parse(manifest).automation.status).toBe('available')
+    expect(AutomationAuditRuntimeEvent.parse({
+      kind: 'automation_audit',
+      seq: 11,
+      timestamp: '2026-06-09T00:00:00.000Z',
+      threadId: 'thr_1',
+      turnId: 'turn_1',
+      runId: 'run_1',
+      action: 'browser.navigate',
+      permission: 'browserNavigation',
+      decision: 'allow',
+      status: 'completed',
+      targetSummary: 'http://localhost:3000',
+      sidecar: 'mock'
+    }).status).toBe('completed')
+  })
 })
 
 describe('cli', () => {
@@ -470,7 +518,17 @@ describe('cli', () => {
     expect(config.mcp.search.mode).toBe('auto')
     expect(config.web.enabled).toBe(false)
     expect(config.skills.enabled).toBe(false)
+    expect(config.subagents.defaultModel).toBe('deepseek-v4-flash')
+    expect(config.subagents.defaultPreset).toBe('research_split')
     expect(config.subagents.maxParallel).toBe(0)
+    expect(config.subagents.maxTotalChildTokens).toBe(0)
+    expect(config.subagents.maxChildCostUsd).toBe(0)
+    expect(config.subagents.perAgentTimeoutMs).toBe(0)
+    expect(config.subagents.workflowPresets.review_swarm).toMatchObject({
+      id: 'review_swarm',
+      defaultModel: 'deepseek-v4-flash',
+      maxParallel: 4
+    })
     expect(config.attachments.allowedMimeTypes).toContain('image/png')
     expect(config.attachments.textFallbackMaxBase64Bytes).toBe(512 * 1024)
     expect(config.attachments.textFallbackMaxImageDimension).toBe(1280)
@@ -484,6 +542,21 @@ describe('cli', () => {
         enabled: true,
         maxParallel: 2,
         maxChildRuns: 4,
+        maxTotalChildTokens: 1000,
+        maxChildCostUsd: 0.25,
+        perAgentTimeoutMs: 5000,
+        defaultModel: 'openrouter/google/gemini-2.5-flash',
+        defaultPreset: 'audit_split',
+        workflowPresets: {
+          audit_split: {
+            defaultModel: 'deepseek-v4-flash',
+            maxParallel: 3,
+            maxChildRuns: 5,
+            maxTotalChildTokens: 50_000,
+            maxChildCostUsd: 1.5,
+            perAgentTimeoutMs: 120_000
+          }
+        },
         defaultStepLimit: 99
       }
     })
@@ -491,7 +564,19 @@ describe('cli', () => {
     expect(config.subagents).toMatchObject({
       enabled: true,
       maxParallel: 2,
-      maxChildRuns: 4
+      maxChildRuns: 4,
+      maxTotalChildTokens: 1000,
+      maxChildCostUsd: 0.25,
+      perAgentTimeoutMs: 5000,
+      defaultModel: 'openrouter/google/gemini-2.5-flash',
+      defaultPreset: 'audit_split',
+      workflowPresets: {
+        audit_split: expect.objectContaining({
+          id: 'audit_split',
+          maxParallel: 3,
+          maxTotalChildTokens: 50_000
+        })
+      }
     })
     expect('defaultStepLimit' in config.subagents).toBe(false)
   })
