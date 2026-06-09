@@ -1,99 +1,94 @@
 # Reference Intake
 
-OpenCodex Desktop began as a fork of DeepSeek GUI and its Kun runtime. The product direction is broader: an independent Codex-style desktop agent workbench for local coding, project operations, browser/app verification, reusable skills, MCP tools, model routing, and controlled subagents.
+OpenCodex Desktop is an independent fork and rebrand of DeepSeek GUI by XingYu-Zhong and contributors. DeepSeek GUI/Kun is the upstream foundation, the current runtime base, and the future upstream merge source.
 
-## Compass
+OpenCodex Desktop is not affiliated with OpenAI, Anthropic, DeepSeek, OpenRouter, OpenHanako, Reasonix, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, or their maintainers. Public project and company names in these docs are used only for attribution, compatibility, product positioning, and benchmark context. They do not imply endorsement, sponsorship, or code ownership.
 
-Codex is the product compass. OpenCodex Desktop should study Codex's public desktop direction: project-connected threads, multi-agent workflows, worktrees, Skills, Automations, in-app browser, Computer Use, Appshots, app/browser annotations, and goal-driven long-running work.
+## Product Compass
 
-Claude Code Desktop is the second benchmark for local developer UX: parallel sessions, Git worktree isolation, drag-and-drop panes, integrated terminal and file editor, side chats, visual diff review, previews, PR monitoring, connectors, and computer use.
+Codex is the product compass.
 
-## Foundation
+Codex is the quality and capability compass: OpenCodex Desktop should study Codex-like workflows for project-connected threads, long-running goals, file edits, terminal and browser verification, multi-agent task state, worktree-aware execution, Skills, MCP, memory, automation, and visible approvals.
 
-DeepSeek GUI and Kun are the fork foundation. The project keeps upstream available as `upstream` for major fixes, packaging updates, and Kun improvements.
+Claude Code and Claude Code Desktop are target-class references for developer ergonomics: parallel sessions, terminal/file/diff surfaces, worktree isolation, project trust boundaries, side chats, app previews, connector visibility, and explicit computer-use controls.
 
-OpenCodex Desktop should not restore old CodeWhale or Reasonix runtime adapters. New behavior should land through Kun contracts, settings, services, and adapters.
+The goal is target-class parity in workflow quality, not product affiliation or brand imitation.
+
+## Upstream Foundation: DeepSeek GUI/Kun
+
+DeepSeek GUI/Kun provides the fork foundation:
+
+- Electron desktop shell;
+- Kun local HTTP/SSE runtime;
+- DeepSeek-compatible model path;
+- cache-first runtime discipline;
+- persisted sessions, threads, usage, approvals, and runtime events;
+- current English, Arabic, and Chinese locale surface;
+- upstream sync path for future DeepSeek GUI improvements.
+
+OpenCodex Desktop should keep upstream merge discipline. Rebrand and workbench additions should stay modular so future DeepSeek GUI/Kun updates can still be reviewed and pulled.
 
 ## Technical References
 
-### Reasonix
-
-Use Reasonix as a coding-agent kernel reference, especially:
-
-- config-driven providers, tools, and plugins;
-- planner/executor split in separate cache-stable sessions;
-- subagent model defaults and per-skill child model overrides;
-- checkpoint/rewind for code, conversation, or both;
-- slash commands;
-- `@file`, `@directory`, and `@mcp-resource` references;
-- MCP tools, prompts, and resources;
-- permissions plus workspace sandbox;
-- compaction and cache-first economics.
-
-Do not copy Reasonix's product stance that DeepSeek-only is the feature. OpenCodex Desktop must support DeepSeek, OpenRouter, and compatible providers.
-
-Do not rewrite OpenCodex Desktop into Go/Wails unless a future engine audit proves Electron/Kun cannot meet the target.
-
-Reference: https://github.com/esengine/DeepSeek-Reasonix
-
 ### OpenHanako
 
-Use OpenHanako as a desktop workbench reference, especially:
+OpenHanako is a technical reference for a broad desktop agent workbench:
 
 - plugin marketplace and developer loop;
 - restricted vs full-access plugin permissions;
-- plugin pages, widgets, routes, providers, tools, and background tasks;
-- Desk-style async workspace for files and notes;
-- session file sidecars and media handling;
+- workspace/Desk-style files, notes, and sidecars;
 - multi-agent channels and delegation;
-- scheduled tasks and heartbeat;
-- mobile/LAN frontends;
-- application-level PathGuard plus OS-level sandboxing;
-- model roles for chat, utility, large utility, and vision.
+- scheduled tasks and heartbeat patterns;
+- media/session files and app context capture;
+- LAN/mobile observer surfaces;
+- PathGuard and OS-level sandboxing ideas.
 
-Do not copy OpenHanako's personality-first branding. OpenCodex Desktop should stay a serious agent workbench.
+OpenCodex Desktop should not copy OpenHanako's personality-first brand posture. The translation should be a serious workbench requirement mapped into Kun contracts, Electron UI, permissions, and tests.
 
 Reference: https://github.com/liliMozi/openhanako
 
-## Desktop Orchestration Benchmarks
+### Reasonix
 
-Study desktop shells such as Crest, cdesktop, and Olenro for workflow ideas:
+Reasonix is a technical reference for coding-agent kernel direction:
 
-- side-by-side agents;
-- agent teams and routines;
-- worktrees, previews, diffs, and PRs;
-- config/profile management across Codex, Claude Code, OpenCode, Gemini, and MCP;
-- pane layout and process supervision.
+- provider/tool/plugin configuration;
+- planner/executor split;
+- subagent model defaults and child-model overrides;
+- checkpoint and rewind design;
+- slash commands;
+- `@file`, `@directory`, and MCP resource references;
+- MCP tools, prompts, and resources;
+- permission and workspace sandbox models;
+- compaction and cache-first economics.
 
-These are benchmarks, not dependencies.
+OpenCodex Desktop should not restore Reasonix as a second live runtime. Useful ideas must be translated into Kun contracts, services, ports/adapters, HTTP routes, renderer mappers, and desktop UI.
 
-References:
+Reference: https://github.com/esengine/DeepSeek-Reasonix
 
-- https://www.crestai.dev/
-- https://cdesktop.ai/
-- https://olenro.com/
+## Desktop And Workflow Benchmarks
 
-## Market Benchmarks
+Use these projects as benchmarks and inspiration only:
 
-Also compare against:
+- Crest: side-by-side Codex/Claude-style agent desktop workflows. Reference: https://www.crestai.dev/
+- cdesktop: agent teams, routines, worktrees, previews, diffs, and PR workflows. Reference: https://cdesktop.ai/
+- Olenro: provider, MCP, skill, rule, hook, and agent configuration across multiple CLI tools. Reference: https://olenro.com/
+- OpenCode: terminal/CLI-first coding-agent ergonomics, command workflows, and provider flexibility.
+- Goose: local agent extensibility, tool orchestration, and desktop/operator use cases.
+- Aider: Git-centered pair-programming workflow, diff discipline, and repo-local coding flow.
 
-- official OpenAI Codex CLI/app;
-- Claude Code and Claude Code Desktop;
-- OpenCode;
-- Goose;
-- Aider;
-- Continue and related IDE/agent surfaces where relevant.
-
-## Non-Affiliation
-
-OpenCodex Desktop is independent and is not affiliated with OpenAI, Anthropic, DeepSeek, DeepSeek GUI, OpenHanako, Reasonix, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, or their maintainers. Names are used only for attribution, compatibility, and benchmark context.
+These references should inform requirement quality. They should not become dependencies by default, and no benchmark project should be described as endorsing OpenCodex Desktop.
 
 ## Intake Rule
 
-Every borrowed idea must be translated into OpenCodex Desktop's architecture:
+Every borrowed idea must pass through this mapping before implementation:
 
 ```text
-reference idea -> OpenCodex requirement -> Kun contract/service -> Electron UI surface -> tests/verification
+reference idea
+  -> OpenCodex Desktop requirement
+  -> Kun contract/service/port/adapter
+  -> Electron main or renderer surface
+  -> permission/audit/telemetry behavior
+  -> tests and verification evidence
 ```
 
-Do not paste feature lists into implementation without mapping them to this project.
+If an idea cannot be mapped without adding a casual second runtime, unsafe computer control, secret exposure, or an upstream-hostile rewrite, it stays out of Phase 1.

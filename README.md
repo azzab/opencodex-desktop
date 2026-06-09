@@ -2,7 +2,7 @@
 
 **An independent open agent workbench. Not affiliated with OpenAI.**
 
-OpenCodex Desktop is a fork and rebrand of [DeepSeek GUI](https://github.com/XingYu-Zhong/DeepSeek-GUI). It keeps the Kun local runtime architecture and expands the product into a multi-model, Skills-aware, MCP-enabled desktop agent workbench for real project work.
+OpenCodex Desktop is an independent fork and rebrand of [DeepSeek GUI](https://github.com/XingYu-Zhong/DeepSeek-GUI) by XingYu-Zhong and contributors. It keeps the Kun local runtime architecture and expands the product into a multi-model, Skills-aware, MCP-enabled desktop agent workbench for real project work.
 
 DeepSeek remains a supported default model provider. It is no longer the product identity.
 
@@ -20,7 +20,7 @@ The goal is to make the desktop app feel closer to a local Codex-style operating
 - CLI availability;
 - DeepSeek and OpenRouter model routing;
 - token and cost accounting;
-- Arabic UI support;
+- English, Arabic, and Chinese UI support;
 - controlled subagents and swarm workflows.
 
 ## Current Foundation
@@ -48,7 +48,7 @@ Phase 0 establishes identity and documentation:
 - product name: **OpenCodex Desktop**;
 - app slug: `opencodex-desktop`;
 - tagline: **An independent open agent workbench. Not affiliated with OpenAI.**;
-- Arabic locale support;
+- English, Arabic, and Chinese locale support;
 - RTL document direction for Arabic;
 - detailed README, landing document, and notice;
 - upstream strategy for future DeepSeek GUI updates.
@@ -208,15 +208,15 @@ The long-term target is to reach roughly 99% of the local Codex-style desktop ex
 - English, Arabic, and Chinese UI quality;
 - clean upstream merge discipline.
 
-## Arabic Support
+## Language Support
 
-Arabic is a first-class product requirement. When Arabic is selected, the app sets:
+English, Arabic, and Chinese are first-class product requirements. When Arabic is selected, the app sets:
 
 ```html
 <html lang="ar" dir="rtl">
 ```
 
-The initial Arabic locale focuses on core workbench and settings strings. English fallback remains active for untranslated strings until full translation coverage is complete.
+The initial Arabic locale focuses on core workbench and settings strings. Chinese support inherited from DeepSeek GUI/Kun remains supported. English fallback remains active for untranslated strings until full translation coverage is complete.
 
 ## Upstream Strategy
 
@@ -319,7 +319,7 @@ https://github.com/XingYu-Zhong/DeepSeek-GUI
 
 OpenCodex Desktop is now an independent agent workbench project benchmarked against modern agent systems including Codex, Claude Code, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, and Aider.
 
-OpenAI, Codex, Claude, Anthropic, DeepSeek, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and related marks belong to their respective owners. OpenCodex Desktop is not affiliated with, endorsed by, or sponsored by those projects or companies.
+OpenAI, Codex, DeepSeek, Anthropic, Claude, OpenRouter, DeepSeek GUI, Reasonix, OpenHanako, Crest, cdesktop, Olenro, OpenCode, Goose, Aider, and related marks belong to their respective owners. OpenCodex Desktop is not affiliated with, endorsed by, or sponsored by those projects or companies.
 
 ## License
 

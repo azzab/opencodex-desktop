@@ -2,144 +2,140 @@
 
 ## Feasibility
 
-Browser automation, in-app browser workflows, screenshots, and app verification are feasible in Electron.
+Browser automation, browser previews, screenshots, DOM inspection, console/network capture, and local app verification are feasible in Electron.
 
-Computer control is also feasible, but it requires native permissions and platform-specific sidecars. It must not be implemented as unguarded renderer JavaScript.
+Computer control is also feasible, but it is a privileged capability. It requires native permissions, platform-specific adapters, visible user controls, and durable audit logs. It must not be implemented as unrestricted renderer JavaScript, and it must not be enabled in this docs-only phase.
 
-## Architecture
+## Required Boundary
 
 ```text
-Electron renderer
-  shows browser panes, annotations, screenshots, approvals, and audit history
-
-Electron main
-  owns BrowserWindow/WebContentsView, IPC, OS prompts, and native permission checks
-
-Kun
-  exposes browser/computer-control tools to the agent through typed contracts
-
-Sidecars
-  run Playwright/CDP, OS screenshots, accessibility inspection, and input control
+Kun tool contract
+  -> Electron main broker
+  -> browser host or native/Node sidecar
+  -> browser/OS action
+  -> structured result + evidence + audit event
+  -> renderer-visible control surface
 ```
 
-## In-App Browser
+Responsibilities:
 
-Electron can host an in-app browser using Chromium surfaces such as `BrowserWindow`, `BrowserView`/`WebContentsView`, or a controlled webview-like pane.
+- Kun defines typed browser/computer-control tools, permission metadata, run IDs, and audit events.
+- Electron main owns BrowserWindow/WebContentsView lifecycle, IPC, native permission checks, and emergency-stop routing.
+- Sidecars run Playwright/CDP, accessibility inspection, screenshots, OS-level capture, and input adapters.
+- Renderer shows browser panes, screenshots, annotations, approvals, active-control banners, audit history, and stop controls.
 
-Required features:
+## In-App Browser Plan
+
+The first browser-control milestone should be an in-app browser for local verification and evidence capture.
+
+Required capabilities:
 
 - open URL;
-- navigate/back/forward/reload;
-- inspect DOM and accessibility tree;
-- collect console and network logs;
-- screenshot viewport/full page;
-- click/type/select by selector;
+- navigate, back, forward, reload;
+- capture DOM and accessibility tree summaries;
+- collect console logs;
+- collect network request summaries with secret redaction;
+- screenshot viewport and full page;
+- click, type, select, and scroll by selector in the controlled browser only;
 - annotate page regions;
-- verify local dev servers;
+- verify localhost development servers;
 - attach browser evidence to a thread.
 
 Preferred tool path:
 
 ```text
-Kun tool -> Electron main browser host -> Playwright/CDP/browser API -> structured result
+Kun browser tool -> Electron main browser host -> Playwright/CDP/WebContents API -> structured result
 ```
 
-## Browser Plugin
+## External Browser Plugin Later
 
-Later, a browser extension/plugin can connect external Chrome/Chromium tabs to OpenCodex Desktop.
+A browser extension/plugin may later connect external Chrome or Chromium tabs to OpenCodex Desktop with user consent.
 
 Use cases:
 
-- inspect a user's current tab with consent;
-- collect selected DOM/context;
-- annotate a web app from the real browser;
-- run tests without taking over the user's browser session;
-- share context with the in-app browser.
+- inspect a selected current tab;
+- capture chosen DOM/context;
+- annotate a real browser session;
+- run checks without taking over the user's default browser;
+- pass evidence back to the Kun thread.
 
-This should be a later phase after the in-app browser is stable.
+This should come after the in-app browser is stable because external tabs add more privacy and session-boundary risk.
 
 ## Appshots
 
-Appshots are context captures from an app/window:
+Appshots are one-way context captures from a desktop app or window:
 
 - screenshot;
-- window title/app name;
+- app/window title;
 - selected text or accessibility tree when available;
 - display/window bounds;
 - redaction metadata;
-- user confirmation.
+- user confirmation;
+- run ID and audit event.
 
-Appshots should be one-way context first. They should not imply control.
+Appshots should initially provide context only. They must not imply permission to control the app.
 
-## Computer Control
+## Computer Control Definition
 
-Computer control means the agent can see, click, type, scroll, and use desktop apps.
+Computer control means the agent can observe the screen and perform actions such as click, type, scroll, hotkey, or app switching.
 
 Platform requirements:
 
-- macOS: Screen Recording, Accessibility, and possibly AppleScript/CGEvent/AX APIs.
+- macOS: Screen Recording, Accessibility, and possibly AppleScript, CGEvent, or AX APIs.
 - Windows: UI Automation, screenshot APIs, keyboard/mouse input APIs, and PowerShell/Win32 helpers.
-- Linux: X11 support via tools such as screenshot/input helpers; Wayland needs portals/compositor-specific support.
+- Linux: X11 screenshot/input support where available; Wayland requires portals or compositor-specific support.
 
-Required guardrails:
+## Guardrails
+
+Computer control must require:
 
 - opt-in only;
-- per-app allowlist;
-- visible active-control banner;
-- emergency stop hotkey;
-- approval before typing/clicking outside trusted windows;
-- rate limits;
+- disabled-by-default settings;
+- per-workspace and per-app allowlists;
+- clear active-control banner;
+- emergency stop button and hotkey;
+- approval before typing or clicking outside trusted windows;
+- approval before destructive OS, browser, file, account, payment, deployment, or credential actions;
+- rate limits and action throttling;
 - screenshot redaction options;
-- audit log for every observe/action pair;
 - no secret entry without explicit user confirmation;
-- no destructive OS actions without explicit approval.
+- run IDs for every observe/action/result sequence;
+- audit logs persisted through Kun events;
+- user-visible final evidence for completed automations.
 
-## Locked Or Background Computer Use
+## Sidecar And Native Boundary Requirements
 
-Locked/background control is possible only after normal computer control is reliable.
+Browser automation and computer control should use sidecars/native adapters rather than renderer-only code.
 
-Treat it as Phase 10 or later because it raises:
+A sidecar must declare:
 
-- OS security issues;
-- privacy issues;
-- session isolation issues;
-- remote access issues;
-- audit and emergency-stop requirements.
+- supported platform;
+- required OS permissions;
+- action schema;
+- observation schema;
+- redaction behavior;
+- timeout and cancellation behavior;
+- audit event fields;
+- failure modes;
+- safe shutdown behavior.
 
-## Phase Plan
+The renderer should never receive raw secret values, private screenshots without user consent, or unredacted logs from sidecars.
 
-Phase 4:
+## Explicit Non-Implementation Rule For Phase 0.5
 
-- add browser/app-control requirements to the engine audit;
-- define tool contracts and safety policy.
+Phase 0.5 must not implement unrestricted browser automation or computer control.
 
-Phase 6:
+This phase may define architecture and safety requirements only. Any future implementation must start behind disabled-by-default settings, typed Kun contracts, permission gates, audit logs, user-visible controls, and verification tests.
 
-- add browser preview pane for local dev servers;
-- expose screenshot and console/network capture tools;
-- attach browser evidence to threads.
+## Future Verification Targets
 
-Phase 8:
+Future browser/control implementation should prove:
 
-- add Playwright/CDP automation;
-- add page annotation flow;
-- add Appshots for macOS first;
-- add guarded computer-control prototype behind disabled-by-default settings.
-
-Phase 9:
-
-- add external browser extension/plugin;
-- add mobile/LAN observer mode for running sessions.
-
-Phase 10:
-
-- evaluate locked/background computer use.
-
-## Initial Verification Targets
-
-- Browser pane renders local `http://localhost` pages.
-- Screenshot tool returns a nonblank image.
-- Console/network capture is attached to a thread.
-- Selector click/type works in the in-app browser.
-- User can stop an active automation immediately.
-- Audit log records observe/action/result entries.
+- browser pane renders a localhost page;
+- screenshot output is nonblank and attached to a thread;
+- console and network evidence is captured with redaction;
+- selector click/type works only inside the controlled browser;
+- emergency stop interrupts active automation;
+- audit logs record observe/action/result entries;
+- app/window capture requires OS permission and user confirmation;
+- computer-control actions cannot run outside allowed windows without approval.

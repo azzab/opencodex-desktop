@@ -2,7 +2,7 @@
 
 **An independent open agent workbench. Not affiliated with OpenAI.**
 
-OpenCodex Desktop is a local-first Electron workbench for serious agentic coding and operator workflows. It builds on the Kun runtime from DeepSeek GUI and broadens the product from a DeepSeek-centered desktop client into a multi-model, skills-aware, MCP-enabled agent workstation.
+OpenCodex Desktop is a local-first Electron workbench for serious agentic coding and operator workflows. It builds on the Kun runtime from DeepSeek GUI by XingYu-Zhong and contributors and broadens the product from a DeepSeek-centered desktop client into a multi-model, skills-aware, MCP-enabled agent workstation.
 
 The product direction is simple: keep the speed, token discipline, and local persistence of Kun, then make the desktop app usable across any user's real project portfolio, including coding repos, SaaS products, automation tools, research workspaces, and agent-heavy operations.
 
@@ -28,7 +28,7 @@ The first fork phase establishes the product identity:
 - tagline: **An independent open agent workbench. Not affiliated with OpenAI.**;
 - app slug: `opencodex-desktop`;
 - upstream remote retained for future DeepSeek GUI updates;
-- Arabic language support with RTL document direction;
+- English, Arabic, and Chinese language support, including Arabic RTL document direction;
 - full documentation and notice files that explain independence, attribution, and secret-handling boundaries.
 
 DeepSeek remains a supported model provider. It is no longer the product identity.
@@ -89,9 +89,9 @@ OpenCodex Desktop will keep extending toward a near-Codex desktop workbench with
 6. **Phase 9: Team Profiles, Sync, And Portable Workspaces** - encrypted profile export/import, shared presets without secrets, and workspace policy files.
 7. **Phase 10: Codex-Like Parity Target** - planning, editing, tool orchestration, model routing, subagents, verification, memory, handoff, and English/Arabic/Chinese polish.
 
-## Arabic Support
+## Language Support
 
-Arabic support is a first-class product requirement. When Arabic is selected, the app should set `lang="ar"` and `dir="rtl"` on the document root. The initial Arabic locale focuses on the core settings and workbench language, with English fallback for untranslated strings until full translation coverage is complete.
+English, Arabic, and Chinese support are first-class product requirements. When Arabic is selected, the app should set `lang="ar"` and `dir="rtl"` on the document root. The initial Arabic locale focuses on the core settings and workbench language. Chinese support inherited from DeepSeek GUI/Kun remains supported, with English fallback for untranslated strings until full translation coverage is complete.
 
 ## Upstream Strategy
 
