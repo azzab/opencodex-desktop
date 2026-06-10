@@ -254,6 +254,12 @@ OpenCodex Desktop should support safe remote execution options after the local k
 - credential redaction;
 - approval, budget, audit, stop, resume, and reconnect semantics.
 
+Current Phase 9 foundation: `docs/REMOTE_RUNNER_PROTOCOL.md` and
+`src/shared/remote-runner-protocol.ts` define the runner handshake, SSH host
+config references, data egress policy, budget/approval/audit requirements, and
+stop/resume/reconnect messages. No SSH connector, cloud worker, public listener,
+or remote command execution path is implemented yet.
+
 ### Phase 10: Parity Hardening, Security, And Release
 
 The long-term target is to reach a near-Codex local desktop experience while staying independent:
