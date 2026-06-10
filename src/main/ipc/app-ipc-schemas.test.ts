@@ -7,6 +7,14 @@ import {
   settingsPatchSchema,
   shellOpenExternalUrlSchema,
   skillListPayloadSchema,
+  managedGitWorktreeCreatePayloadSchema,
+  managedGitWorktreeHandoffPayloadSchema,
+  managedGitWorktreeRemovePayloadSchema,
+  gitAuditLogPayloadSchema,
+  gitDiscardPayloadSchema,
+  gitPathListPayloadSchema,
+  gitReviewPreparationPayloadSchema,
+  phase7DiagnosticsPayloadSchema,
   sseStartPayloadSchema,
   workspaceDirectoryCreatePayloadSchema,
   workspaceDirectoryTargetPayloadSchema,
@@ -81,6 +89,104 @@ describe('app-ipc-schemas', () => {
       workspaceRoot: ' /tmp/workspace '
     })).toEqual({ workspaceRoot: '/tmp/workspace' })
     expect(skillListPayloadSchema.parse({})).toEqual({})
+  })
+
+  it('accepts managed git worktree payloads', () => {
+    expect(managedGitWorktreeCreatePayloadSchema.parse({
+      workspaceRoot: ' /tmp/repo ',
+      branch: ' codex/phase-6 ',
+      baseBranch: ' main ',
+      worktreeParent: ' /tmp/worktrees '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      branch: 'codex/phase-6',
+      baseBranch: 'main',
+      worktreeParent: '/tmp/worktrees'
+    })
+
+    expect(managedGitWorktreeRemovePayloadSchema.parse({
+      workspaceRoot: '/tmp/repo',
+      path: ' /tmp/worktrees/codex-phase-6 ',
+      confirmation: ' snapshot-and-remove-dirty-worktree ',
+      snapshotParent: ' /tmp/snapshots '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      path: '/tmp/worktrees/codex-phase-6',
+      confirmation: 'snapshot-and-remove-dirty-worktree',
+      snapshotParent: '/tmp/snapshots'
+    })
+
+    expect(managedGitWorktreeHandoffPayloadSchema.parse({
+      workspaceRoot: '/tmp/repo',
+      path: '/tmp/worktrees/codex-phase-6',
+      threadId: ' thread_123 ',
+      goal: ' Finish Phase 6 '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      path: '/tmp/worktrees/codex-phase-6',
+      threadId: 'thread_123',
+      goal: 'Finish Phase 6'
+    })
+  })
+
+  it('accepts git path mutation payloads', () => {
+    expect(gitPathListPayloadSchema.parse({
+      workspaceRoot: ' /tmp/repo ',
+      paths: [' README.md ', 'src/main.ts']
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      paths: ['README.md', 'src/main.ts']
+    })
+
+    expect(gitDiscardPayloadSchema.parse({
+      workspaceRoot: '/tmp/repo',
+      paths: ['README.md'],
+      confirmation: ' discard-local-changes '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      paths: ['README.md'],
+      confirmation: 'discard-local-changes'
+    })
+  })
+
+  it('accepts git review preparation payloads', () => {
+    expect(gitReviewPreparationPayloadSchema.parse({
+      workspaceRoot: ' /tmp/repo ',
+      commitMessage: ' Add review prep ',
+      remote: ' origin ',
+      baseBranch: ' main '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      commitMessage: 'Add review prep',
+      remote: 'origin',
+      baseBranch: 'main'
+    })
+  })
+
+  it('accepts git audit log payloads', () => {
+    expect(gitAuditLogPayloadSchema.parse({
+      workspaceRoot: ' /tmp/repo ',
+      limit: 25
+    })).toEqual({
+      workspaceRoot: '/tmp/repo',
+      limit: 25
+    })
+
+    expect(gitAuditLogPayloadSchema.parse({
+      workspaceRoot: '/tmp/repo'
+    })).toEqual({
+      workspaceRoot: '/tmp/repo'
+    })
+  })
+
+  it('accepts phase 7 diagnostics payloads', () => {
+    expect(phase7DiagnosticsPayloadSchema.parse({
+      workspaceRoot: ' /tmp/repo '
+    })).toEqual({
+      workspaceRoot: '/tmp/repo'
+    })
+
+    expect(phase7DiagnosticsPayloadSchema.parse({})).toEqual({})
   })
 
   it('accepts Kun thread goal endpoints', () => {

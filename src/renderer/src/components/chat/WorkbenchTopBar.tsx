@@ -21,8 +21,17 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { readPreferredEditorId, writePreferredEditorId } from '../../lib/editor-preferences'
+import type { WorkbenchSurfaceMode } from '../workbench/WorkbenchSurfacePanel'
 
-export type RightPanelMode = 'todo' | 'changes' | 'browser' | 'file' | 'plan' | 'sdd-ai' | null
+export type RightPanelMode =
+  | 'todo'
+  | 'changes'
+  | 'browser'
+  | 'file'
+  | 'plan'
+  | 'sdd-ai'
+  | WorkbenchSurfaceMode
+  | null
 
 type Props = {
   rightPanelMode: RightPanelMode

@@ -12,7 +12,22 @@ import type {
   UserAgentStackProfileV1
 } from './app-settings'
 import type { EditorListResult, EditorOpenResult, OpenEditorPathOptions } from './editor'
-import type { GitBranchesResult } from './git-branches'
+import type {
+  GitBranchesResult,
+  GitAuditLogOptions,
+  GitAuditLogResult,
+  GitDiffResult,
+  GitReviewPreparationOptions,
+  GitReviewPreparationResult,
+  GitWorktreeHandoffOptions,
+  GitWorktreeHandoffResult,
+  GitWorktreeListResult,
+  GitPathMutationResult,
+  ManagedGitWorktreeCreateResult,
+  ManagedGitWorktreeOptions,
+  ManagedGitWorktreeRemoveOptions,
+  ManagedGitWorktreeRemoveResult
+} from './git-branches'
 import type {
   GuiUpdateChannel,
   GuiUpdateDownloadResult,
@@ -20,6 +35,7 @@ import type {
   GuiUpdateInstallResult,
   GuiUpdateState
 } from './gui-update'
+import type { Phase7DiagnosticsResult } from './phase7-diagnostics'
 import type {
   ClipboardImageReadResult,
   WorkspaceClipboardImageSavePayload,
@@ -165,6 +181,7 @@ export type DsGuiApi = {
   ) => Promise<ClawImInstallPollResult>
   pickWorkspaceDirectory: (defaultPath?: string) => Promise<WorkspacePickResult>
   listSkills: (workspaceRoot?: string) => Promise<SkillListResult>
+  getPhase7Diagnostics: (workspaceRoot?: string) => Promise<Phase7DiagnosticsResult>
   saveSkillFile: (rootPath: string, skillName: string, content: string) => Promise<SkillSaveResult>
   openSkillRoot: (rootPath: string) => Promise<PathOpenResult>
   getDeepseekConfigFile: () => Promise<DeepseekConfigFileResult>
@@ -175,6 +192,36 @@ export type DsGuiApi = {
   getGitBranches: (workspaceRoot: string) => Promise<GitBranchesResult>
   switchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>
   createAndSwitchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>
+  listGitWorktrees: (workspaceRoot: string) => Promise<GitWorktreeListResult>
+  createManagedGitWorktree: (
+    workspaceRoot: string,
+    options: Omit<ManagedGitWorktreeOptions, 'branch'> & { branch: string }
+  ) => Promise<ManagedGitWorktreeCreateResult>
+  removeManagedGitWorktree: (
+    workspaceRoot: string,
+    path: string,
+    options?: ManagedGitWorktreeRemoveOptions
+  ) => Promise<ManagedGitWorktreeRemoveResult>
+  createGitWorktreeHandoffSummary: (
+    workspaceRoot: string,
+    path: string,
+    options?: GitWorktreeHandoffOptions
+  ) => Promise<GitWorktreeHandoffResult>
+  getGitDiff: (workspaceRoot: string) => Promise<GitDiffResult>
+  getGitReviewPreparation: (
+    workspaceRoot: string,
+    options?: GitReviewPreparationOptions
+  ) => Promise<GitReviewPreparationResult>
+  listGitAuditEvents: (
+    workspaceRoot: string,
+    options?: GitAuditLogOptions
+  ) => Promise<GitAuditLogResult>
+  stageGitPaths: (workspaceRoot: string, paths: string[]) => Promise<GitPathMutationResult>
+  discardGitChanges: (
+    workspaceRoot: string,
+    paths: string[],
+    options?: { confirmation?: string }
+  ) => Promise<GitPathMutationResult>
   listEditors: () => Promise<EditorListResult>
   openEditorPath: (options: OpenEditorPathOptions) => Promise<EditorOpenResult>
   listWorkspaceDirectory: (options: WorkspaceDirectoryTarget) => Promise<WorkspaceDirectoryListResult>

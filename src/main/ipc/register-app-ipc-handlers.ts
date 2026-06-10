@@ -37,12 +37,20 @@ import {
   deepseekConfigContentSchema,
   desktopCommandSchema,
   defaultPathSchema,
+  gitDiscardPayloadSchema,
+  gitAuditLogPayloadSchema,
   gitBranchPayloadSchema,
+  gitPathListPayloadSchema,
+  gitReviewPreparationPayloadSchema,
   guiUpdateChannelSchema,
   logErrorPayloadSchema,
+  managedGitWorktreeCreatePayloadSchema,
+  managedGitWorktreeHandoffPayloadSchema,
+  managedGitWorktreeRemovePayloadSchema,
   modelProviderCatalogPayloadSchema,
   notificationPayloadSchema,
   openEditorPathPayloadSchema,
+  phase7DiagnosticsPayloadSchema,
   rootPathSchema,
   runtimeRequestPayloadSchema,
   scheduleTaskFromTextPayloadSchema,
@@ -69,7 +77,20 @@ import {
 import type { JsonSettingsStore } from '../settings-store'
 import type { ClawRuntime } from '../claw-runtime'
 import type { ScheduleRuntime } from '../schedule-runtime'
-import { createAndSwitchGitBranch, getGitBranches, switchGitBranch } from '../services/git-service'
+import {
+  createAndSwitchGitBranch,
+  createGitWorktreeHandoffSummary,
+  createManagedGitWorktree,
+  discardGitChanges,
+  getGitBranches,
+  getGitDiff,
+  getGitReviewPreparation,
+  listGitAuditEvents,
+  listGitWorktrees,
+  removeManagedGitWorktree,
+  stageGitPaths,
+  switchGitBranch
+} from '../services/git-service'
 import {
   createWorkspaceDirectory,
   createWorkspaceFile,
@@ -95,6 +116,7 @@ import {
 } from '../services/write-inline-completion-service'
 import { copyWriteDocumentAsRichText, exportWriteDocument } from '../services/write-export-service'
 import { listGuiSkills } from '../services/skill-service'
+import { getPhase7Diagnostics } from '../services/phase7-diagnostics-service'
 import { discoverUserAgentStackProfile } from '../services/user-agent-stack-service'
 import { fetchModelProviderCatalog } from '../upstream-models'
 
@@ -565,6 +587,14 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     return listGuiSkills(settings, request.workspaceRoot)
   })
 
+  ipcMain.handle('phase7:diagnostics', async (_, payload: unknown) => {
+    const request = parseIpcPayload('phase7:diagnostics', phase7DiagnosticsPayloadSchema, payload ?? {})
+    const settings = await store.load()
+    return getPhase7Diagnostics(settings, {
+      workspaceRoot: request.workspaceRoot || settings.workspaceRoot
+    })
+  })
+
   ipcMain.handle('skill:open-root', async (_, rootPath: unknown) => {
     const normalizedRootPath = parseIpcPayload('skill:open-root', rootPathSchema, rootPath)
     try {
@@ -696,6 +726,91 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
         payload
       )
       return createAndSwitchGitBranch(request.workspaceRoot, request.branch)
+    }
+  )
+  ipcMain.handle('git:worktrees', async (_, workspaceRoot: unknown) =>
+    listGitWorktrees(parseIpcPayload('git:worktrees', workspaceRootSchema, workspaceRoot))
+  )
+  ipcMain.handle(
+    'git:worktree:create-managed',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload(
+        'git:worktree:create-managed',
+        managedGitWorktreeCreatePayloadSchema,
+        payload
+      )
+      return createManagedGitWorktree(request.workspaceRoot, {
+        branch: request.branch,
+        baseBranch: request.baseBranch,
+        worktreeParent: request.worktreeParent
+      })
+    }
+  )
+  ipcMain.handle(
+    'git:worktree:remove-managed',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload(
+        'git:worktree:remove-managed',
+        managedGitWorktreeRemovePayloadSchema,
+        payload
+      )
+      return removeManagedGitWorktree(request.workspaceRoot, request.path, {
+        confirmation: request.confirmation,
+        snapshotParent: request.snapshotParent
+      })
+    }
+  )
+  ipcMain.handle(
+    'git:worktree:handoff',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload(
+        'git:worktree:handoff',
+        managedGitWorktreeHandoffPayloadSchema,
+        payload
+      )
+      return createGitWorktreeHandoffSummary(request.workspaceRoot, request.path, {
+        threadId: request.threadId,
+        goal: request.goal
+      })
+    }
+  )
+  ipcMain.handle('git:diff', async (_, workspaceRoot: unknown) =>
+    getGitDiff(parseIpcPayload('git:diff', workspaceRootSchema, workspaceRoot))
+  )
+  ipcMain.handle(
+    'git:review-preparation',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload('git:review-preparation', gitReviewPreparationPayloadSchema, payload)
+      return getGitReviewPreparation(request.workspaceRoot, {
+        commitMessage: request.commitMessage,
+        remote: request.remote,
+        baseBranch: request.baseBranch
+      })
+    }
+  )
+  ipcMain.handle(
+    'git:audit-log',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload('git:audit-log', gitAuditLogPayloadSchema, payload)
+      return listGitAuditEvents(request.workspaceRoot, {
+        limit: request.limit
+      })
+    }
+  )
+  ipcMain.handle(
+    'git:stage-paths',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload('git:stage-paths', gitPathListPayloadSchema, payload)
+      return stageGitPaths(request.workspaceRoot, request.paths)
+    }
+  )
+  ipcMain.handle(
+    'git:discard-changes',
+    async (_, payload: unknown) => {
+      const request = parseIpcPayload('git:discard-changes', gitDiscardPayloadSchema, payload)
+      return discardGitChanges(request.workspaceRoot, request.paths, {
+        confirmation: request.confirmation
+      })
     }
   )
 

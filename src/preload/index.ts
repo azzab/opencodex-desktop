@@ -25,6 +25,8 @@ const api = {
     ipcRenderer.invoke('workspace:pick-directory', defaultPath),
   listSkills: (workspaceRoot) =>
     ipcRenderer.invoke('skill:list', { workspaceRoot }),
+  getPhase7Diagnostics: (workspaceRoot) =>
+    ipcRenderer.invoke('phase7:diagnostics', { workspaceRoot }),
   saveSkillFile: (rootPath, skillName, content) =>
     ipcRenderer.invoke('skill:save-file', { rootPath, skillName, content }),
   openSkillRoot: (rootPath) =>
@@ -45,6 +47,24 @@ const api = {
     ipcRenderer.invoke('git:switch-branch', { workspaceRoot, branch }),
   createAndSwitchGitBranch: (workspaceRoot, branch) =>
     ipcRenderer.invoke('git:create-and-switch-branch', { workspaceRoot, branch }),
+  listGitWorktrees: (workspaceRoot) =>
+    ipcRenderer.invoke('git:worktrees', workspaceRoot),
+  createManagedGitWorktree: (workspaceRoot, options) =>
+    ipcRenderer.invoke('git:worktree:create-managed', { workspaceRoot, ...options }),
+  removeManagedGitWorktree: (workspaceRoot, path, options) =>
+    ipcRenderer.invoke('git:worktree:remove-managed', { workspaceRoot, path, ...options }),
+  createGitWorktreeHandoffSummary: (workspaceRoot, path, options) =>
+    ipcRenderer.invoke('git:worktree:handoff', { workspaceRoot, path, ...options }),
+  getGitDiff: (workspaceRoot) =>
+    ipcRenderer.invoke('git:diff', workspaceRoot),
+  getGitReviewPreparation: (workspaceRoot, options) =>
+    ipcRenderer.invoke('git:review-preparation', { workspaceRoot, ...options }),
+  listGitAuditEvents: (workspaceRoot, options) =>
+    ipcRenderer.invoke('git:audit-log', { workspaceRoot, ...options }),
+  stageGitPaths: (workspaceRoot, paths) =>
+    ipcRenderer.invoke('git:stage-paths', { workspaceRoot, paths }),
+  discardGitChanges: (workspaceRoot, paths, options) =>
+    ipcRenderer.invoke('git:discard-changes', { workspaceRoot, paths, ...options }),
   listEditors: () => ipcRenderer.invoke('editor:list'),
   openEditorPath: (options) =>
     ipcRenderer.invoke('editor:open-path', options),

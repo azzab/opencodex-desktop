@@ -633,6 +633,12 @@ export const skillListPayloadSchema = z
   })
   .strict()
 
+export const phase7DiagnosticsPayloadSchema = z
+  .object({
+    workspaceRoot: z.string().trim().max(MAX_PATH_LENGTH).optional()
+  })
+  .strict()
+
 export const rootPathSchema = trimmedString(MAX_PATH_LENGTH)
 export const deepseekConfigContentSchema = z.string().max(MAX_CONFIG_FILE_BYTES)
 
@@ -641,6 +647,64 @@ export const gitBranchPayloadSchema = z
   .object({
     workspaceRoot: workspaceRootSchema,
     branch: trimmedString(MAX_BRANCH_LENGTH)
+  })
+  .strict()
+
+export const managedGitWorktreeCreatePayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    branch: trimmedString(MAX_BRANCH_LENGTH),
+    baseBranch: optionalTrimmedString(MAX_BRANCH_LENGTH),
+    worktreeParent: optionalTrimmedString(MAX_PATH_LENGTH)
+  })
+  .strict()
+
+export const managedGitWorktreeRemovePayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    path: trimmedString(MAX_PATH_LENGTH),
+    confirmation: optionalTrimmedString(MAX_ID_LENGTH),
+    snapshotParent: optionalTrimmedString(MAX_PATH_LENGTH)
+  })
+  .strict()
+
+export const managedGitWorktreeHandoffPayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    path: trimmedString(MAX_PATH_LENGTH),
+    threadId: optionalTrimmedString(MAX_ID_LENGTH),
+    goal: optionalTrimmedString(MAX_BODY_BYTES)
+  })
+  .strict()
+
+export const gitPathListPayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    paths: z.array(trimmedString(MAX_PATH_LENGTH)).min(1).max(200)
+  })
+  .strict()
+
+export const gitDiscardPayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    paths: z.array(trimmedString(MAX_PATH_LENGTH)).min(1).max(200),
+    confirmation: optionalTrimmedString(MAX_ID_LENGTH)
+  })
+  .strict()
+
+export const gitReviewPreparationPayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    commitMessage: optionalTrimmedString(512),
+    remote: optionalTrimmedString(MAX_BRANCH_LENGTH),
+    baseBranch: optionalTrimmedString(MAX_BRANCH_LENGTH)
+  })
+  .strict()
+
+export const gitAuditLogPayloadSchema = z
+  .object({
+    workspaceRoot: workspaceRootSchema,
+    limit: z.number().int().positive().max(500).optional()
   })
   .strict()
 

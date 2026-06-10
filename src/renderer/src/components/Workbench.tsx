@@ -12,6 +12,7 @@ import {
   type KeyboardShortcutCommandId
 } from '@shared/keyboard-shortcuts'
 import type { DesktopCommand, SkillListItem } from '@shared/ds-gui-api'
+import type { Phase7DiagnosticsResult } from '@shared/phase7-diagnostics'
 import type { ClipboardImageReadResult } from '@shared/workspace-file'
 import type { AttachmentReference, ChatBlock } from '../agent/types'
 import type { CoreRuntimeInfoJson, CoreRuntimeSkillJson } from '../agent/kun-contract'
@@ -58,8 +59,11 @@ import {
 import { parseGuiPlanCommand } from '../plan/plan-command'
 import { DevPreviewLaunchCard } from './DevPreviewLaunchCard'
 import { RuntimeBanner } from './RuntimeBanner'
+import { WorkbenchMissionControl } from './workbench/WorkbenchMissionControl'
+import type { WorkbenchSurfaceMode } from './workbench/WorkbenchSurfacePanel'
 import { useWorkbenchLayout } from './workbench-layout'
 import { useWorkbenchPlanController } from './workbench-plan-controller'
+import { useThreadUsage } from '../hooks/use-thread-usage'
 import { prepareImageAttachmentUpload } from '../lib/image-attachment-upload'
 import { isChatAttachmentUploadEnabled } from '../lib/attachment-upload-availability'
 import { normalizeWorkspaceRoot } from '../lib/workspace-path'
@@ -84,6 +88,11 @@ const WorkspaceFilePreviewPanel = lazy(() =>
     default: module.WorkspaceFilePreviewPanel
   }))
 )
+const WorkbenchSurfacePanel = lazy(() =>
+  import('./workbench/WorkbenchSurfacePanel').then((module) => ({
+    default: module.WorkbenchSurfacePanel
+  }))
+)
 const PlanPanel = lazy(() =>
   import('./plan/PlanPanel').then((module) => ({ default: module.PlanPanel }))
 )
@@ -98,6 +107,19 @@ type PendingSddPlanTarget = {
   planId: string
   relativePath: string
   workspaceRoot: string
+}
+
+const WORKBENCH_SURFACE_MODES = new Set<WorkbenchSurfaceMode>([
+  'files',
+  'terminal',
+  'diagnostics',
+  'subagents',
+  'usage',
+  'permissions'
+])
+
+function isWorkbenchSurfaceMode(mode: RightPanelMode): mode is WorkbenchSurfaceMode {
+  return mode !== null && WORKBENCH_SURFACE_MODES.has(mode as WorkbenchSurfaceMode)
 }
 
 const COMPOSER_FILE_CONTEXT_MAX_CHARS_PER_FILE = 60_000
@@ -224,6 +246,8 @@ export function Workbench(): ReactElement {
     threadSearch,
     showArchivedThreads,
     activeThreadId,
+    activeThreadGoal,
+    activeThreadTodos,
     selectThread,
     createThread,
     blocks,
@@ -235,7 +259,9 @@ export function Workbench(): ReactElement {
     route,
     pluginHostRoute,
     workspaceRoot,
+    workspaceLabel,
     runtimeConnection,
+    usageRefreshKey,
     setRoute,
     openCode,
     openWrite,
@@ -280,6 +306,8 @@ export function Workbench(): ReactElement {
       threadSearch: s.threadSearch,
       showArchivedThreads: s.showArchivedThreads,
       activeThreadId: s.activeThreadId,
+      activeThreadGoal: s.activeThreadGoal,
+      activeThreadTodos: s.activeThreadTodos,
       selectThread: s.selectThread,
       createThread: s.createThread,
       blocks: s.blocks,
@@ -291,7 +319,9 @@ export function Workbench(): ReactElement {
       route: s.route,
       pluginHostRoute: s.pluginHostRoute,
       workspaceRoot: s.workspaceRoot,
+      workspaceLabel: s.workspaceLabel,
       runtimeConnection: s.runtimeConnection,
+      usageRefreshKey: s.usageRefreshKey,
       setRoute: s.setRoute,
       openCode: s.openCode,
       openWrite: s.openWrite,
@@ -338,6 +368,7 @@ export function Workbench(): ReactElement {
     useState<ComposerReasoningEffort>('max')
   const [runtimeInfo, setRuntimeInfo] = useState<CoreRuntimeInfoJson | null>(null)
   const [runtimeSkills, setRuntimeSkills] = useState<CoreRuntimeSkillJson[]>([])
+  const [phase7Diagnostics, setPhase7Diagnostics] = useState<Phase7DiagnosticsResult | null>(null)
   const [composerAttachments, setComposerAttachments] = useState<AttachmentReference[]>([])
   const [composerFileReferences, setComposerFileReferences] = useState<ComposerFileReference[]>([])
   const [attachmentUploadBusy, setAttachmentUploadBusy] = useState(false)
@@ -419,6 +450,18 @@ export function Workbench(): ReactElement {
   const currentSideRunningCount = currentSideConversations.reduce(
     (count, side) => count + (side.busy ? 1 : 0),
     0
+  )
+  const activeThread = useMemo(
+    () => threads.find((thread) => thread.id === activeThreadId) ?? null,
+    [activeThreadId, threads]
+  )
+  const activeWorkspaceLabel = activeThread?.workspace
+    ? activeThread.workspace.replaceAll('\\', '/').split('/').filter(Boolean).pop() || workspaceLabel
+    : workspaceLabel
+  const threadUsage = useThreadUsage(
+    activeThreadId,
+    runtimeConnection === 'ready',
+    `${activeThread?.updatedAt ?? ''}:${usageRefreshKey}:${busy ? 'busy' : 'idle'}`
   )
   const {
     beginLeftResize,
@@ -670,6 +713,33 @@ export function Workbench(): ReactElement {
       cancelled = true
     }
   }, [activeSkillWorkspace, runtimeConnection])
+
+  useEffect(() => {
+    const workspace = activeThread?.workspace || workspaceRoot
+    if (rightPanelMode !== 'diagnostics' && rightPanelMode !== 'permissions') return
+    if (!workspace || typeof window === 'undefined' || typeof window.dsGui?.getPhase7Diagnostics !== 'function') {
+      setPhase7Diagnostics(null)
+      return
+    }
+
+    let cancelled = false
+    void window.dsGui
+      .getPhase7Diagnostics(workspace)
+      .then((result) => {
+        if (!cancelled) setPhase7Diagnostics(result)
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setPhase7Diagnostics({
+          ok: false,
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeThread?.workspace, rightPanelMode, workspaceRoot])
 
   const attachmentUploadEnabled = isChatAttachmentUploadEnabled({
     runtimeConnection,
@@ -1472,6 +1542,7 @@ export function Workbench(): ReactElement {
             ) : rightPanelMode === 'changes' ? (
               <ChangeInspector
                 blocks={blocks}
+                workspaceRoot={activeThread?.workspace || workspaceRoot}
                 className="h-full max-h-full w-full flex-col"
                 onCollapse={closeRightPanel}
               />
@@ -1497,6 +1568,26 @@ export function Workbench(): ReactElement {
                 className="h-full max-h-full w-full"
                 onCollapse={closeRightPanel}
                 onBuildPlan={() => void buildGuiPlan()}
+              />
+            ) : isWorkbenchSurfaceMode(rightPanelMode) ? (
+              <WorkbenchSurfacePanel
+                surface={rightPanelMode}
+                workspaceRoot={activeThread?.workspace || workspaceRoot}
+                runtimeConnection={runtimeConnection}
+                runtimeInfo={runtimeInfo}
+                runtimeSkillCount={runtimeSkills.length}
+                composerModel={composerModel}
+                fileReferences={composerFileReferences}
+                attachments={composerAttachments}
+                sideConversations={currentSideConversations.map((side) => ({
+                  threadId: side.threadId,
+                  title: side.title,
+                  busy: side.busy
+                }))}
+                usage={threadUsage}
+                phase7Diagnostics={phase7Diagnostics}
+                className="h-full max-h-full w-full"
+                onClose={closeRightPanel}
               />
             ) : (
               <WorkspaceFilePreviewPanel
@@ -1666,6 +1757,43 @@ export function Workbench(): ReactElement {
                 </div>
               </div>
             </header>
+            <WorkbenchMissionControl
+              workspaceLabel={activeWorkspaceLabel}
+              workspaceRoot={activeThread?.workspace || workspaceRoot}
+              runtimeConnection={runtimeConnection}
+              activeThreadTitle={activeThread?.title ?? null}
+              activeThreadMode={activeThread?.mode ?? null}
+              activeGoal={activeThreadGoal}
+              activeTodos={activeThreadTodos}
+              planAvailable={Boolean(activeGuiPlan)}
+              rightPanelMode={rightPanelMode}
+              sideChatCount={currentSideConversations.length}
+              sideChatRunningCount={currentSideRunningCount}
+              runtimeInfo={runtimeInfo}
+              runtimeSkillCount={runtimeSkills.length}
+              composerModel={composerModel}
+              usage={threadUsage}
+              attachmentCount={composerAttachments.length}
+              fileReferenceCount={composerFileReferences.length}
+              hasDevPreview={Boolean(latestDevPreviewUrl)}
+              onOpenFiles={() => toggleRightPanelMode('files')}
+              onOpenTodo={() => toggleRightPanelMode('todo')}
+              onOpenPlan={() => {
+                if (activeGuiPlan) {
+                  openGuiPlanPanel()
+                  return
+                }
+                void handleGuiPlanCommand()
+              }}
+              onOpenChanges={() => toggleRightPanelMode('changes')}
+              onOpenTerminal={() => toggleRightPanelMode('terminal')}
+              onOpenBrowser={openDevPreview}
+              onOpenDiagnostics={() => toggleRightPanelMode('diagnostics')}
+              onOpenSubagents={() => toggleRightPanelMode('subagents')}
+              onOpenUsage={() => toggleRightPanelMode('usage')}
+              onOpenPlugins={openPluginsView}
+              onOpenSettings={() => toggleRightPanelMode('permissions')}
+            />
             <MessageTimeline
               blocks={timelineBlocks}
               liveReasoning={timelineLiveReasoning}
