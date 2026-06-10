@@ -10,6 +10,18 @@
 - Implementation helper: `gpt-5.4`, reasoning `high`, for narrow client
   adapters after the protocol is stable.
 
+## Preflight Gate From Phase 7
+
+- Phase 7 must be reviewed before Phase 8 starts changing shared protocol,
+  IPC, preload, or diagnostics surfaces. Read
+  `docs/PHASE_7_SKILLS_PLUGINS_HOOKS_MEMORY_REPORT.md`.
+- Check the current diff first. If Phase 7 diagnostics, skill/plugin, hook,
+  rules, memory, or Phase 6 Git review fixes are still unstaged, preserve them
+  and do not mix unrelated protocol changes into their files.
+- Confirm Phase 8 keeps skills, plugins, hooks, rules, memory, MCP, approvals,
+  and usage owned by Kun/service boundaries. Do not move authority into
+  renderer state or a parallel app-server runtime.
+
 ## Paste-Ready Goal
 
 ```text
@@ -31,6 +43,7 @@ Read first:
 - docs/ENGINE_AUDIT_KUN.md
 - docs/DESKTOP_UX_BENCHMARK.md
 - docs/REFERENCE_INTAKE.md
+- docs/PHASE_7_SKILLS_PLUGINS_HOOKS_MEMORY_REPORT.md
 - current Kun HTTP/SSE routes, Electron IPC/preload, runtime events,
   thread/session store, fork/resume, and settings code
 
@@ -47,6 +60,8 @@ Scope forbidden:
 - Do not expose websocket or app server on public interfaces without auth.
 - Do not create separate session stores per client.
 - Do not bypass Kun approvals or usage tracking.
+- Do not bypass Kun/service-owned skills, plugins, hooks, rules, memory, or
+  MCP diagnostics.
 - Do not expose secrets through notifications.
 - Do not push unless explicitly requested.
 
@@ -78,4 +93,3 @@ Verification:
   surfaces.
 - Sessions, approvals, usage, and events remain owned by Kun.
 - External clients can be added without creating a parallel product.
-
