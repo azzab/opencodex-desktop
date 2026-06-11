@@ -91,7 +91,9 @@ describe('write retrieval service', () => {
       'utf8'
     )
 
-    const result = await retrieveWriteInlineCompletionContext(createRequest(workspaceRoot))
+    const result = await retrieveWriteInlineCompletionContext(createRequest(workspaceRoot), {
+      indexBuildBudgetMs: 5_000
+    })
 
     expect(result?.source).toBe('bm25-keyword')
     expect(result?.snippets[0].path).toBe('research/rag.md')
@@ -109,19 +111,24 @@ describe('write retrieval service', () => {
     )
     await writeFile(join(workspaceRoot, 'output.jsonl'), `${'x'.repeat(10_000)}\n`, 'utf8')
 
-    const result = await retrieveWriteInlineCompletionContext({
-      ...createRequest(workspaceRoot),
-      prefix: '# Draft\n\nembedding cache',
-      context: {
-        ...createRequest(workspaceRoot).context,
-        currentLinePrefix: 'embedding cache',
-        previousNonEmptyLine: '# Draft'
+    const result = await retrieveWriteInlineCompletionContext(
+      {
+        ...createRequest(workspaceRoot),
+        prefix: '# Draft\n\nembedding cache',
+        context: {
+          ...createRequest(workspaceRoot).context,
+          currentLinePrefix: 'embedding cache',
+          previousNonEmptyLine: '# Draft'
+        },
+        preview: {
+          local: 'embedding cache',
+          documentTail: '# Draft embedding cache'
+        }
       },
-      preview: {
-        local: 'embedding cache',
-        documentTail: '# Draft embedding cache'
+      {
+        indexBuildBudgetMs: 5_000
       }
-    })
+    )
 
     expect(result?.snippets.some((snippet) => snippet.path === 'output.jsonl')).toBe(false)
     expect(result?.snippets.some((snippet) => snippet.path === 'notes.md')).toBe(true)

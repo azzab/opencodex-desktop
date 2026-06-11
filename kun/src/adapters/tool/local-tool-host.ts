@@ -351,6 +351,19 @@ export const echoTool: LocalTool = LocalToolHost.defineTool({
 })
 
 function createUserInputTool(name: string): LocalTool {
+  const optionSchema = {
+    oneOf: [
+      { type: 'string' },
+      {
+        type: 'object',
+        properties: {
+          label: { type: 'string' },
+          description: { type: 'string' }
+        },
+        required: ['label']
+      }
+    ]
+  }
   return LocalToolHost.defineTool({
     name,
     description: 'Ask the GUI user a structured question and wait for the answer.',
@@ -360,7 +373,21 @@ function createUserInputTool(name: string): LocalTool {
       properties: {
         prompt: { type: 'string' },
         question: { type: 'string' },
-        message: { type: 'string' }
+        message: { type: 'string' },
+        options: { type: 'array', items: optionSchema },
+        questions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              header: { type: 'string' },
+              id: { type: 'string' },
+              question: { type: 'string' },
+              options: { type: 'array', items: optionSchema }
+            },
+            required: ['question']
+          }
+        }
       },
       required: []
     },
@@ -405,10 +432,11 @@ function normalizeUserInputQuestions(
   question: string
   options: Array<{ label: string; description: string }>
 }> {
+  const fallbackOptions = normalizeUserInputOptions(args.options)
   const rawQuestions = Array.isArray(args.questions) ? args.questions : null
   if (rawQuestions && rawQuestions.length > 0) {
     const questions = rawQuestions
-      .map((question, index) => normalizeUserInputQuestion(question, index, fallbackId))
+      .map((question, index) => normalizeUserInputQuestion(question, index, fallbackId, fallbackOptions))
       .filter((question) => question !== null)
     if (questions.length > 0) return questions
   }
@@ -417,7 +445,7 @@ function normalizeUserInputQuestions(
       header: 'Input',
       id: String(args.id ?? fallbackId),
       question: fallbackPrompt,
-      options: []
+      options: fallbackOptions
     }
   ]
 }
@@ -425,7 +453,8 @@ function normalizeUserInputQuestions(
 function normalizeUserInputQuestion(
   value: unknown,
   index: number,
-  fallbackId: string
+  fallbackId: string,
+  fallbackOptions: Array<{ label: string; description: string }>
 ): {
   header: string
   id: string
@@ -438,11 +467,7 @@ function normalizeUserInputQuestion(
     ? raw.question.trim()
     : null
   if (!question) return null
-  const options = Array.isArray(raw.options)
-    ? raw.options
-        .map((option) => normalizeUserInputOption(option))
-        .filter((option) => option !== null)
-    : []
+  const options = normalizeUserInputOptions(raw.options, fallbackOptions)
   return {
     header: typeof raw.header === 'string' && raw.header.trim() ? raw.header.trim() : `Question ${index + 1}`,
     id: typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : `${fallbackId}_${index + 1}`,
@@ -451,9 +476,24 @@ function normalizeUserInputQuestion(
   }
 }
 
+function normalizeUserInputOptions(
+  value: unknown,
+  fallback: Array<{ label: string; description: string }> = []
+): Array<{ label: string; description: string }> {
+  if (!Array.isArray(value)) return fallback
+  const options = value
+    .map((option) => normalizeUserInputOption(option))
+    .filter((option) => option !== null)
+  return options.length > 0 ? options : fallback
+}
+
 function normalizeUserInputOption(
   value: unknown
 ): { label: string; description: string } | null {
+  if (typeof value === 'string') {
+    const label = value.trim()
+    return label ? { label, description: '' } : null
+  }
   if (!value || typeof value !== 'object') return null
   const raw = value as Record<string, unknown>
   const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : null

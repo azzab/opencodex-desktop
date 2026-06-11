@@ -178,6 +178,44 @@ describe('Kun built-in tools', () => {
     expect(String(output.content)).toContain('Use offset=2 to continue')
   })
 
+  it('normalizes request_user_input top-level and string options for the GUI gate', async () => {
+    let requested: Parameters<NonNullable<ToolHostContext['awaitUserInput']>>[0] | undefined
+    const result = await host.execute(
+      {
+        callId: 'call_input',
+        toolName: 'request_user_input',
+        arguments: {
+          id: 'choice',
+          prompt: 'Pick one',
+          options: ['Fast', { label: 'Careful', description: 'Use more checks' }]
+        }
+      },
+      {
+        ...buildContext(workspace),
+        awaitUserInput: async (input) => {
+          requested = input
+          return {
+            status: 'submitted',
+            answers: [{ id: 'choice', label: 'Fast', value: 'Fast' }]
+          }
+        }
+      }
+    )
+
+    expect(result.item.kind).toBe('tool_result')
+    expect(requested?.questions).toEqual([
+      {
+        header: 'Input',
+        id: 'choice',
+        question: 'Pick one',
+        options: [
+          { label: 'Fast', description: '' },
+          { label: 'Careful', description: 'Use more checks' }
+        ]
+      }
+    ])
+  })
+
   it('supports injected backend operations like pi tool factories', async () => {
     const customRead = createReadLocalTool({
       operations: {

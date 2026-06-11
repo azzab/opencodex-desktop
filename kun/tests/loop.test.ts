@@ -271,6 +271,20 @@ describe('AgentLoop', () => {
 
   it('keeps running past the legacy eight-step ceiling until the model stops', async () => {
     let calls = 0
+    const lsTool = LocalToolHost.defineTool({
+      name: 'ls',
+      description: 'Fast deterministic ls replacement for loop-ceiling tests.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string' }
+        },
+        required: [],
+        additionalProperties: false
+      },
+      policy: 'auto',
+      execute: async () => ({ output: { entries: [] } })
+    })
     const h = makeHarness(
       {
         provider: 'long-runner',
@@ -291,7 +305,7 @@ describe('AgentLoop', () => {
           yield { kind: 'completed', stopReason: 'stop' }
         }
       },
-      { tools: buildDefaultLocalTools(), toolStorm: { enabled: false } }
+      { tools: [lsTool], toolStorm: { enabled: false } }
     )
     await bootstrapThread(h)
 

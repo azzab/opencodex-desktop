@@ -16,6 +16,7 @@ const MAX_TOKENS_PER_CHUNK = 1_200
 const MAX_QUERY_TERMS = 36
 const DEFAULT_MAX_SNIPPETS = 3
 const MAX_SNIPPET_CHARS = 520
+const MAX_CONFIGURED_INDEX_BUILD_MS = 10_000
 
 const SKIP_DIRS = new Set([
   '.git',
@@ -115,6 +116,7 @@ type IndexedChunk = {
 type WorkspaceIndex = {
   workspaceRoot: string
   builtAt: number
+  buildBudgetMs: number
   files: number
   chunks: IndexedChunk[]
   averageLength: number
@@ -130,6 +132,17 @@ type QueryModel = {
 
 const indexCache = new Map<string, WorkspaceIndex>()
 const inFlightIndexCache = new Map<string, Promise<WorkspaceIndex>>()
+
+type RetrieveWriteInlineCompletionContextOptions = {
+  maxSnippets?: number
+  indexBuildBudgetMs?: number
+}
+
+function normalizeIndexBuildBudgetMs(value: number | undefined): number {
+  if (value === undefined) return MAX_INDEX_BUILD_MS
+  if (!Number.isFinite(value)) return MAX_INDEX_BUILD_MS
+  return Math.max(25, Math.min(MAX_CONFIGURED_INDEX_BUILD_MS, Math.round(value)))
+}
 
 function deadlineExceeded(deadline: number): boolean {
   return Date.now() > deadline
@@ -345,8 +358,9 @@ async function readIndexableFile(path: string, deadline: number): Promise<string
   }
 }
 
-async function buildWorkspaceIndex(workspaceRoot: string): Promise<WorkspaceIndex> {
-  const deadline = Date.now() + MAX_INDEX_BUILD_MS
+async function buildWorkspaceIndex(workspaceRoot: string, indexBuildBudgetMs = MAX_INDEX_BUILD_MS): Promise<WorkspaceIndex> {
+  const buildBudgetMs = normalizeIndexBuildBudgetMs(indexBuildBudgetMs)
+  const deadline = Date.now() + buildBudgetMs
   const files = await scanWorkspaceFiles(workspaceRoot, deadline)
   const chunks: IndexedChunk[] = []
   let indexedFiles = 0
@@ -377,6 +391,7 @@ async function buildWorkspaceIndex(workspaceRoot: string): Promise<WorkspaceInde
   return {
     workspaceRoot,
     builtAt: Date.now(),
+    buildBudgetMs,
     files: indexedFiles,
     chunks,
     averageLength: chunks.length > 0 ? tokenCount / chunks.length : 1,
@@ -384,22 +399,30 @@ async function buildWorkspaceIndex(workspaceRoot: string): Promise<WorkspaceInde
   }
 }
 
-async function loadWorkspaceIndex(workspaceRoot: string): Promise<WorkspaceIndex> {
+async function loadWorkspaceIndex(workspaceRoot: string, indexBuildBudgetMs = MAX_INDEX_BUILD_MS): Promise<WorkspaceIndex> {
+  const buildBudgetMs = normalizeIndexBuildBudgetMs(indexBuildBudgetMs)
   const cached = indexCache.get(workspaceRoot)
-  if (cached && Date.now() - cached.builtAt <= INDEX_CACHE_TTL_MS) return cached
-  const existing = inFlightIndexCache.get(workspaceRoot)
+  if (
+    cached &&
+    cached.buildBudgetMs >= buildBudgetMs &&
+    Date.now() - cached.builtAt <= INDEX_CACHE_TTL_MS
+  ) {
+    return cached
+  }
+  const inFlightKey = `${workspaceRoot}\0${buildBudgetMs}`
+  const existing = inFlightIndexCache.get(inFlightKey)
   if (existing) return existing
 
-  const build = buildWorkspaceIndex(workspaceRoot)
+  const build = buildWorkspaceIndex(workspaceRoot, buildBudgetMs)
     .then((index) => {
       indexCache.set(workspaceRoot, index)
       return index
     })
     .finally(() => {
-      inFlightIndexCache.delete(workspaceRoot)
+      inFlightIndexCache.delete(inFlightKey)
     })
 
-  inFlightIndexCache.set(workspaceRoot, build)
+  inFlightIndexCache.set(inFlightKey, build)
   return build
 }
 
@@ -561,14 +584,14 @@ function rankChunks(
 
 export async function retrieveWriteInlineCompletionContext(
   request: WriteInlineCompletionRequest,
-  options: { maxSnippets?: number } = {}
+  options: RetrieveWriteInlineCompletionContextOptions = {}
 ): Promise<WriteRetrievalContext | null> {
   const workspaceRoot = resolveWorkspaceRoot(request.workspaceRoot)
   if (!workspaceRoot) return null
   const currentFilePath = resolveComparablePath(request.currentFilePath)
   if (currentFilePath && !isWithinWorkspace(workspaceRoot, currentFilePath)) return null
 
-  const index = await loadWorkspaceIndex(workspaceRoot)
+  const index = await loadWorkspaceIndex(workspaceRoot, options.indexBuildBudgetMs)
   if (index.chunks.length === 0) return null
 
   const query = buildQueryModel(request)

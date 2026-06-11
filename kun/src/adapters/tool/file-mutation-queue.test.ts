@@ -41,6 +41,10 @@ describe('withFileMutationQueue', () => {
   it('serializes concurrent same-process mutations for the same file', async () => {
     const path = await tempFile()
     const events: string[] = []
+    let resolveFirstStarted!: () => void
+    const firstStarted = new Promise<void>((resolve) => {
+      resolveFirstStarted = resolve
+    })
     let releaseFirst!: () => void
     const firstReleased = new Promise<void>((resolve) => {
       releaseFirst = resolve
@@ -48,10 +52,11 @@ describe('withFileMutationQueue', () => {
 
     const first = withFileMutationQueue(path, async () => {
       events.push('first-start')
+      resolveFirstStarted()
       await firstReleased
       events.push('first-end')
     })
-    await delay(20)
+    await firstStarted
 
     const second = withFileMutationQueue(path, async () => {
       events.push('second')
