@@ -12,7 +12,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🟡 | $0.4015 / in 340,885 out 224,620 cache 97.9% | Branch commit `ee54d66` verified; merge pending | — | Full gate green; missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Branch commit `19c60f1` verified; live-dev manual proof and merge pending | — | Full gate green after same-id steering added loading/empty/error/success UsagePanel tests |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $0.7656 / in 775,936 out 201,788 cache 98.9% | Initial full gate claimed green, but required PTY output surface incomplete | — | Same-id steering ordered: wire PTY output streaming to renderer and rerun full gate + `dist:mac:arm64:dmg` |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $1.7637 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4% | Orchestrator review rejected current lane: renderer audit call missing, raw SSE shape unproven, symlink cwd escape risk, spawn schema/default mismatch | — | Same-id steering ordered in `../ocx-h3`; rerun full gate + `dist:mac:arm64:dmg` after fix |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -50,3 +50,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   failed the H3 stop-gate review because PTY output was not streamed back to
   the renderer, so the user terminal proof could not pass. Ordered the same H3
   lane to wire output streaming and repeat the packaging dry-run.
+- 2026-06-12: H3 second review found remaining security/contract gaps: the
+  renderer never called `terminalAgentExecObserved`, the agent-activity tab
+  used unproven raw SSE shape assumptions, cwd containment was string-based
+  rather than symlink-safe, and the spawn schema still required `cwd` despite a
+  claimed project-dir default. A misissued root-scope `order` was killed before
+  edits; the corrected same-id order was reissued with `--cwd ../ocx-h3`.
