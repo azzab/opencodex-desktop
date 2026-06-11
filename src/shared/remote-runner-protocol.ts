@@ -54,6 +54,17 @@ export const RemoteRunnerDataClassSchema = z.enum([
 ])
 export type RemoteRunnerDataClass = z.infer<typeof RemoteRunnerDataClassSchema>
 
+const REMOTE_RUNNER_FIXED_NEVER_RELAYED_DATA_CLASSES: readonly RemoteRunnerDataClass[] = [
+  'source_file',
+  'raw_terminal_stream',
+  'browser_cookies',
+  'api_keys',
+  'oauth_tokens',
+  'mcp_credentials',
+  'env_values',
+  'keychain_material'
+]
+
 export const RemoteRunnerDataPolicySchema = z.object({
   defaultAllowed: z.array(RemoteRunnerDataClassSchema).max(32).default([
     'thread_metadata',
@@ -82,13 +93,16 @@ export const RemoteRunnerDataPolicySchema = z.object({
     'keychain_material'
   ])
 }).strict().superRefine((policy, ctx) => {
-  const never = new Set(policy.never)
+  const never = new Set([
+    ...policy.never,
+    ...REMOTE_RUNNER_FIXED_NEVER_RELAYED_DATA_CLASSES
+  ])
   const defaultConflicts = policy.defaultAllowed.filter((item) => never.has(item))
   if (defaultConflicts.length > 0) {
     ctx.addIssue({
       code: 'custom',
       path: ['defaultAllowed'],
-      message: `never-relayed data classes cannot be default allowed: ${defaultConflicts.join(', ')}`
+      message: `never-relayed data classes cannot be default allowed; fixed never-relayed data classes cannot leave the host: ${defaultConflicts.join(', ')}`
     })
   }
 
@@ -97,7 +111,7 @@ export const RemoteRunnerDataPolicySchema = z.object({
     ctx.addIssue({
       code: 'custom',
       path: ['consentRequired'],
-      message: `never-relayed data classes cannot be consent-gated: ${consentConflicts.join(', ')}`
+      message: `never-relayed data classes cannot be consent-gated; fixed never-relayed data classes cannot leave the host: ${consentConflicts.join(', ')}`
     })
   }
 })

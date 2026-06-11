@@ -9,6 +9,7 @@ import {
 import opencodexLogoPng from '../asset/img/opencodex.png?url'
 import opencodexTrayPng from '../asset/img/opencodex_tray.png?url'
 import { createAppIcon, pickTrayIcon } from './app-icon'
+import { configureLinuxWaylandImeSwitches } from './app-command-line'
 import { configureAppIdentity } from './app-identity'
 import { buildLoginItemSettings, shouldSyncLoginItemSettings } from './login-item-settings'
 import {
@@ -39,7 +40,13 @@ import {
   runtimeAuthHeaders,
   runtimeRequestViaHost
 } from './runtime/kun-adapter'
+import { waitForRuntimeTurnsIdle } from './runtime/managed-runtime-idle'
 import { configureLogger, logError, logWarn, pruneOnStartup } from './logger'
+import {
+  createReleaseSmokeController,
+  resolveReleaseSmokeConfig,
+  type ReleaseSmokeController
+} from './release-smoke'
 import { createClawRuntime, type ClawRuntime } from './claw-runtime'
 import { createScheduleRuntime, type ScheduleRuntime } from './schedule-runtime'
 import { runClawScheduleMcpServerFromArgv } from './claw-schedule-mcp-server'
@@ -153,6 +160,17 @@ if (runningClawScheduleMcpServer && process.platform === 'darwin') {
 // 抽到 app-identity.ts 是为了让测试可以直接 import,不被 main 的
 // whenReady 副作用污染。
 configureAppIdentity()
+configureLinuxWaylandImeSwitches()
+
+const releaseSmokeConfig = resolveReleaseSmokeConfig()
+if (releaseSmokeConfig.enabled && releaseSmokeConfig.userDataDir) {
+  try {
+    app.setPath('userData', releaseSmokeConfig.userDataDir)
+  } catch (error) {
+    console.error('[release-smoke] fail user_data_path', error)
+    process.exit(1)
+  }
+}
 
 if (!runningClawScheduleMcpServer && process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID)
@@ -173,6 +191,7 @@ type GuiUpdaterModule = typeof import('./gui-updater')
 
 let guiUpdaterModulePromise: Promise<GuiUpdaterModule> | null = null
 let guiUpdaterInitialized = false
+let releaseSmokeController: ReleaseSmokeController | null = null
 
 function emitClawChannelActivity(payload: { channelId: string; threadId: string }): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -183,6 +202,27 @@ async function stopManagedRuntimesForQuit(): Promise<void> {
   if (managedRuntimesStoppedForQuit) return
   await stopManagedRuntimes()
   managedRuntimesStoppedForQuit = true
+}
+
+function getReleaseSmokeController(): ReleaseSmokeController {
+  if (!releaseSmokeController) {
+    releaseSmokeController = createReleaseSmokeController(releaseSmokeConfig, {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: (timer) => globalThis.clearTimeout(timer as ReturnType<typeof setTimeout>),
+      logInfo: console.info,
+      logError: console.error,
+      exit: (code) => {
+        void stopManagedRuntimesForQuit()
+          .catch((error) => {
+            console.warn('[release-smoke] failed to stop managed runtimes:', error)
+          })
+          .finally(() => {
+            app.exit(code)
+          })
+      }
+    })
+  }
+  return releaseSmokeController
 }
 
 async function stopManagedRuntimes(): Promise<void> {
@@ -639,6 +679,7 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
 
 function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
   traceStartup('createWindow:start')
+  const releaseSmoke = getReleaseSmokeController()
   const preloadPath = resolvePreloadPath()
   const usesDesktopTitleBar = process.platform === 'win32' || process.platform === 'linux'
   mainWindow = new BrowserWindow({
@@ -666,9 +707,24 @@ function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
     const message = error instanceof Error ? error.message : String(error)
     console.error(`[opencodex-desktop] failed to load preload ${preloadPath}:`, error)
     logError('preload', 'Failed to load preload script', { preloadPath, message })
+    releaseSmoke.finish({ ok: false, stage: 'preload_error', message })
+  })
+  mainWindow.webContents.once('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    releaseSmoke.finish({
+      ok: false,
+      stage: 'renderer_load_failed',
+      message: `${errorCode} ${errorDescription}${validatedURL ? ` ${validatedURL}` : ''}`
+    })
+  })
+  mainWindow.webContents.once('render-process-gone', (_event, details) => {
+    releaseSmoke.finish({
+      ok: false,
+      stage: 'renderer_process_gone',
+      message: details.reason
+    })
   })
   const showWindow = (): void => {
-    if (options.suppressInitialShow) return
+    if (options.suppressInitialShow || releaseSmoke.enabled) return
     if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return
     mainWindow.show()
   }
@@ -694,6 +750,7 @@ function createWindow(options: { suppressInitialShow?: boolean } = {}): void {
   mainWindow.webContents.once('did-finish-load', () => {
     traceStartup('window:did-finish-load')
     showWindow()
+    releaseSmoke.finish({ ok: true, stage: 'renderer_loaded' })
   })
   setTimeout(() => {
     traceStartup('window:fallback-show-timeout')
@@ -751,6 +808,7 @@ async function restartManagedRuntimeForSettingsChange(
 
   if (!wasRunning) return
   if (wasRunning) {
+    await waitForManagedRuntimeReadyBeforeStop(prev, 'settings-apply')
     await adapter.stopAndWait()
   }
   if (!resolveConfiguredApiKey(next) || !runtime.autoStart) return
@@ -772,6 +830,7 @@ async function restartManagedRuntimeForMcpConfigChange(settings: AppSettingsV1):
   const wasRunning = adapter.isChildRunning()
 
   if (!wasRunning) return
+  await waitForManagedRuntimeReadyBeforeStop(settings, 'mcp-config')
   await adapter.stopAndWait()
   if (!resolveConfiguredApiKey(settings) || !runtime.autoStart) return
 
@@ -783,6 +842,23 @@ async function restartManagedRuntimeForMcpConfigChange(settings: AppSettingsV1):
     }
   } catch (e) {
     console.warn('[opencodex-desktop] Kun restart failed after MCP config change:', e)
+  }
+}
+
+async function waitForManagedRuntimeReadyBeforeStop(
+  settings: AppSettingsV1,
+  source: string
+): Promise<void> {
+  const healthy = await waitForKunHealth(settings, 20_000)
+  if (!healthy) {
+    logWarn(source, 'Kun did not become healthy before a managed restart; stopping it anyway')
+    return
+  }
+  const idle = await waitForRuntimeTurnsIdle({ settings })
+  if (idle === 'timeout') {
+    logWarn(source, 'Kun still has running turns after waiting; stopping it anyway')
+  } else if (idle === 'unavailable') {
+    logWarn(source, 'Could not verify Kun turn idleness before a managed restart; stopping it anyway')
   }
 }
 
@@ -812,6 +888,8 @@ if (runningClawScheduleMcpServer) {
 } else {
 app.whenReady().then(async () => {
   traceStartup('app.whenReady:start')
+  const releaseSmoke = getReleaseSmokeController()
+  releaseSmoke.startTimeout()
   if (!gotSingleInstanceLock) return
 
   traceStartup('install webview guards:start')
@@ -949,7 +1027,7 @@ app.whenReady().then(async () => {
   registerRuntimeSseIpc({ ipcMain, store, ensureRuntime, logError })
   traceStartup('ipc registration:done')
 
-  createWindow({ suppressInitialShow: shouldStartHidden(initial) })
+  createWindow({ suppressInitialShow: shouldStartHidden(initial) || releaseSmoke.enabled })
   traceStartup('createWindow:returned')
 
   void pruneOnStartup().catch((err) => {
@@ -975,6 +1053,10 @@ app.whenReady().then(async () => {
 }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error)
   console.error('[opencodex-desktop] startup failed:', error)
+  if (releaseSmokeConfig.enabled) {
+    getReleaseSmokeController().finish({ ok: false, stage: 'startup_failed', message })
+    return
+  }
   dialog.showErrorBox('OpenCodex Desktop failed to start', message)
   app.quit()
 })

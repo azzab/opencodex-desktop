@@ -134,6 +134,46 @@ describe('remote runner protocol', () => {
     )
   })
 
+  it('rejects fixed never-relayed data even when a runner omits it from the policy never list', () => {
+    const result = RemoteRunnerCapabilityHandshakeSchema.safeParse({
+      id: 'runner_bad_egress',
+      protocolVersion: REMOTE_RUNNER_PROTOCOL_VERSION,
+      type: 'cloud-worker',
+      label: 'Cloud worker',
+      status: 'available',
+      issuedAt: now,
+      shell: { os: 'linux', shell: 'bash', commandSyntax: 'posix' },
+      git: { available: true, worktrees: false, partialClone: false, lfs: false },
+      browser: { support: 'none', evidence: 'unavailable' },
+      allowedRoots: [],
+      toolPolicy: {
+        terminal: 'metadata_only',
+        filesystem: 'metadata_only',
+        git: 'metadata_only',
+        browser: 'unavailable',
+        artifacts: 'metadata_only'
+      },
+      dataPolicy: {
+        defaultAllowed: ['thread_metadata', 'env_values'],
+        consentRequired: ['api_keys'],
+        never: []
+      },
+      budget: { maxRunSeconds: 60 },
+      approvals: {
+        hostApprovalRequired: true,
+        remoteMayLowerHostPolicy: false,
+        perActionConsentRequired: true
+      },
+      audit: { required: true, emitRunIds: true, payloadRedaction: 'metadata' },
+      credentialStorage: { kind: 'none', exportsRawSecret: false }
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues.map((issue) => issue.message).join('\n')).toContain(
+      'fixed never-relayed data classes cannot leave the host'
+    )
+  })
+
   it('redacts SSH host config previews and forbids raw secret export', () => {
     const config = RemoteSshHostConfigSchema.parse({
       id: 'ssh_build',

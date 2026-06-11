@@ -143,7 +143,8 @@ release_ensure_github_release_exists() {
 
 release_prepare_builder_cache() {
   export ELECTRON_BUILDER_CACHE="${ROOT}/.cache/electron-builder"
-  mkdir -p "${ELECTRON_BUILDER_CACHE}"
+  export ELECTRON_CACHE="${ROOT}/.cache/electron"
+  mkdir -p "${ELECTRON_BUILDER_CACHE}" "${ELECTRON_CACHE}"
 }
 
 release_acquire_lock() {

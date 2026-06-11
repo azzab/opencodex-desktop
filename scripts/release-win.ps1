@@ -155,7 +155,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $env:ELECTRON_BUILDER_CACHE = Join-Path $Root '.cache\electron-builder'
-New-Item -ItemType Directory -Force -Path $env:ELECTRON_BUILDER_CACHE | Out-Null
+$env:ELECTRON_CACHE = Join-Path $Root '.cache\electron'
+New-Item -ItemType Directory -Force -Path $env:ELECTRON_BUILDER_CACHE, $env:ELECTRON_CACHE | Out-Null
 
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
   (Join-Path $Root 'dist\win-unpacked'), `
