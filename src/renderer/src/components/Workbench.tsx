@@ -100,6 +100,9 @@ const PlanPanel = lazy(() =>
 const TodoPanel = lazy(() =>
   import('./todo/TodoPanel').then((module) => ({ default: module.TodoPanel }))
 )
+const UsagePanel = lazy(() =>
+  import('./usage/UsagePanel').then((module) => ({ default: module.UsagePanel }))
+)
 const ScheduleTasksView = lazy(() =>
   import('./schedule/ScheduleTasksView').then((module) => ({ default: module.ScheduleTasksView }))
 )
@@ -1581,6 +1584,8 @@ export function Workbench(): ReactElement {
                 onCollapse={closeRightPanel}
                 onBuildPlan={() => void buildGuiPlan()}
               />
+            ) : rightPanelMode === 'usage' ? (
+              <UsagePanel className="h-full max-h-full w-full" onClose={closeRightPanel} />
             ) : isWorkbenchSurfaceMode(rightPanelMode) ? (
               <WorkbenchSurfacePanel
                 surface={rightPanelMode}
