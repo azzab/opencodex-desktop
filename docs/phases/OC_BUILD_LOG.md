@@ -12,7 +12,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ✅ | $0.4015 / in 340,885 out 224,620 cache 97.9% | Merged to `main`; post-merge full gate green (root 844/844, Kun 451/451) | `dfe60ef` | Missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Branch commit `d315287` verified; full H3 gate green; mounted renderer tests and real `node-pty` smoke passed | — | Wave 1 merge pending; `dist:mac:arm64:dmg` green with signing/notarization skipped as expected |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ❌ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merge commit `84f1fb4` exists, but post-merge gate is blocked by production `npm audit --omit=dev` high findings | `84f1fb4` | H3 branch gate was green before merge; main dependency install recovered missing H3 packages, then audit found `@larksuiteoapi/node-sdk` -> `axios` advisories needing human decision |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -80,3 +80,13 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   local insecure Kun at `127.0.0.1:18999`: thread `thr_rlt445z1` completed one
   turn and `/v1/usage?group_by=thread`, `group_by=day`, and `group_by=model`
   all reported the same 14,482-token / $0.00631533 usage sample.
+- 2026-06-12: H3 merged to `main` as `84f1fb4` after resolving Arabic locale
+  conflicts by keeping the H1/H2-complete Arabic files and adding H3's 13
+  `terminal*` common keys plus 3 terminal settings keys. The first post-merge
+  `npm run typecheck` failed because `main`'s local `node_modules` did not yet
+  contain H3's merged packages (`@xterm/xterm`, `@testing-library/react`, and
+  related typings); `npm install` from the merged lockfile succeeded and changed
+  no tracked files. Security stop: `npm audit --omit=dev` exits 1 with high
+  production advisories through direct `@larksuiteoapi/node-sdk@1.64.0` ->
+  `axios@1.13.6`; npm's listed fix is `@larksuiteoapi/node-sdk@1.56.1` marked
+  semver-major. Human decision required before continuing the H3 main gate.
