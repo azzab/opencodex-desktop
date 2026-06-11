@@ -9,10 +9,10 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 
 | # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
-| 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final main; wrapper selftest/list green | pending final tag push | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared |
-| 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🔵 | — | pending worker recovery | — | Dispatched Wave 1; detached run exited early after read phase, foreground `order` recovery in progress |
-| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🔵 | — | pending worker recovery | — | Dispatched Wave 1 with `--thinking high`; detached run exited early after read phase, foreground `order` recovery in progress |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🔵 | — | pending worker recovery | — | Dispatched Wave 1 with `--max`; detached run exited early after read phase, foreground `order` recovery in progress |
+| 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
+| 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🟡 | $0.4015 / in 340,885 out 224,620 cache 97.9% | Branch commit `ee54d66` verified; merge pending | — | Full gate green; missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
+| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $0.6285 / in 582,858 out 229,486 cache 98.8% | Initial full gate green, but stop-gate test coverage incomplete | — | Same-id steering ordered: add loading/empty/error/success UsagePanel tests before acceptance |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $0.7656 / in 775,936 out 201,788 cache 98.9% | Initial full gate claimed green, but required PTY output surface incomplete | — | Same-id steering ordered: wire PTY output streaming to renderer and rerun full gate + `dist:mac:arm64:dmg` |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -35,3 +35,14 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   because of an unsafe "newest session after launch" fallback. Cleared the bad
   metadata, removed that fallback, and resumed the same session ids with
   foreground `order` recovery.
+- 2026-06-12: H1 worker recovery completed and the orchestrator independently
+  verified the full gate, 0/0 missing Arabic keys, placeholder parity, a
+  30-key Arabic sample, and the future-key locale failure proof. Branch commit
+  `ee54d66` is ready to merge after Wave 1 sequencing.
+- 2026-06-12: H2 initial worker output passed the full command gate but failed
+  the H2 stop-gate review because `UsagePanel.test.ts` did not cover loading,
+  empty, error, or success states. Ordered the same H2 lane to add those tests.
+- 2026-06-12: H3 initial worker output passed the reported command gate but
+  failed the H3 stop-gate review because PTY output was not streamed back to
+  the renderer, so the user terminal proof could not pass. Ordered the same H3
+  lane to wire output streaming and repeat the packaging dry-run.
