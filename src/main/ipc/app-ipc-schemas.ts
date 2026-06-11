@@ -158,6 +158,7 @@ const approvalPolicySchema = z.enum(['on-request', 'untrusted', 'never', 'auto',
 const sandboxModeSchema = z.enum(['read-only', 'workspace-write', 'danger-full-access', 'external-sandbox'])
 const mcpSearchModeSchema = z.enum(['direct', 'search', 'auto'])
 const kunStorageBackendSchema = z.enum(['hybrid', 'file'])
+const modelEndpointFormatSchema = z.enum(['chat_completions', 'responses', 'messages'])
 const kunCompactionSummaryModeSchema = z.enum(['heuristic', 'model'])
 const kunAutomationPermissionModeSchema = z.enum(['deny', 'ask', 'allow'])
 const kunSubagentWorkflowPresetIdSchema = z.enum([
@@ -185,6 +186,7 @@ const modelProviderPatchSchema = z.object({
     name: z.string().trim().min(1).max(80).optional(),
     apiKey: z.string().max(MAX_BODY_BYTES).optional(),
     baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
+    endpointFormat: modelEndpointFormatSchema.optional(),
     models: z.array(z.string().trim().min(1).max(256)).max(500).optional(),
     catalogUpdatedAt: z.string().trim().max(128).optional(),
     catalogError: z.string().trim().max(512).optional(),
@@ -222,6 +224,7 @@ const kunRuntimePatchSchema = z.object({
   apiKey: z.string().max(MAX_BODY_BYTES).optional(),
   baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
   providerId: z.string().trim().max(64).optional(),
+  endpointFormat: modelEndpointFormatSchema.optional(),
   runtimeToken: z.string().max(MAX_BODY_BYTES).optional(),
   dataDir: defaultPathSchema,
   model: z.string().trim().min(1).max(128).optional(),

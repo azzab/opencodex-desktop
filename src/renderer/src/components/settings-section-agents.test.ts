@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { defaultKunRuntimeSettings } from '@shared/app-settings'
-import { AgentsSettingsSection } from './settings-section-agents'
+import {
+  defaultKunRuntimeSettings,
+  defaultModelProviderSettings,
+  type ModelProviderProfileV1
+} from '@shared/app-settings'
+import {
+  AgentsSettingsSection,
+  modelProvidersSettingsPatch
+} from './settings-section-agents'
 
 const labels: Record<string, string> = {
   agentsQuickBase: 'Base',
@@ -405,6 +412,36 @@ function baseCtx(): Record<string, unknown> {
 }
 
 describe('AgentsSettingsSection Kun diagnostics smoke', () => {
+  it('builds one settings patch when selecting a newly added provider', () => {
+    const provider = defaultModelProviderSettings()
+    const nextProvider: ModelProviderProfileV1 = {
+      id: 'custom-provider-3',
+      name: 'Custom provider',
+      apiKey: '',
+      baseUrl: 'https://custom.example/v1',
+      endpointFormat: 'chat_completions',
+      models: [],
+      catalogModels: []
+    }
+
+    expect(modelProvidersSettingsPatch({
+      provider,
+      providers: [...provider.providers, nextProvider],
+      kun: { providerId: nextProvider.id }
+    })).toEqual({
+      provider: {
+        apiKey: provider.providers[0].apiKey,
+        baseUrl: provider.providers[0].baseUrl,
+        providers: [...provider.providers, nextProvider]
+      },
+      agents: {
+        kun: {
+          providerId: 'custom-provider-3'
+        }
+      }
+    })
+  })
+
   it('keeps advanced agent controls behind collapsed disclosures', () => {
     const html = renderToStaticMarkup(createElement(AgentsSettingsSection, { ctx: baseCtx() }))
 

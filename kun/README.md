@@ -59,7 +59,7 @@ Run from the `kun/` directory.
 | --- | --- | --- |
 | `--config` | JSON config file. If omitted, Kun reads `{--data-dir}/config.json` when present | optional |
 | `--host` | Bind address | `127.0.0.1` |
-| `--port` | HTTP port | `8899` |
+| `--port` | HTTP port | `18999` |
 | `--data-dir` | Root directory for threads, events, and usage | required |
 | `--runtime-token` | Bearer token for `/v1/*` requests | empty |
 | `--api-key` | DeepSeek-compatible API key | empty |
@@ -73,10 +73,10 @@ Example:
 
 ```bash
 kun serve \
-  --config ~/.deepseekgui/kun/config.json \
+  --config ~/.opencodex/kun/config.json \
   --host 127.0.0.1 \
-  --port 8899 \
-  --data-dir ~/.deepseekgui/kun \
+  --port 18999 \
+  --data-dir ~/.opencodex/kun \
   --runtime-token dev-token \
   --api-key "$DEEPSEEK_API_KEY" \
   --model deepseek-v4-pro
@@ -85,10 +85,10 @@ kun serve \
 Kun can also run as a standalone agent without the GUI:
 
 ```bash
-kun run --data-dir ~/.deepseekgui/kun --workspace "$PWD" "summarize this repo"
-kun chat --data-dir ~/.deepseekgui/kun --workspace "$PWD"
-kun exec --data-dir ~/.deepseekgui/kun --workspace "$PWD" --list-tools
-kun exec --data-dir ~/.deepseekgui/kun --workspace "$PWD" read --args '{"path":"README.md"}'
+kun run --data-dir ~/.opencodex/kun --workspace "$PWD" "summarize this repo"
+kun chat --data-dir ~/.opencodex/kun --workspace "$PWD"
+kun exec --data-dir ~/.opencodex/kun --workspace "$PWD" --list-tools
+kun exec --data-dir ~/.opencodex/kun --workspace "$PWD" read --args '{"path":"README.md"}'
 ```
 
 - `kun run` creates a thread, runs one turn, streams assistant text, and exits.
@@ -130,7 +130,7 @@ Kun also reads `{data-dir}/config.json` when it exists. In the GUI's
 default setup this is:
 
 ```text
-~/.deepseekgui/kun/config.json
+~/.opencodex/kun/config.json
 ```
 
 Shape:
@@ -139,8 +139,8 @@ Shape:
 {
   "serve": {
     "host": "127.0.0.1",
-    "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "port": 18999,
+    "dataDir": "~/.opencodex/kun",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",

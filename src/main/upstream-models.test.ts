@@ -7,6 +7,7 @@ import {
   defaultClawSettings,
   defaultKeyboardShortcuts,
   defaultKunRuntimeSettings,
+  DEFAULT_MODEL_ENDPOINT_FORMAT,
   defaultModelProviderSettings,
   defaultScheduleSettings,
   defaultWriteSettings,
@@ -35,6 +36,7 @@ function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
           name: 'Custom Provider',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
           models: ['custom-provider-model'],
           catalogModels: []
         }
@@ -218,6 +220,7 @@ describe('upstream model picker list', () => {
         name: 'OpenRouter',
         apiKey: 'sk-openrouter-secret',
         baseUrl: 'https://openrouter.ai/api/v1',
+        endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
         models: []
       },
       fetchImpl,
@@ -261,6 +264,7 @@ describe('upstream model picker list', () => {
         name: 'OpenRouter',
         apiKey: 'sk-openrouter-secret',
         baseUrl: 'https://openrouter.ai/api/v1',
+        endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
         models: []
       },
       fetchImpl

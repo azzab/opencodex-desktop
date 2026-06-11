@@ -1,6 +1,7 @@
 import type { GuiUpdateChannel } from './gui-update'
 import type { KeyboardShortcutsConfigV1 } from './keyboard-shortcuts'
 import type { ApprovalPolicy, SandboxMode } from '../../kun/src/contracts/policy.js'
+import type { ModelEndpointFormat } from '../../kun/src/contracts/model-endpoint-format.js'
 export { DEFAULT_GUI_UPDATE_CHANNEL, normalizeGuiUpdateChannel, type GuiUpdateChannel } from './gui-update'
 export {
   DEFAULT_APPROVAL_POLICY,
@@ -8,6 +9,13 @@ export {
   type ApprovalPolicy,
   type SandboxMode
 } from '../../kun/src/contracts/policy.js'
+export {
+  DEFAULT_MODEL_ENDPOINT_FORMAT,
+  MODEL_ENDPOINT_FORMATS,
+  modelEndpointPath,
+  normalizeModelEndpointFormat,
+  type ModelEndpointFormat
+} from '../../kun/src/contracts/model-endpoint-format.js'
 export type UiFontScale = 'small' | 'medium' | 'large'
 export type ScheduleRunMode = 'agent' | 'plan'
 export type ScheduleKind = 'manual' | 'interval' | 'daily' | 'at'
@@ -41,7 +49,7 @@ export const DEFAULT_WRITE_INLINE_COMPLETION_MAX_TOKENS = 96
 export const DEFAULT_WRITE_INLINE_LONG_COMPLETION_DEBOUNCE_MS = 2_800
 export const DEFAULT_WRITE_INLINE_LONG_COMPLETION_MIN_ACCEPT_SCORE = 0.36
 export const DEFAULT_WRITE_INLINE_LONG_COMPLETION_MAX_TOKENS = 256
-export const DEFAULT_KUN_PORT = 8899
+export const DEFAULT_KUN_PORT = 18999
 export const DEFAULT_WEIXIN_BRIDGE_RPC_URL = 'http://127.0.0.1:18790/api/v1/admin/rpc'
 export const DEFAULT_MODEL_PROVIDER_ID = 'deepseek'
 export const OPENROUTER_PROVIDER_ID = 'openrouter'
@@ -72,6 +80,7 @@ export type ModelProviderProfileV1 = {
   name: string
   apiKey: string
   baseUrl: string
+  endpointFormat: ModelEndpointFormat
   models: string[]
   catalogUpdatedAt?: string
   catalogError?: string
@@ -210,6 +219,8 @@ export type KunRuntimeSettingsV1 = {
   baseUrl: string
   /** Selected General model provider profile. Empty or missing means the default provider. */
   providerId: string
+  /** Effective model request/response protocol. Resolved from the selected model provider. */
+  endpointFormat: ModelEndpointFormat
   runtimeToken: string
   dataDir: string
   model: string

@@ -1,8 +1,8 @@
 {
   "serve": {
     "host": "127.0.0.1",
-    "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "port": 18999,
+    "dataDir": "~/.opencodex/kun",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",

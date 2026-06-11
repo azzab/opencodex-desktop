@@ -21,7 +21,7 @@ DeepSeek GUI 有两层配置。
    这是 Kun 本地运行时读取的高级配置文件。默认路径是：
 
    ```text
-   ~/.deepseekgui/kun/config.json
+   ~/.opencodex/kun/config.json
    ```
 
    如果 `agents.kun.dataDir` 改成了别的目录，实际路径就是：
@@ -48,8 +48,8 @@ GUI 启动 Kun 时会按下面的顺序合并配置。
 {
   "serve": {
     "host": "127.0.0.1",
-    "port": 8899,
-    "dataDir": "~/.deepseekgui/kun",
+    "port": 18999,
+    "dataDir": "~/.opencodex/kun",
     "runtimeToken": "",
     "apiKey": "",
     "baseUrl": "https://api.deepseek.com/beta",
@@ -253,9 +253,9 @@ Kun 内置 DeepSeek V4 默认模型画像：
   "agents": {
     "kun": {
       "binaryPath": "",
-      "port": 8899,
+      "port": 18999,
       "autoStart": true,
-      "dataDir": "~/.deepseekgui/kun",
+      "dataDir": "~/.opencodex/kun",
       "model": "deepseek-v4-pro",
       "approvalPolicy": "auto",
       "sandboxMode": "workspace-write",

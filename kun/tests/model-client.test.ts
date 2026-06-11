@@ -234,6 +234,128 @@ describe('DeepseekCompatModelClient', () => {
     })
   })
 
+  it('uses the OpenAI Responses endpoint format for custom providers', async () => {
+    const sentUrls: string[] = []
+    const sentBodies: Array<Record<string, unknown>> = []
+    const response = {
+      id: 'resp_1',
+      status: 'completed',
+      output_text: 'responses text',
+      usage: {
+        input_tokens: 12,
+        output_tokens: 3,
+        total_tokens: 15
+      }
+    }
+    const fetchImpl: typeof fetch = async (url, init) => {
+      sentUrls.push(String(url))
+      sentBodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+    const client = new DeepseekCompatModelClient({
+      baseUrl: 'https://model.example/v1',
+      apiKey: 'k',
+      model: 'gpt-4.1',
+      endpointFormat: 'responses',
+      fetchImpl,
+      nonStreaming: true
+    })
+    const request = buildRequest(new AbortController().signal)
+    request.model = 'gpt-4.1'
+    request.tools = []
+    request.maxTokens = 96
+    request.temperature = 0
+    request.responseFormat = 'json_object'
+    request.reasoningEffort = 'high'
+
+    const chunks = []
+    for await (const chunk of client.stream(request)) {
+      chunks.push(chunk)
+    }
+
+    expect(sentUrls[0]).toBe('https://model.example/v1/responses')
+    expect(sentBodies[0]).toMatchObject({
+      model: 'gpt-4.1',
+      stream: false,
+      max_output_tokens: 96,
+      temperature: 0,
+      text: { format: { type: 'json_object' } },
+      reasoning: { effort: 'high' }
+    })
+    expect(sentBodies[0]).not.toHaveProperty('messages')
+    expect(sentBodies[0]).toHaveProperty('input')
+    const textChunk = chunks.find((chunk) => chunk.kind === 'assistant_text_delta')
+    const usageChunk = chunks.find((chunk) => chunk.kind === 'usage')
+    expect(textChunk && textChunk.kind === 'assistant_text_delta' ? textChunk.text : '').toBe('responses text')
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.promptTokens : 0).toBe(12)
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.completionTokens : 0).toBe(3)
+  })
+
+  it('uses the Anthropic Messages endpoint format for custom providers', async () => {
+    const sentUrls: string[] = []
+    const sentHeaders: Array<Record<string, string>> = []
+    const sentBodies: Array<Record<string, unknown>> = []
+    const response = {
+      id: 'msg_1',
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'text', text: 'messages text' }],
+      stop_reason: 'end_turn',
+      usage: {
+        input_tokens: 7,
+        output_tokens: 2
+      }
+    }
+    const fetchImpl: typeof fetch = async (url, init) => {
+      sentUrls.push(String(url))
+      sentHeaders.push(init?.headers as Record<string, string>)
+      sentBodies.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>)
+      return new Response(JSON.stringify(response), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    }
+    const client = new DeepseekCompatModelClient({
+      baseUrl: 'https://anthropic.example/v1',
+      apiKey: 'sk-ant',
+      model: 'claude-4-sonnet',
+      endpointFormat: 'messages',
+      fetchImpl,
+      nonStreaming: true
+    })
+    const request = buildRequest(new AbortController().signal)
+    request.model = 'claude-4-sonnet'
+    request.tools = []
+    request.maxTokens = 64
+
+    const chunks = []
+    for await (const chunk of client.stream(request)) {
+      chunks.push(chunk)
+    }
+
+    expect(sentUrls[0]).toBe('https://anthropic.example/v1/messages')
+    expect(sentHeaders[0]).toMatchObject({
+      Authorization: 'Bearer sk-ant',
+      'x-api-key': 'sk-ant',
+      'anthropic-version': '2023-06-01'
+    })
+    expect(sentBodies[0]).toMatchObject({
+      model: 'claude-4-sonnet',
+      stream: false,
+      max_tokens: 64
+    })
+    expect(sentBodies[0]).toHaveProperty('messages')
+    expect(sentBodies[0]).not.toHaveProperty('input')
+    const textChunk = chunks.find((chunk) => chunk.kind === 'assistant_text_delta')
+    const usageChunk = chunks.find((chunk) => chunk.kind === 'usage')
+    expect(textChunk && textChunk.kind === 'assistant_text_delta' ? textChunk.text : '').toBe('messages text')
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.promptTokens : 0).toBe(7)
+    expect(usageChunk && usageChunk.kind === 'usage' ? usageChunk.usage.completionTokens : 0).toBe(2)
+  })
+
   it('keeps requiredToolName as loop metadata instead of sending provider tool_choice', async () => {
     const response = {
       id: 'required-tool-metadata',

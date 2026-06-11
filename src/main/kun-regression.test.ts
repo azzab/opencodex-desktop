@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
+  DEFAULT_KUN_PORT,
   defaultClawSettings,
   defaultKeyboardShortcuts,
   defaultKunRuntimeSettings,
@@ -75,7 +76,7 @@ describe('Kun single-agent regression', () => {
       }
     } as unknown as Parameters<typeof migrateLegacyAppSettings>[0])
 
-    expect(migrated.agents?.kun?.port).toBe(8899)
+    expect(migrated.agents?.kun?.port).toBe(DEFAULT_KUN_PORT)
   })
 
   it('seeds provider credentials and Kun model from legacy reasoning settings', () => {

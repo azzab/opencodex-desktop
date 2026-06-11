@@ -4,13 +4,15 @@ import {
   defaultKeyboardShortcuts,
   DEFAULT_OPENROUTER_BASE_URL,
   OPENROUTER_PROVIDER_ID,
+  DEFAULT_MODEL_ENDPOINT_FORMAT,
   defaultKunRuntimeSettings,
   defaultModelProviderSettings,
   normalizeModelProviderSettings,
   defaultScheduleSettings,
   defaultWriteSettings,
   resolveKunRuntimeSettings,
-  type AppSettingsV1
+  type AppSettingsV1,
+  type ModelProviderSettingsPatchV1
 } from './app-settings'
 
 function settings(): AppSettingsV1 {
@@ -28,6 +30,7 @@ function settings(): AppSettingsV1 {
           name: 'Custom Provider',
           apiKey: 'sk-custom',
           baseUrl: 'https://custom.example/v1',
+          endpointFormat: 'responses',
           models: ['custom-model'],
           catalogModels: []
         }
@@ -63,12 +66,14 @@ describe('model provider settings', () => {
     ])
     expect(provider.providers[0]).toMatchObject({
       id: 'deepseek',
-      name: 'DeepSeek'
+      name: 'DeepSeek',
+      endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT
     })
     expect(provider.providers[1]).toMatchObject({
       id: OPENROUTER_PROVIDER_ID,
       name: 'OpenRouter',
-      baseUrl: DEFAULT_OPENROUTER_BASE_URL
+      baseUrl: DEFAULT_OPENROUTER_BASE_URL,
+      endpointFormat: 'chat_completions'
     })
   })
 
@@ -77,6 +82,38 @@ describe('model provider settings', () => {
 
     expect(runtime.apiKey).toBe('sk-custom')
     expect(runtime.baseUrl).toBe('https://custom.example/v1')
+    expect(runtime.endpointFormat).toBe('responses')
+  })
+
+  it('normalizes provider endpoint format aliases without changing unknown values away from the safe default', () => {
+    const rawSettings = {
+      providers: [
+        {
+          id: 'responses-provider',
+          name: 'Responses Provider',
+          apiKey: '',
+          baseUrl: 'https://responses.example/v1',
+          endpointFormat: '/v1/responses',
+          models: [],
+          catalogModels: []
+        },
+        {
+          id: 'unknown-provider',
+          name: 'Unknown Provider',
+          apiKey: '',
+          baseUrl: 'https://unknown.example/v1',
+          endpointFormat: 'not-a-format',
+          models: [],
+          catalogModels: []
+        }
+      ]
+    } as unknown as ModelProviderSettingsPatchV1
+    const normalized = normalizeModelProviderSettings(rawSettings)
+
+    expect(normalized.providers.find((profile) => profile.id === 'responses-provider')?.endpointFormat)
+      .toBe('responses')
+    expect(normalized.providers.find((profile) => profile.id === 'unknown-provider')?.endpointFormat)
+      .toBe(DEFAULT_MODEL_ENDPOINT_FORMAT)
   })
 
   it('normalizes catalog-backed provider model metadata without exposing credentials', () => {
@@ -86,6 +123,7 @@ describe('model provider settings', () => {
         name: 'OpenRouter',
         apiKey: 'sk-or-secret',
         baseUrl: DEFAULT_OPENROUTER_BASE_URL,
+        endpointFormat: 'chat_completions',
         models: ['openai/gpt-4.1-mini'],
         catalogUpdatedAt: '2026-06-09T00:00:00.000Z',
         catalogModels: [{

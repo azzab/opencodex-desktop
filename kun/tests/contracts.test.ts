@@ -8,6 +8,7 @@ import {
   CreateThreadRequest,
   ThreadGoalSchema,
   ThreadTodoListSchema,
+  UpdateThreadRequest,
   SetThreadGoalRequest,
   SetThreadTodosRequest,
   RuntimeEvent,
@@ -45,6 +46,11 @@ describe('contracts', () => {
     })
     expect(parsed.title).toBe('demo')
     expect(parsed.mode).toBe('agent')
+  })
+
+  it('accepts thread workspace updates through zod', () => {
+    expect(UpdateThreadRequest.parse({ workspace: '/tmp/next' })).toEqual({ workspace: '/tmp/next' })
+    expect(UpdateThreadRequest.safeParse({ workspace: '' }).success).toBe(false)
   })
 
   it('accepts thread goal contracts and events', () => {
@@ -674,6 +680,7 @@ describe('cli', () => {
       await writeFile(join(dataDir, 'config.json'), JSON.stringify({
         serve: {
           baseUrl: 'https://example.invalid/v1',
+          endpointFormat: '/v1/responses',
           model: 'deepseek-v4-flash'
         },
         contextCompaction: {
@@ -687,6 +694,7 @@ describe('cli', () => {
       expect(parsed.configPath).toBe(join(dataDir, 'config.json'))
       expect(parsed.dataDir).toBe(dataDir)
       expect(parsed.baseUrl).toBe('https://example.invalid/v1')
+      expect(parsed.endpointFormat).toBe('responses')
       expect(parsed.model).toBe('deepseek-v4-flash')
       expect(parsed.approvalPolicy).toBe(DEFAULT_APPROVAL_POLICY)
       expect(parsed.contextCompaction?.defaultHardThreshold).toBe(23_456)
@@ -715,11 +723,13 @@ describe('cli', () => {
       dataDir: '/srv/ca',
       runtimeToken: '',
       model: 'deepseek-chat',
+      endpointFormat: 'messages',
       approvalPolicy: 'on-request',
       sandboxMode: 'workspace-write',
       insecure: false
     })
     expect(parsed.port).toBe(8899)
+    expect(parsed.endpointFormat).toBe('messages')
     expect(parsed.storage.backend).toBe('hybrid')
     expect(parsed.capabilities.mcp.enabled).toBe(false)
   })

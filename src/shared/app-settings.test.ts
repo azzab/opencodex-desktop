@@ -4,6 +4,7 @@ import {
   kunSettingsEnvelope,
   kunSettingsPatch,
   DEFAULT_KUN_DATA_DIR,
+  DEFAULT_KUN_PORT,
   DEFAULT_KUN_MODEL,
   DEFAULT_APPROVAL_POLICY,
   DEFAULT_WEIXIN_BRIDGE_RPC_URL,
@@ -22,6 +23,7 @@ import {
   normalizeAppSettings,
   parseClawUserPromptForDisplay,
   normalizeScheduleSettings,
+  resolveKunRuntimeSettings,
   resolveWriteInlineCompletionApiKey,
   resolveWriteInlineCompletionBaseUrl,
   resolveWriteInlineCompletionModel,
@@ -80,6 +82,11 @@ function clawChannel(provider: ClawImProvider, label: string, name = label): Cla
 describe('kun defaults', () => {
   it('keeps a single shared default data directory source', () => {
     expect(defaultKunRuntimeSettings().dataDir).toBe(DEFAULT_KUN_DATA_DIR)
+  })
+
+  it('uses an OpenCodex-specific managed Kun port to avoid the upstream DeepSeek GUI default', () => {
+    expect(DEFAULT_KUN_PORT).toBe(18999)
+    expect(defaultKunRuntimeSettings().port).toBe(18999)
   })
 
   it('defaults the assistant model to v4 pro', () => {
@@ -618,7 +625,22 @@ describe('legacy Kun defaults migration', () => {
       }
     } as unknown as Parameters<typeof migrateLegacyAppSettings>[0])
 
-    expect(migrated.agents?.kun?.port).toBe(8899)
+    expect(migrated.agents?.kun?.port).toBe(DEFAULT_KUN_PORT)
+  })
+
+  it('moves the legacy DeepSeek GUI Kun default port to the OpenCodex Kun default port', () => {
+    const migrated = migrateLegacyAppSettings({
+      version: 1,
+      agents: {
+        kun: {
+          port: 8899,
+          dataDir: '~/.deepseekgui/kun'
+        }
+      }
+    } as Parameters<typeof migrateLegacyAppSettings>[0])
+
+    expect(migrated.agents?.kun?.port).toBe(18999)
+    expect(migrated.agents?.kun?.dataDir).toBe(DEFAULT_KUN_DATA_DIR)
   })
 
   it('uses the current approval policy default for missing legacy local HTTP settings', () => {
@@ -674,6 +696,54 @@ describe('legacy Kun defaults migration', () => {
       dataDir: '/tmp/custom-kun',
       model: 'deepseek-v4-flash'
     }))
+  })
+
+  it('preserves custom model providers while migrating legacy settings', () => {
+    const migrated = normalizeAppSettings({
+      ...settings(),
+      agentProvider: 'deepseek-runtime',
+      provider: {
+        apiKey: 'sk-default',
+        baseUrl: 'https://api.deepseek.com',
+        providers: [
+          ...defaultModelProviderSettings().providers,
+          {
+            id: 'custom-provider-2',
+            name: 'Custom Provider',
+            apiKey: 'sk-custom',
+            baseUrl: 'https://custom.example/v1',
+            models: ['custom-model'],
+            catalogModels: []
+          }
+        ]
+      },
+      agents: {
+        kun: {
+          ...defaultKunRuntimeSettings(),
+          providerId: 'custom-provider-2',
+          model: 'custom-model'
+        }
+      }
+    } as unknown as AppSettingsV1)
+
+    expect(migrated.provider.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'custom-provider-2',
+          name: 'Custom Provider',
+          apiKey: 'sk-custom',
+          baseUrl: 'https://custom.example/v1',
+          models: ['custom-model']
+        })
+      ])
+    )
+    expect(migrated.agents.kun.providerId).toBe('custom-provider-2')
+    expect(resolveKunRuntimeSettings(migrated)).toEqual(
+      expect.objectContaining({
+        apiKey: 'sk-custom',
+        baseUrl: 'https://custom.example/v1'
+      })
+    )
   })
 })
 

@@ -233,6 +233,7 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
     port: runtime.port,
     dataDir,
     baseUrl: runtime.baseUrl,
+    endpointFormat: runtime.endpointFormat,
     model: runtime.model,
     approvalPolicy: runtime.approvalPolicy,
     sandboxMode: runtime.sandboxMode,
@@ -278,6 +279,7 @@ export async function syncGuiManagedKunConfig(
   runtime: Pick<
     KunRuntimeSettingsV1,
     | 'mcpSearch'
+    | 'endpointFormat'
     | 'tokenEconomy'
     | 'storage'
     | 'contextCompaction'
@@ -328,6 +330,7 @@ export async function syncGuiManagedKunConfig(
   const next = {
     serve: {
       ...serve,
+      endpointFormat: runtime.endpointFormat,
       storage,
       tokenEconomy: tokenEconomyConfigForRuntime(runtime.tokenEconomy, existingTokenEconomy)
     },

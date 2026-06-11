@@ -1,13 +1,17 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import type {
   ApprovalPolicy,
+  AppSettingsPatch,
   AppSettingsV1,
+  ModelEndpointFormat,
   ModelProviderCatalogModelV1,
   ModelProviderProfileV1,
+  ModelProviderSettingsV1,
   SandboxMode
 } from '@shared/app-settings'
 import {
   DEFAULT_MODEL_PROVIDER_ID,
+  MODEL_ENDPOINT_FORMATS,
   DEFAULT_WRITE_INLINE_COMPLETION_BASE_URL,
   DEFAULT_WRITE_INLINE_COMPLETION_MAX_TOKENS,
   DEFAULT_WRITE_INLINE_COMPLETION_MODEL,
@@ -62,6 +66,28 @@ const EMPTY_TOKEN_ECONOMY_SAVINGS_STATE: TokenEconomySavingsState = {
   loading: false,
   loaded: false,
   summary: null
+}
+
+const MODEL_ENDPOINT_FORMAT_LABEL_KEYS: Record<ModelEndpointFormat, string> = {
+  chat_completions: 'modelEndpointChatCompletions',
+  responses: 'modelEndpointResponses',
+  messages: 'modelEndpointMessages'
+}
+
+export function modelProvidersSettingsPatch(input: {
+  provider: ModelProviderSettingsV1
+  providers: ModelProviderProfileV1[]
+  kun?: Partial<AppSettingsV1['agents']['kun']>
+}): AppSettingsPatch {
+  const defaultProvider = input.providers.find((item) => item.id === DEFAULT_MODEL_PROVIDER_ID)
+  return {
+    provider: {
+      apiKey: defaultProvider?.apiKey ?? input.provider.apiKey,
+      baseUrl: defaultProvider?.baseUrl ?? input.provider.baseUrl,
+      providers: input.providers
+    },
+    ...(input.kun ? { agents: { kun: input.kun } } : {})
+  }
 }
 
 type ModelContextProfileSummary = {
@@ -664,15 +690,15 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
     toolsOnly: modelFilterToolsOnly,
     recommendedUse: modelFilterRecommendedUse
   })
-  const updateModelProviders = (providers: ModelProviderProfileV1[]): void => {
-    const defaultProvider = providers.find((item) => item.id === DEFAULT_MODEL_PROVIDER_ID)
-    update({
-      provider: {
-        apiKey: defaultProvider?.apiKey ?? provider.apiKey,
-        baseUrl: defaultProvider?.baseUrl ?? provider.baseUrl,
-        providers
-      }
-    })
+  const updateModelProviders = (
+    providers: ModelProviderProfileV1[],
+    kunPatch?: Partial<AppSettingsV1['agents']['kun']>
+  ): void => {
+    update(modelProvidersSettingsPatch({
+      provider,
+      providers,
+      kun: kunPatch
+    }))
   }
   const updateModelProvider = (id: string, patch: Partial<ModelProviderProfileV1>): void => {
     updateModelProviders(modelProviders.map((item) => item.id === id ? { ...item, ...patch } : item))
@@ -691,19 +717,19 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
       name: t('modelProviderNewName', { index }),
       apiKey: '',
       baseUrl: 'https://api.example.com/v1',
+      endpointFormat: 'chat_completions',
       models: [],
       catalogModels: []
     }
-    updateModelProviders([...modelProviders, nextProvider])
-    updateKun({ providerId: id })
+    updateModelProviders([...modelProviders, nextProvider], { providerId: id })
   }
   const removeModelProvider = (id: string): void => {
     if (id === DEFAULT_MODEL_PROVIDER_ID) return
     const nextProviders = modelProviders.filter((item) => item.id !== id)
-    updateModelProviders(nextProviders)
-    if (activeProviderId === id) {
-      updateKun({ providerId: DEFAULT_MODEL_PROVIDER_ID })
-    }
+    updateModelProviders(
+      nextProviders,
+      activeProviderId === id ? { providerId: DEFAULT_MODEL_PROVIDER_ID } : undefined
+    )
   }
   const selectModelPickerRow = (row: SettingsModelPickerRow): void => {
     const providerToUpdate = modelProviders.find((item) => item.id === row.providerId)
@@ -824,6 +850,22 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                                 placeholder={t('baseUrlPlaceholder')}
                                 onChange={(e) => updateModelProvider(activeProvider.id, { baseUrl: e.target.value })}
                               />
+                            </label>
+                            <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
+                              {t('modelProviderEndpointFormat')}
+                              <select
+                                className={selectControlClass}
+                                value={activeProvider.endpointFormat}
+                                onChange={(e) => updateModelProvider(activeProvider.id, {
+                                  endpointFormat: e.target.value as ModelEndpointFormat
+                                })}
+                              >
+                                {MODEL_ENDPOINT_FORMATS.map((format) => (
+                                  <option key={format} value={format}>
+                                    {t(MODEL_ENDPOINT_FORMAT_LABEL_KEYS[format])}
+                                  </option>
+                                ))}
+                              </select>
                             </label>
                             <label className="grid gap-1.5 text-[12px] font-semibold text-ds-muted">
                               {t('modelProviderModels')}

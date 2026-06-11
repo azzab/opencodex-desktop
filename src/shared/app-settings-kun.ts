@@ -4,7 +4,9 @@ import {
   DEFAULT_KUN_DATA_DIR,
   DEFAULT_KUN_MODEL,
   DEFAULT_KUN_PORT,
+  DEFAULT_MODEL_ENDPOINT_FORMAT,
   DEFAULT_SANDBOX_MODE,
+  normalizeModelEndpointFormat,
   type AppSettingsV1,
   type KunContextCompactionSettingsV1,
   type KunHistoryHygieneSettingsV1,
@@ -42,6 +44,7 @@ const LEGACY_COREAGENT_DATA_DIR = '~/.deepseekgui/coreagent'
 const LEGACY_KUN_DATA_DIR = '~/.deepseekgui/kun'
 const LEGACY_KUN_DEFAULT_MODEL = 'deepseek-chat'
 const LEGACY_LOCAL_HTTP_DEFAULT_PORT = 7878
+const LEGACY_DEEPSEEK_GUI_KUN_DEFAULT_PORT = 8899
 const DEFAULT_KUN_CHILD_MODEL = 'deepseek-v4-flash'
 const DEFAULT_KUN_AUTOMATION_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '::1']
 const SUBAGENT_WORKFLOW_PRESET_IDS = [
@@ -117,6 +120,7 @@ export function defaultKunRuntimeSettings(
     apiKey: '',
     baseUrl: '',
     providerId: '',
+    endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     runtimeToken: '',
     dataDir: DEFAULT_KUN_DATA_DIR,
     model: DEFAULT_KUN_MODEL,
@@ -405,6 +409,7 @@ export function mergeKunRuntimeSettings(
     ...current,
     ...(patch ?? {}),
     tokenEconomyMode: nextTokenEconomy.enabled,
+    endpointFormat: normalizeModelEndpointFormat(patch?.endpointFormat ?? current.endpointFormat),
     tokenEconomy: nextTokenEconomy,
     mcpSearch: nextMcpSearch,
     storage: nextStorage,
@@ -850,7 +855,9 @@ function upgradeLegacyKunDefaultModel(value: unknown, fallback: string): string 
 }
 
 function upgradeLegacyKunDefaultPort(value: unknown, fallback: number): number {
-  return value === LEGACY_LOCAL_HTTP_DEFAULT_PORT ? DEFAULT_KUN_PORT : fallback
+  return value === LEGACY_LOCAL_HTTP_DEFAULT_PORT || value === LEGACY_DEEPSEEK_GUI_KUN_DEFAULT_PORT
+    ? DEFAULT_KUN_PORT
+    : fallback
 }
 
 export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partial<AppSettingsV1> {
@@ -880,6 +887,7 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
     apiKey: legacySource.apiKey,
     baseUrl: legacySource.baseUrl,
     providerId: '',
+    endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     runtimeToken: isReasoningLegacy ? kunDefaults.runtimeToken : legacyLocalHttp.runtimeToken,
     model: isReasoningLegacy ? legacyReasoning.model : kunDefaults.model,
     approvalPolicy: isReasoningLegacy ? kunDefaults.approvalPolicy : legacyLocalHttp.approvalPolicy,
@@ -891,14 +899,17 @@ export function migrateLegacyAppSettings(parsed: LegacyAppSettingsShape): Partia
       : nonEmptyStringOrFallback(explicitKun.apiKey, legacySeed.apiKey),
     baseUrl: hasProviderSettings
       ? parsed.provider?.baseUrl
-      : nonEmptyStringOrFallback(explicitKun.baseUrl, legacySeed.baseUrl)
+      : nonEmptyStringOrFallback(explicitKun.baseUrl, legacySeed.baseUrl),
+    providers: parsed.provider?.providers
   })
   const kun = {
     ...kunDefaults,
     ...legacySeed,
     ...explicitKun,
+    port: upgradeLegacyKunDefaultPort(explicitKun.port, legacySeed.port),
     apiKey: hasProviderSettings ? explicitKun.apiKey ?? '' : '',
     baseUrl: hasProviderSettings ? explicitKun.baseUrl ?? '' : '',
+    endpointFormat: normalizeModelEndpointFormat(explicitKun.endpointFormat ?? legacySeed.endpointFormat),
     runtimeToken: nonEmptyStringOrFallback(explicitKun.runtimeToken, legacySeed.runtimeToken),
     dataDir: upgradeLegacyKunDefaultDataDir(explicitKun.dataDir),
     model: upgradeLegacyKunDefaultModel(explicitKun.model, legacySeed.model),

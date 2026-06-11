@@ -10,6 +10,7 @@ import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { FileSessionStore, FileThreadStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
 import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
+import type { ModelEndpointFormat } from '../contracts/model-endpoint-format.js'
 import type { ModelPricingUsdPerMillion } from '../adapters/model/model-pricing.js'
 import { CapabilityRegistry } from '../adapters/tool/capability-registry.js'
 import { buildGoalLocalTools } from '../adapters/tool/goal-tools.js'
@@ -70,6 +71,7 @@ export type KunServeRuntimeOptions = {
   runtimeToken: string
   apiKey: string
   baseUrl: string
+  endpointFormat?: ModelEndpointFormat
   model: string
   approvalPolicy: ApprovalPolicy
   sandboxMode: SandboxMode
@@ -148,6 +150,7 @@ export async function createKunServeRuntime(
     baseUrl: options.baseUrl,
     apiKey: options.apiKey,
     model: options.model,
+    endpointFormat: options.endpointFormat,
     modelPricingUsdPerMillion: modelPricingForProfiles(modelProfiles)
   })
   const reviewService = new ReviewService({

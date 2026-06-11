@@ -1,5 +1,6 @@
 import {
   DEFAULT_DEEPSEEK_BASE_URL,
+  DEFAULT_MODEL_ENDPOINT_FORMAT,
   DEFAULT_MODEL_PROVIDER_ID,
   DEFAULT_OPENROUTER_BASE_URL,
   OPENROUTER_PROVIDER_ID,
@@ -11,6 +12,7 @@ import {
   type ModelProviderSettingsPatchV1,
   type ModelProviderSettingsV1
 } from './app-settings-types'
+import { normalizeModelEndpointFormat } from './app-settings-types'
 import { getKunRuntimeSettings } from './app-settings-kun'
 import { normalizeDeepseekBaseUrl } from './app-settings-normalizers'
 import { DEFAULT_COMPOSER_MODEL_IDS } from './default-composer-models'
@@ -127,7 +129,8 @@ export function resolveKunRuntimeSettings(settings: AppSettingsV1): KunRuntimeSe
     baseUrl:
       runtimeBaseUrl && runtimeBaseUrl !== DEFAULT_DEEPSEEK_BASE_URL
         ? normalizeDeepseekBaseUrl(runtimeBaseUrl)
-        : normalizeDeepseekBaseUrl(providerBaseUrl)
+        : normalizeDeepseekBaseUrl(providerBaseUrl),
+    endpointFormat: provider.endpointFormat
   }
 }
 
@@ -137,6 +140,7 @@ function defaultModelProviderProfile(apiKey: string, baseUrl: string): ModelProv
     name: DEFAULT_MODEL_PROVIDER_NAME,
     apiKey: apiKey.trim(),
     baseUrl: normalizeDeepseekBaseUrl(baseUrl),
+    endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     models: DEFAULT_COMPOSER_MODEL_IDS.filter((id) => id !== 'auto'),
     catalogModels: []
   }
@@ -148,6 +152,7 @@ function openRouterModelProviderProfile(): ModelProviderProfileV1 {
     name: OPENROUTER_MODEL_PROVIDER_NAME,
     apiKey: '',
     baseUrl: DEFAULT_OPENROUTER_BASE_URL,
+    endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
     models: [],
     catalogModels: []
   }
@@ -169,6 +174,7 @@ function normalizeModelProviderProfile(
     name,
     apiKey: typeof input?.apiKey === 'string' ? input.apiKey.trim() : '',
     baseUrl,
+    endpointFormat: normalizeModelEndpointFormat(input?.endpointFormat),
     models,
     catalogUpdatedAt: normalizeOptionalString(input?.catalogUpdatedAt, 128),
     catalogError: normalizeOptionalString(input?.catalogError, 512),
