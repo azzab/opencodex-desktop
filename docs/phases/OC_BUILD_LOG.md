@@ -12,7 +12,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🟡 | $0.4015 / in 340,885 out 224,620 cache 97.9% | Branch commit `ee54d66` verified; merge pending | — | Full gate green; missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Branch commit `19c60f1` verified; live-dev manual proof and merge pending | — | Full gate green after same-id steering added loading/empty/error/success UsagePanel tests |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $2.3653 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5% | Command gate green, but orchestrator review rejected current lane because TerminalPanel tests were SSR-only and did not prove effects-driven visible behavior | — | Same-id steering ordered in `../ocx-h3` for mounted renderer tests; rerun full gate + `dist:mac:arm64:dmg` after fix |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Branch commit `d315287` verified; full H3 gate green; mounted renderer tests and real `node-pty` smoke passed | — | Wave 1 merge pending; `dist:mac:arm64:dmg` green with signing/notarization skipped as expected |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -62,3 +62,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   review rejected the lane because `TerminalPanel.test.ts` used SSR-only tests
   for effects-driven behavior. Ordered same-id steering for mounted tests that
   prove settings, SSE subscription, audit dedup, and PTY/xterm behavior.
+- 2026-06-12: H3 mounted-test steering completed. The orchestrator reran the
+  full verification gate (`typecheck`, `lint`, root tests 903/903, Kun
+  typecheck/tests 451/451, build, `git diff --check`), repeated
+  `dist:mac:arm64:dmg`, reviewed mounted `TerminalPanel` coverage, and ran a
+  real `node-pty` cwd/output/reap smoke. Branch commit `d315287` is ready for
+  Wave 1 merge sequencing.
