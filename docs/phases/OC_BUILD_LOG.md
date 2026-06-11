@@ -109,3 +109,10 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `electron@39.8.10`, and npm's suggested `electron@42.4.0` exit 0. Wave 2
   remains blocked until a human approves an Electron major upgrade path or
   records a security exception/deferral.
+- 2026-06-12: Fresh H4 resume check repeated the same blocker. Current main is
+  `electron@34.5.8`; `npm audit --omit=dev --json` reports 0 vulnerabilities,
+  but full `npm audit --json` exits 1 on the direct Electron advisory range
+  `<=39.8.4` with npm's semver-major fix at `electron@42.4.0`. Latest 34.x is
+  still `34.5.8`; first clean candidate by range remains `39.8.5`. No Wave 2
+  dispatch until the Electron major-upgrade path or security deferral is
+  explicitly approved.
