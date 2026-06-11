@@ -566,5 +566,8 @@
   "logRetentionFive": "5 أيام",
   "logRetentionSeven": "7 أيام",
   "loadFailed": "تعذر تحميل الإعدادات: {{message}}",
-  "preloadBridgeError": "جسر التطبيق غير متاح. أعد تشغيل التطبيق أو تحقق من مسار preload."
+  "preloadBridgeError": "جسر التطبيق غير متاح. أعد تشغيل التطبيق أو تحقق من مسار preload.",
+  "kunTerminal": "الطرفية",
+  "kunTerminalEnabled": "تفعيل الطرفية",
+  "kunTerminalEnabledDesc": "السماح بجلسات طرفية يبدأها المستخدم في مجلد المشروع. وصول الوكيل للجلسات محكوم بشكل منفصل."
 }

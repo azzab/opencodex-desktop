@@ -188,7 +188,28 @@ const api = {
     ipcRenderer.invoke('log:error', { category, message, detail }),
   getLogPath: () => ipcRenderer.invoke('log:get-path'),
   openLogDir: () => ipcRenderer.invoke('log:open-dir'),
-  getPathForFile: (file: File) => webUtils.getPathForFile(file)
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+  terminalSpawn: (cwd, cols?, rows?) =>
+    ipcRenderer.invoke('terminal:spawn', { cwd, cols, rows }),
+  terminalList: () => ipcRenderer.invoke('terminal:list'),
+  terminalWrite: (sessionId, data) =>
+    ipcRenderer.invoke('terminal:write', { sessionId, data }),
+  terminalResize: (sessionId, cols, rows) =>
+    ipcRenderer.invoke('terminal:resize', { sessionId, cols, rows }),
+  terminalKill: (sessionId) =>
+    ipcRenderer.invoke('terminal:kill', { sessionId }),
+  terminalGetSettings: () => ipcRenderer.invoke('terminal:settings'),
+  terminalGetAuditEvents: () => ipcRenderer.invoke('terminal:audit-events'),
+  terminalAgentExecObserved: (payload) =>
+    ipcRenderer.invoke('terminal:agent-exec-observed', payload),
+  onTerminalData: (handler) => {
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      payload: Parameters<typeof handler>[0]
+    ) => handler(payload)
+    ipcRenderer.on('terminal:data', wrapped)
+    return () => ipcRenderer.removeListener('terminal:data', wrapped)
+  }
 } satisfies DsGuiApi
 
 contextBridge.exposeInMainWorld('dsGui', api)

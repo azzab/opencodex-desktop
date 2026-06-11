@@ -564,6 +564,9 @@
   "logRetentionSeven": "7 天",
   "mcpConfig": "MCP 设置",
   "mcpConfigDesc": "添加 Kun 可在你批准后使用的外部工具服务。",
+  "kunTerminal": "终端",
+  "kunTerminalEnabled": "启用终端",
+  "kunTerminalEnabledDesc": "允许用户在项目目录中启动终端会话。代理对用户终端的访问权限单独控制。",
   "loading": "加载中…",
   "loadFailed": "无法加载设置：{{message}}",
   "preloadBridgeError": "应用桥接不可用。请重启应用或检查预加载脚本路径。"

@@ -21,6 +21,7 @@ import {
   type ThreadUsageSummary
 } from '../../hooks/use-thread-usage'
 import type { Phase7DiagnosticsResult } from '@shared/phase7-diagnostics'
+import { TerminalPanel } from '../terminal/TerminalPanel'
 
 export type WorkbenchSurfaceMode =
   | 'files'
@@ -200,22 +201,7 @@ export function WorkbenchSurfacePanelView({
   )
 
   const renderTerminal = (): ReactElement => (
-    <div className="space-y-3">
-      <SurfaceMetric
-        label={t('surfaceTerminalBoundary')}
-        value={t('surfaceTerminalLocalHostOnly')}
-        detail={workspaceRoot || t('workspaceNotSelected')}
-      />
-      <SurfaceSection
-        icon={<Terminal className="h-3.5 w-3.5" strokeWidth={1.8} />}
-        title={t('surfaceTerminalPlaceholderTitle')}
-      >
-        <div className="space-y-2 text-[12px] leading-5 text-ds-muted">
-          <p>{t('surfaceTerminalPlaceholderBody')}</p>
-          <p>{t('surfaceTerminalSafetyBody')}</p>
-        </div>
-      </SurfaceSection>
-    </div>
+    <TerminalPanel workspaceRoot={workspaceRoot} />
   )
 
   const renderDiagnostics = (): ReactElement => (

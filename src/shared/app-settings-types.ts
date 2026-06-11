@@ -209,6 +209,10 @@ export type KunAutomationSettingsV1 = {
   auditLog: KunAutomationAuditLogSettingsV1
 }
 
+export type KunTerminalSettingsV1 = {
+  enabled: boolean
+}
+
 export type KunRuntimeSettingsV1 = {
   binaryPath: string
   port: number
@@ -246,6 +250,8 @@ export type KunRuntimeSettingsV1 = {
   subagents: KunSubagentSettingsV1
   /** Experimental browser automation and future computer-control gates. */
   automation: KunAutomationSettingsV1
+  /** Managed PTY terminal panel availability. Default ON for user sessions. */
+  terminal: KunTerminalSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -343,6 +349,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     | 'userAgentStack'
     | 'subagents'
     | 'automation'
+    | 'terminal'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -356,6 +363,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
   > & {
     workflowPresets?: Partial<Record<KunSubagentWorkflowPresetIdV1, Partial<KunSubagentWorkflowPresetSettingsV1>>>
   }
+  terminal?: Partial<KunTerminalSettingsV1>
   automation?: Partial<
     Omit<KunAutomationSettingsV1, 'permissions' | 'auditLog'>
   > & {

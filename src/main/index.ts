@@ -73,6 +73,7 @@ import {
 } from './weixin-bridge-runtime'
 import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
+import { getTerminalService, resetTerminalService } from './services/terminal-service'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_USER_MODEL_ID = 'app.opencodex.desktop'
@@ -992,6 +993,9 @@ app.whenReady().then(async () => {
     return fetchUpstreamModelIds(settings, key)
   }
 
+  // Ensure terminal service is initialized before IPC handlers register it
+  getTerminalService()
+
   registerAppIpcHandlers({
     store,
     getMainWindow: () => mainWindow,
@@ -1017,7 +1021,20 @@ app.whenReady().then(async () => {
     readGuiUpdateState,
     loadGuiUpdaterModule,
     resolveLogDirectory,
-    logError
+    logError,
+    getTerminalService: () => getTerminalService(),
+    getActiveProjectDir: async () => {
+      const settings = await store.load()
+      const workspaceRoot = settings.workspaceRoot?.trim()
+      if (workspaceRoot) return workspaceRoot
+      // Fallback: read write workspace or default workspace from settings
+      const writeRoot = settings.write?.defaultWorkspaceRoot?.trim() || settings.write?.activeWorkspaceRoot?.trim()
+      if (writeRoot) return writeRoot
+      // Last resort: process.cwd() — documented as an unavoidable boundary
+      // when the renderer has never set a workspace and the main process
+      // has no trusted project context.
+      return process.cwd()
+    }
   })
 
   void loadGuiUpdaterModule().catch((error) => {
@@ -1063,6 +1080,7 @@ app.whenReady().then(async () => {
 }
 
 app.on('window-all-closed', () => {
+  resetTerminalService()
   void stopManagedRuntimes().catch((error) => {
     console.warn('[opencodex-desktop] failed to stop Kun runtime:', error)
   })
@@ -1073,6 +1091,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', (event) => {
   isQuitting = true
+  resetTerminalService()
   if (managedRuntimesStoppedForQuit) return
   event.preventDefault()
   void stopManagedRuntimesForQuit()

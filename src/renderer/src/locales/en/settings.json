@@ -564,6 +564,9 @@
   "logRetentionSeven": "7 days",
   "mcpConfig": "MCP settings",
   "mcpConfigDesc": "Add external tool servers that Kun can use after your approval.",
+  "kunTerminal": "Terminal",
+  "kunTerminalEnabled": "Enable terminal",
+  "kunTerminalEnabledDesc": "Allow user-initiated terminal sessions in the project directory. Agent access to user terminals is gated separately.",
   "loading": "Loading…",
   "loadFailed": "Could not load settings: {{message}}",
   "preloadBridgeError": "The app bridge is not available. Restart the application or check the preload path."

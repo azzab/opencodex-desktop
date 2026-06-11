@@ -210,7 +210,7 @@ describe('WorkbenchSurfacePanel', () => {
 
   it('renders terminal, diagnostics, subagent, usage, and permission evidence states', () => {
     expect(renderPanel('terminal')).toContain('Managed Terminal')
-    expect(renderPanel('terminal')).toContain('Local host only')
+    expect(renderPanel('terminal')).toContain('Terminal')
     expect(renderPanel('diagnostics')).toContain('12 skills / 18 tools')
     expect(renderPanel('diagnostics')).toContain('2/3 MCP servers')
     expect(renderPanel('diagnostics')).toContain('Review Helper')

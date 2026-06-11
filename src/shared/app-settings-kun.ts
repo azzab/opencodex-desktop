@@ -20,6 +20,7 @@ import {
   type KunAutomationPermissionModeV1,
   type KunAutomationPermissionsV1,
   type KunAutomationSettingsV1,
+  type KunTerminalSettingsV1,
   type KunStorageSettingsV1,
   type KunSubagentSettingsV1,
   type KunSubagentWorkflowPresetIdV1,
@@ -135,7 +136,14 @@ export function defaultKunRuntimeSettings(
     runtimeTuning: defaultKunRuntimeTuningSettings(),
     userAgentStack: defaultUserAgentStackProfile(),
     subagents: defaultKunSubagentSettings(),
-    automation: defaultKunAutomationSettings()
+    automation: defaultKunAutomationSettings(),
+    terminal: defaultKunTerminalSettings()
+  }
+}
+
+export function defaultKunTerminalSettings(): KunTerminalSettingsV1 {
+  return {
+    enabled: true
   }
 }
 
@@ -405,6 +413,10 @@ export function mergeKunRuntimeSettings(
       ...(patch?.automation?.auditLog ?? {})
     }
   })
+  const nextTerminal = normalizeKunTerminalSettings({
+    ...current.terminal,
+    ...(patch?.terminal ?? {})
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -417,7 +429,17 @@ export function mergeKunRuntimeSettings(
     runtimeTuning: nextRuntimeTuning,
     userAgentStack: nextUserAgentStack,
     subagents: nextSubagents,
-    automation: nextAutomation
+    automation: nextAutomation,
+    terminal: nextTerminal
+  }
+}
+
+function normalizeKunTerminalSettings(
+  input: Partial<KunTerminalSettingsV1> | undefined
+): KunTerminalSettingsV1 {
+  const defaults = defaultKunTerminalSettings()
+  return {
+    enabled: input?.enabled !== false
   }
 }
 
