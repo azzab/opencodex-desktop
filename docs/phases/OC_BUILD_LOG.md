@@ -12,8 +12,8 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ✅ | $0.4015 / in 340,885 out 224,620 cache 97.9% | Merged to `main`; post-merge full gate green (root 844/844, Kun 451/451) | `dfe60ef` | Missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ❌ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merge commit `84f1fb4` exists, but post-merge gate is blocked by production `npm audit --omit=dev` high findings | `84f1fb4` | H3 branch gate was green before merge; main dependency install recovered missing H3 packages, then audit found `@larksuiteoapi/node-sdk` -> `axios` advisories needing human decision |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ❌ | — | Blocked before dispatch by full `npm audit` high Electron advisory requiring human decision | — | Merge before H5 (thread-service overlap); do not dispatch Wave 2 until Electron security decision is made |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
@@ -90,3 +90,15 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   production advisories through direct `@larksuiteoapi/node-sdk@1.64.0` ->
   `axios@1.13.6`; npm's listed fix is `@larksuiteoapi/node-sdk@1.56.1` marked
   semver-major. Human decision required before continuing the H3 main gate.
+- 2026-06-12: H3 production audit blocker was remediated without downgrading the
+  Lark SDK: added a top-level npm override for `axios@1.17.0`, leaving
+  `@larksuiteoapi/node-sdk@1.64.0` in place while forcing its transitive axios
+  copy to the patched 1.x line. Fresh post-merge H3 gate passed:
+  `typecheck`, `lint` (7 warnings, exit 0), root tests 932/932, Kun
+  typecheck/tests 451/451, `build`, `git diff --check`,
+  `npm audit --omit=dev` (0 vulnerabilities), H3 surface/i18n greps,
+  `dist:mac:arm64:dmg` (signing/notarization skipped as expected), and real
+  `node-pty` cwd/output smoke. Full `npm audit` still exits 1 because
+  dev/runtime `electron@34.5.8` has high advisories with npm's fix listed as
+  `electron@42.4.0` semver-major. H4 dispatch is blocked pending a human
+  Electron security decision.
