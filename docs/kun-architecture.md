@@ -147,12 +147,12 @@ Renderer 只应展示 Kun。需要删除或保持删除的 UI 面包括：
   "agents": {
     "kun": {
       "binaryPath": "",
-      "port": 8899,
+      "port": 18999,
       "autoStart": true,
       "apiKey": "",
       "baseUrl": "https://api.deepseek.com/beta",
       "runtimeToken": "",
-      "dataDir": "~/.deepseekgui/kun",
+      "dataDir": "~/.opencodex/kun",
       "model": "deepseek-v4-pro",
       "approvalPolicy": "auto",
       "sandboxMode": "workspace-write",

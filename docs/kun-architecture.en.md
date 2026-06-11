@@ -155,12 +155,12 @@ Saved settings should now be just:
   "agents": {
     "kun": {
       "binaryPath": "",
-      "port": 8899,
+      "port": 18999,
       "autoStart": true,
       "apiKey": "",
       "baseUrl": "https://api.deepseek.com/beta",
       "runtimeToken": "",
-      "dataDir": "~/.deepseekgui/kun",
+      "dataDir": "~/.opencodex/kun",
       "model": "deepseek-v4-pro",
       "approvalPolicy": "auto",
       "sandboxMode": "workspace-write",
