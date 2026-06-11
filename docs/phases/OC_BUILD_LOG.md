@@ -9,7 +9,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 
 | # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
-| 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ⬜ | — | — | — | Commit in-flight v0.2.8 work first |
+| 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | 🟡 | — | Root/Kun gate passed before vendor; final gate pending after `10b7ee6` | pending | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes pending |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ⬜ | — | — | — | 1211 common + 441 settings keys missing |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ⬜ | — | — | — | |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ⬜ | — | — | — | |
@@ -25,5 +25,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 
 ## Decisions & Incidents
 
-- (record model swaps, retries, EMPTY_OR_INSTANT_RUN events, scope cuts here,
-  newest first, with dates)
+- 2026-06-12: H0 logical commit series landed on `main`; `baseline-v0.2.8-rc`
+  was initially created and pushed after the pre-vendor full gate. Because the
+  wrapper and ledger are H0 infrastructure, the tag will be moved to the final
+  H0 commit after the final full gate and lane setup.
