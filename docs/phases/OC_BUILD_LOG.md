@@ -10,9 +10,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final main; wrapper selftest/list green | pending final tag push | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared |
-| 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ⬜ | — | — | — | 1211 common + 441 settings keys missing |
-| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ⬜ | — | — | — | |
-| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ⬜ | — | — | — | |
+| 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🔵 | — | pending worker recovery | — | Dispatched Wave 1; detached run exited early after read phase, foreground `order` recovery in progress |
+| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🔵 | — | pending worker recovery | — | Dispatched Wave 1 with `--thinking high`; detached run exited early after read phase, foreground `order` recovery in progress |
+| 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🔵 | — | pending worker recovery | — | Dispatched Wave 1 with `--max`; detached run exited early after read phase, foreground `order` recovery in progress |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -29,3 +29,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   vendored from `/Users/mohamedazab/180x-skool/tools/pidev-dispatch/` and
   stripped of repo-specific examples. Wrapper `selftest` and `list` exited 0.
   `baseline-v0.2.8-rc` is moved to the final H0 main commit after the final gate.
+- 2026-06-12: Wave 1 detached `dispatch` attempts for `oc-h1-arabic`,
+  `oc-h2-telemetry`, and `oc-h3-terminal` exited early after reading docs. The
+  wrapper had also recorded a stale session JSONL from an unrelated live worker
+  because of an unsafe "newest session after launch" fallback. Cleared the bad
+  metadata, removed that fallback, and resumed the same session ids with
+  foreground `order` recovery.

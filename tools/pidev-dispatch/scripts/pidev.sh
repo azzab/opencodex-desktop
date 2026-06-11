@@ -287,9 +287,6 @@ launch() {
   local i
   for i in $(seq 1 60); do
     sfile="$(find_session_file "$sid")"
-    if [ -z "$sfile" ]; then
-      sfile="$(find "$SESSIONS_ROOT" -type f -name '*.jsonl' -newer "$marker" -exec ls -t {} + 2>/dev/null | head -1 || true)"
-    fi
     [ -n "$sfile" ] && break
     if ! kill -0 "$pid" 2>/dev/null; then
       sleep 1; sfile="$(find_session_file "$sid")"; break
