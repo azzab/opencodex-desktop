@@ -11,7 +11,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | 🟡 | $0.4015 / in 340,885 out 224,620 cache 97.9% | Branch commit `ee54d66` verified; merge pending | — | Full gate green; missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
-| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $0.6285 / in 582,858 out 229,486 cache 98.8% | Initial full gate green, but stop-gate test coverage incomplete | — | Same-id steering ordered: add loading/empty/error/success UsagePanel tests before acceptance |
+| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Branch commit `19c60f1` verified; live-dev manual proof and merge pending | — | Full gate green after same-id steering added loading/empty/error/success UsagePanel tests |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $0.7656 / in 775,936 out 201,788 cache 98.9% | Initial full gate claimed green, but required PTY output surface incomplete | — | Same-id steering ordered: wire PTY output streaming to renderer and rerun full gate + `dist:mac:arm64:dmg` |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
@@ -42,6 +42,10 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 - 2026-06-12: H2 initial worker output passed the full command gate but failed
   the H2 stop-gate review because `UsagePanel.test.ts` did not cover loading,
   empty, error, or success states. Ordered the same H2 lane to add those tests.
+- 2026-06-12: H2 same-id steering completed. The orchestrator independently
+  reran the full H2 verification block and reviewed the expanded
+  `UsagePanel.test.ts` coverage. Branch commit `19c60f1` is ready for live-dev
+  manual proof and Wave 1 merge sequencing.
 - 2026-06-12: H3 initial worker output passed the reported command gate but
   failed the H3 stop-gate review because PTY output was not streamed back to
   the renderer, so the user terminal proof could not pass. Ordered the same H3
