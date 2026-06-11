@@ -3,6 +3,7 @@ import {
   createSddDraft,
   forgetRememberedSddDraft,
   readRememberedSddDraft,
+  readRememberedSddDraftContent,
   useSddDraftStore
 } from './sdd-draft-store'
 import { saveActiveSddDraftToDisk, syncActiveSddDraftFromDisk } from './sdd-draft-actions'
@@ -147,6 +148,24 @@ describe('sdd-draft-store', () => {
     expect(state.saveStatus).toBe('saved')
     expect(state.error).toBe('image missing')
     expect(readRememberedSddDraft('/tmp/app')?.updatedAt).toBe('2026-01-02T03:04:05.000Z')
+  })
+
+  it('persists unsaved draft content for restart recovery', () => {
+    const draft = createSddDraft({
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      workspaceRoot: '/tmp/app',
+      now: 1
+    })
+    useSddDraftStore.getState().setActiveDraft(draft, '# Draft')
+    useSddDraftStore.getState().setContent('# Local unsaved draft')
+
+    expect(readRememberedSddDraftContent('/tmp/app')).toMatchObject({
+      draftId: draft.id,
+      workspaceRoot: '/tmp/app',
+      content: '# Local unsaved draft',
+      lastSavedContent: '# Draft',
+      saveStatus: 'dirty'
+    })
   })
 
   it('saves the active draft to disk and updates clean state', async () => {

@@ -437,11 +437,41 @@ export function createNavigationActions(
         workspaceLabel: workspaceLabelFromPath(workspaceRoot),
         error: null
       })
+      let patchedActiveThreadId: string | null = null
+      const activeThreadId = get().activeThreadId
+      const activeThread = activeThreadId
+        ? get().threads.find((thread) => thread.id === activeThreadId) ?? null
+        : null
+      if (
+        workspaceRoot &&
+        activeThread &&
+        !createThreadAfter &&
+        !wasWriteRoute &&
+        selectThreadAfter &&
+        isCodeThread(activeThread, get().clawChannels) &&
+        normalizeWorkspaceRoot(activeThread.workspace) !== workspaceRoot
+      ) {
+        const provider = getProvider()
+        if (provider.updateThreadWorkspace) {
+          const updatedThread = await provider.updateThreadWorkspace(activeThread.id, workspaceRoot)
+          patchedActiveThreadId = updatedThread.id
+          set((state) => ({
+            threads: state.threads.map((thread) =>
+              thread.id === updatedThread.id
+                ? { ...updatedThread, workspace: normalizeWorkspaceRoot(updatedThread.workspace) }
+                : thread
+            )
+          }))
+        }
+      }
       await get().refreshThreads()
       if (workspaceRoot) {
         if (!selectThreadAfter) return workspaceRoot
         if (wasWriteRoute) {
           await get().openWrite()
+          return workspaceRoot
+        }
+        if (patchedActiveThreadId && get().activeThreadId === patchedActiveThreadId) {
           return workspaceRoot
         }
         const workspaceThreads = get().threads

@@ -28,6 +28,7 @@ describe('sdd-draft-restore', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     useSddDraftStore.getState().clearActiveDraft()
   })
@@ -64,6 +65,40 @@ describe('sdd-draft-restore', () => {
         workspaceRoot: '/tmp/app',
         absolutePath: '/tmp/app/.kunsdd/draft/123e4567-e89b-12d3-a456-426614174000/requirement.md'
       }
+    })
+  })
+
+  it('restores newer unsaved local content after restart', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+    const draft = createSddDraft({
+      id: '123e4567-e89b-12d3-a456-426614174000',
+      workspaceRoot: '/tmp/app/',
+      now: Date.now()
+    })
+    useSddDraftStore.getState().setActiveDraft(draft, '# Disk copy')
+    vi.setSystemTime(new Date('2026-01-01T00:01:00.000Z'))
+    useSddDraftStore.getState().setContent('# Unsaved local copy')
+    useSddDraftStore.getState().clearActiveDraft()
+
+    const readWorkspaceFile = vi.fn().mockResolvedValue({
+      ok: true,
+      path: '/tmp/app/.kunsdd/draft/123e4567-e89b-12d3-a456-426614174000/requirement.md',
+      content: '# Disk copy',
+      size: 11,
+      truncated: false
+    })
+
+    const result = await restoreRememberedSddDraft({
+      workspaceRoot: '/tmp/app',
+      readWorkspaceFile
+    })
+
+    expect(result).toMatchObject({
+      kind: 'restored',
+      content: '# Unsaved local copy',
+      lastSavedContent: '# Disk copy',
+      saveStatus: 'dirty'
     })
   })
 

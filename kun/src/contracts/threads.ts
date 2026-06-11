@@ -219,6 +219,7 @@ export type ClearThreadTodosResponse = z.infer<typeof ClearThreadTodosResponse>
 export const UpdateThreadRequest = z
   .object({
     title: z.string().optional(),
+    workspace: z.string().min(1).optional(),
     status: ThreadStatus.optional(),
     approvalPolicy: ApprovalPolicySchema.optional(),
     sandboxMode: SandboxModeSchema.optional(),
@@ -229,6 +230,7 @@ export const UpdateThreadRequest = z
   .refine(
     (value) =>
       value.title !== undefined ||
+      value.workspace !== undefined ||
       value.status !== undefined ||
       value.approvalPolicy !== undefined ||
       value.sandboxMode !== undefined ||

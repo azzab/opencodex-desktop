@@ -44,7 +44,7 @@ import { composeWritePrompt } from '../write/quoted-selection'
 import { useWriteWorkspaceStore } from '../write/write-workspace-store'
 import { isWriteThreadId } from '../write/write-thread-registry'
 import { createSddDraft, forgetRememberedSddDraft, useSddDraftStore } from '../sdd/sdd-draft-store'
-import type { SddDraft } from '../sdd/sdd-draft-store'
+import type { SddDraft, SddDraftSaveStatus } from '../sdd/sdd-draft-store'
 import { saveActiveSddDraftToDisk } from '../sdd/sdd-draft-actions'
 import { restoreRememberedSddDraft } from '../sdd/sdd-draft-restore'
 import { composeSddAssistantPrompt } from '../sdd/sdd-assistant-prompt'
@@ -73,6 +73,7 @@ import {
   mergeComposerFileReferences,
   type ComposerFileContextEntry
 } from '../lib/composer-file-references'
+import { collectComposerChangeSummary } from '../lib/composer-change-summary'
 
 const ChangeInspector = lazy(() =>
   import('./ChangeInspector').then((module) => ({ default: module.ChangeInspector }))
@@ -437,6 +438,10 @@ export function Workbench(): ReactElement {
   const activeSkillWorkspace = useMemo(
     () => threads.find((thread) => thread.id === activeThreadId)?.workspace || workspaceRoot || '',
     [activeThreadId, threads, workspaceRoot]
+  )
+  const composerChangeSummary = useMemo(
+    () => collectComposerChangeSummary(timelineBlocks, activeSkillWorkspace),
+    [activeSkillWorkspace, timelineBlocks]
   )
   const latestDevPreviewUrl = detectedDevPreviewUrls[0] ?? null
   const latestAutoOpenDevPreviewUrl = autoOpenDevPreviewUrls[0] ?? null
@@ -928,8 +933,12 @@ export function Workbench(): ReactElement {
     return createSddAssistantThreadForDraft(draft)
   }
 
-  const openSddRequirementDraft = async (draft: SddDraft, content: string): Promise<boolean> => {
-    useSddDraftStore.getState().setActiveDraft(draft, content)
+  const openSddRequirementDraft = async (
+    draft: SddDraft,
+    content: string,
+    options?: { lastSavedContent?: string; saveStatus?: SddDraftSaveStatus }
+  ): Promise<boolean> => {
+    useSddDraftStore.getState().setActiveDraft(draft, content, options)
     setInput('')
     setMode('agent')
     setRoute('chat')
@@ -958,7 +967,10 @@ export function Workbench(): ReactElement {
       readWorkspaceFile: window.dsGui.readWorkspaceFile
     })
     if (restored.kind === 'restored') {
-      await openSddRequirementDraft(restored.draft, restored.content)
+      await openSddRequirementDraft(restored.draft, restored.content, {
+        lastSavedContent: restored.lastSavedContent,
+        saveStatus: restored.saveStatus
+      })
       return
     }
 
@@ -1853,6 +1865,8 @@ export function Workbench(): ReactElement {
                 attachmentUploadError={attachmentUploadError}
                 fileReferenceEnabled={route === 'chat' && !activeSddDraft}
                 fileReferences={composerFileReferences}
+                changedFiles={composerChangeSummary?.files}
+                changedFileStats={composerChangeSummary}
                 webAccessAvailable={webAccessAvailable}
                 skillCommands={runtimeSkills}
                 onPickAttachments={(files) => void handlePickAttachments(files)}
@@ -1860,6 +1874,9 @@ export function Workbench(): ReactElement {
                 onRemoveAttachment={removeComposerAttachment}
                 onAddFileReference={addComposerFileReference}
                 onRemoveFileReference={removeComposerFileReference}
+                onOpenChanges={() => setRightPanelMode('changes')}
+                onReviewChanges={() => void reviewActiveThread({ kind: 'uncommittedChanges' })}
+                reviewChangesDisabled={busy || runtimeConnection !== 'ready'}
                 queuedMessages={queuedMessages}
                 onRemoveQueuedMessage={removeQueuedMessage}
                 onInterrupt={(options) => void interrupt(options)}

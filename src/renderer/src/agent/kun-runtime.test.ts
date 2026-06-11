@@ -323,6 +323,35 @@ describe('KunRuntimeProvider', () => {
     )
   })
 
+  it('patches a thread workspace through the Kun HTTP runtime', async () => {
+    const runtimeRequest = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({
+        id: 'thr_1',
+        title: 'Thread',
+        workspace: '/tmp/next',
+        model: 'deepseek-chat',
+        mode: 'agent',
+        status: 'idle',
+        relation: 'primary',
+        createdAt: '2026-06-10T00:00:00.000Z',
+        updatedAt: '2026-06-10T00:00:00.000Z',
+        turns: []
+      })
+    }))
+    installDsGui({ runtimeRequest })
+    const provider = new KunRuntimeProvider()
+
+    await provider.updateThreadWorkspace?.('thr_1', '/tmp/next')
+
+    expect(runtimeRequest).toHaveBeenCalledWith(
+      '/v1/threads/thr_1',
+      'PATCH',
+      JSON.stringify({ workspace: '/tmp/next' })
+    )
+  })
+
   it('loads runtime diagnostics and uploads image attachments through Kun endpoints', async () => {
     const runtimeRequest = vi.fn(async (path: string) => {
       if (path === '/v1/runtime/info') {
