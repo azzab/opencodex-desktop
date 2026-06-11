@@ -191,5 +191,19 @@
   "gitPrepPrBlocked": "PR محظور",
   "gitPrepCopyCommand": "نسخ الأمر",
   "gitPrepNoCommands": "لا توجد أوامر مقترحة بعد.",
-  "gitPrepEmpty": "حدث التحضير لرؤية أوامر commit و push و PR المحكومة."
+  "gitPrepEmpty": "حدث التحضير لرؤية أوامر commit و push و PR المحكومة.",
+  "terminalTitle": "الطرفية",
+  "terminalAgentTab": "الوكيل",
+  "terminalAgentEmpty": "لا يوجد نشاط للوكيل بعد",
+  "terminalAgentEmptyDesc": "سيظهر مخرجات أوامر الوكيل هنا عند تشغيل Kun للأدوات.",
+  "terminalUserEmpty": "لا توجد جلسات طرفية",
+  "terminalUserEmptyDesc": "انقر + لإنشاء جلسة طرفية في المشروع الحالي.",
+  "terminalAddSession": "جلسة جديدة",
+  "terminalCloseTab": "إغلاق الجلسة",
+  "terminalDisabled": "الطرفية معطلة في الإعدادات",
+  "terminalDisabledDesc": "فعّل الطرفية في الإعدادات > الوكيل لإنشاء جلسات.",
+  "terminalUserTabTitle": "طرفية {{number}}",
+  "terminalSettingsError": "فشل تحميل إعدادات الطرفية",
+  "terminalSpawnError": "فشل بدء الجلسة الطرفية",
+  "surfaceTerminalTitle": "الطرفية المدارة"
 }

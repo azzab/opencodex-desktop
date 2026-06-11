@@ -158,6 +158,24 @@ export type SseEventPayload = { streamId: string; data: unknown }
 export type SseEndPayload = { streamId: string }
 export type SseErrorPayload = { streamId: string; status?: number; message?: string }
 
+export type TerminalSpawnResult =
+  | { ok: true; sessionId: string; cwd: string; cols: number; rows: number }
+  | { ok: false; message: string }
+export type TerminalSessionSummary = { id: string; cwd: string; createdAt: number; cols: number; rows: number }
+export type TerminalBoolResult = { ok: boolean }
+export type TerminalSettingsResult = { enabled: boolean }
+export type TerminalAuditEventSummary = { id: string; kind: string; sessionId?: string; cwd?: string; timestamp: string; detail?: string }
+export type TerminalDataPayload = { sessionId: string; data: string }
+export type TerminalAgentExecObservedPayload = {
+  threadId?: string
+  turnId?: string
+  toolName?: string
+  toolKind?: string
+  summary?: string
+  outputTruncated?: string
+  exitCode?: number
+}
+
 export type DsGuiApi = {
   platform: string
   getSettings: () => Promise<AppSettingsV1>
@@ -294,4 +312,17 @@ export type DsGuiApi = {
   getLogPath: () => Promise<string>
   openLogDir: () => Promise<{ ok: boolean; message?: string }>
   getPathForFile: (file: File) => string
+  terminalSpawn: (
+    cwd: string,
+    cols?: number,
+    rows?: number
+  ) => Promise<TerminalSpawnResult>
+  terminalList: () => Promise<TerminalSessionSummary[]>
+  terminalWrite: (sessionId: string, data: string) => Promise<TerminalBoolResult>
+  terminalResize: (sessionId: string, cols: number, rows: number) => Promise<TerminalBoolResult>
+  terminalKill: (sessionId: string) => Promise<TerminalBoolResult>
+  terminalGetSettings: () => Promise<TerminalSettingsResult>
+  terminalGetAuditEvents: () => Promise<TerminalAuditEventSummary[]>
+  terminalAgentExecObserved: (payload: TerminalAgentExecObservedPayload) => Promise<TerminalBoolResult>
+  onTerminalData: (handler: (payload: TerminalDataPayload) => void) => () => void
 }

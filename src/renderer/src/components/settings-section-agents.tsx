@@ -2313,6 +2313,21 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                   />
                 </SettingsCard>
               </div>
+
+              <div className="mt-6">
+                <SettingsCard title={t('kunTerminal')}>
+                  <SettingRow
+                    title={t('kunTerminalEnabled')}
+                    description={t('kunTerminalEnabledDesc')}
+                    control={
+                      <Toggle
+                        checked={kun.terminal?.enabled !== false}
+                        onChange={(enabled) => updateKun({ terminal: { enabled } })}
+                      />
+                    }
+                  />
+                </SettingsCard>
+              </div>
             </>
   )
 }

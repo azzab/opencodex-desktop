@@ -1,7 +1,7 @@
 import { app, dialog, ipcMain, shell, type BrowserWindow, type WebContents } from 'electron'
-import { watch, type FSWatcher } from 'node:fs'
+import { realpathSync, watch, type FSWatcher } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { z } from 'zod'
 import {
@@ -55,6 +55,11 @@ import {
   runtimeRequestPayloadSchema,
   scheduleTaskFromTextPayloadSchema,
   shellOpenExternalUrlSchema,
+  terminalSpawnPayloadSchema,
+  terminalWritePayloadSchema,
+  terminalResizePayloadSchema,
+  terminalSessionIdSchema,
+  terminalAgentExecObservedPayloadSchema,
   skillListPayloadSchema,
   skillSaveFilePayloadSchema,
   settingsPatchSchema,
@@ -119,6 +124,7 @@ import { listGuiSkills } from '../services/skill-service'
 import { getPhase7Diagnostics } from '../services/phase7-diagnostics-service'
 import { discoverUserAgentStackProfile } from '../services/user-agent-stack-service'
 import { fetchModelProviderCatalog } from '../upstream-models'
+import { TerminalService, type TerminalSessionInfo, type TerminalAuditEvent } from '../services/terminal-service'
 
 type GuiUpdaterModule = typeof import('../gui-updater')
 
@@ -156,6 +162,8 @@ type RegisterAppIpcHandlersOptions = {
   loadGuiUpdaterModule: () => Promise<GuiUpdaterModule>
   resolveLogDirectory: () => string
   logError: (category: string, message: string, detail?: unknown) => void
+  getTerminalService: () => TerminalService | null
+  getActiveProjectDir: () => Promise<string>
 }
 
 function parseIpcPayload<T>(channel: string, schema: z.ZodType<T>, payload: unknown): T {
@@ -163,6 +171,43 @@ function parseIpcPayload<T>(channel: string, schema: z.ZodType<T>, payload: unkn
   if (parsed.success) return parsed.data
   const issue = parsed.error.issues[0]
   throw new Error(`Invalid payload for ${channel}: ${issue?.message ?? 'Bad request.'}`)
+}
+
+/**
+ * Returns true when `candidate` resolves to a path inside or equal to `root`.
+ *
+ * Two-phase verification:
+ * 1. Quick string-based check rejects obviously malicious paths (../ escapes).
+ * 2. realpath-based containment resolves symlinks so a symlink inside the
+ *    project pointing outside is hard-blocked before any PTY is spawned.
+ *
+ * Renderer input is untrusted — this function is the single gate for PTY cwd containment.
+ */
+function isPathWithinRoot(candidate: string, root: string): boolean {
+  if (!candidate || !root) return false
+
+  // Phase 1 — string-path containment (fast, catches most escapes)
+  const normalizedRoot = join(root, '.').replace(/\\/g, '/')
+  const normalizedCandidate = candidate.replace(/\\/g, '/')
+  const resolvedCandidate = normalizedCandidate.startsWith('/')
+    ? join(normalizedCandidate, '.').replace(/\\/g, '/')
+    : join(normalizedRoot, normalizedCandidate).replace(/\\/g, '/')
+  if (resolvedCandidate === normalizedRoot) return true
+  const rel = relative(normalizedRoot, resolvedCandidate)
+  if (rel === '' || rel.startsWith('..') || rel === resolvedCandidate) return false
+
+  // Phase 2 — realpath containment (blocks symlink escapes)
+  try {
+    const realRoot = realpathSync(normalizedRoot)
+    const realCandidate = realpathSync(resolvedCandidate)
+    // After resolving symlinks, candidate must still be inside root
+    const realRel = relative(realRoot, realCandidate)
+    return realRel !== '' && !realRel.startsWith('..') && realRel !== realCandidate
+  } catch {
+    // realpathSync failed for one or both paths (non-existent, permission, etc.)
+    // Fall closed: if we cannot verify containment with real paths, reject.
+    return false
+  }
 }
 
 function validateMcpConfigContent(content: string): void {
@@ -271,7 +316,9 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     readGuiUpdateState,
     loadGuiUpdaterModule,
     resolveLogDirectory,
-    logError
+    logError,
+    getTerminalService,
+    getActiveProjectDir
   } = options
   const workspaceFileWatchers = new Map<string, WorkspaceFileWatchRecord>()
 
@@ -1008,5 +1055,153 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     const error = await shell.openPath(dir)
     if (error) return { ok: false, message: error }
     return { ok: true }
+  })
+
+  // Terminal PTY handlers
+
+  // Track terminal sessions per sender WebContents for cleanup on destroy
+  const terminalSenderSessions = new Map<number, Set<string>>()
+
+  const trackTerminalSession = (sender: WebContents, sessionId: string): void => {
+    const senderId = sender.id
+    let sessions = terminalSenderSessions.get(senderId)
+    if (!sessions) {
+      sessions = new Set()
+      terminalSenderSessions.set(senderId, sessions)
+      sender.once('destroyed', () => {
+        const svc = getTerminalService()
+        const ids = terminalSenderSessions.get(senderId)
+        if (ids && svc) {
+          for (const id of ids) {
+            svc.kill(id)
+          }
+        }
+        terminalSenderSessions.delete(senderId)
+      })
+    }
+    sessions.add(sessionId)
+  }
+
+  const untrackTerminalSession = (sender: WebContents, sessionId: string): void => {
+    const sessions = terminalSenderSessions.get(sender.id)
+    if (sessions) {
+      sessions.delete(sessionId)
+      if (sessions.size === 0) {
+        terminalSenderSessions.delete(sender.id)
+      }
+    }
+  }
+
+  ipcMain.handle('terminal:settings', async () => {
+    const settings = await store.load()
+    const svc = getTerminalService()
+    if (!svc) return { enabled: false }
+    return { enabled: svc.isEnabled(settings) }
+  })
+
+  ipcMain.handle('terminal:spawn', async (event, payload: unknown) => {
+    const svc = getTerminalService()
+    if (!svc) return { ok: false as const, message: 'Terminal service is not available.' }
+    const settings = await store.load()
+    if (!svc.isEnabled(settings)) return { ok: false as const, message: 'Terminal is disabled in settings.' }
+    const request = parseIpcPayload('terminal:spawn', terminalSpawnPayloadSchema, payload)
+    const projectDir = (await getActiveProjectDir()) || process.cwd()
+
+    // Enforce cwd containment: renderer-provided cwd is untrusted.
+    // PTYs must spawn inside the active project directory.
+    const effectiveCwd = request.cwd?.trim() || projectDir
+    if (!isPathWithinRoot(effectiveCwd, projectDir)) {
+      return {
+        ok: false as const,
+        message: `PTY cwd "${effectiveCwd}" is outside the active project directory "${projectDir}".`
+      }
+    }
+    const cols = request.cols ?? 80
+    const rows = request.rows ?? 24
+
+    const { id, pty } = svc.spawn(effectiveCwd, cols, rows)
+
+    // Forward PTY output to the renderer
+    const sender = event.sender
+    trackTerminalSession(sender, id)
+
+    pty.onData((data: string) => {
+      if (!sender.isDestroyed()) {
+        sender.send('terminal:data', { sessionId: id, data })
+      }
+    })
+
+    return {
+      ok: true as const,
+      sessionId: id,
+      cwd: effectiveCwd,
+      cols,
+      rows
+    }
+  })
+
+  ipcMain.handle('terminal:list', async (): Promise<TerminalSessionInfo[]> => {
+    const svc = getTerminalService()
+    return svc?.list() ?? []
+  })
+
+  ipcMain.handle('terminal:write', async (_event, payload: unknown) => {
+    const svc = getTerminalService()
+    if (!svc) return { ok: false as const, message: 'Terminal service is not available.' }
+    const request = parseIpcPayload('terminal:write', terminalWritePayloadSchema, payload)
+    const result = svc.write(request.sessionId, request.data)
+    return { ok: result as true | false }
+  })
+
+  ipcMain.handle('terminal:resize', async (_event, payload: unknown) => {
+    const svc = getTerminalService()
+    if (!svc) return { ok: false as const, message: 'Terminal service is not available.' }
+    const request = parseIpcPayload('terminal:resize', terminalResizePayloadSchema, payload)
+    const result = svc.resize(request.sessionId, request.cols, request.rows)
+    return { ok: result as true | false }
+  })
+
+  ipcMain.handle('terminal:kill', async (event, payload: unknown) => {
+    const svc = getTerminalService()
+    if (!svc) return { ok: false as const, message: 'Terminal service is not available.' }
+    const request = parseIpcPayload('terminal:kill', terminalSessionIdSchema, payload)
+    const result = svc.kill(request.sessionId)
+    if (result) {
+      untrackTerminalSession(event.sender, request.sessionId)
+    }
+    return { ok: result as true | false }
+  })
+
+  ipcMain.handle('terminal:audit-events', async (): Promise<readonly TerminalAuditEvent[]> => {
+    const svc = getTerminalService()
+    return svc?.getAuditEvents() ?? []
+  })
+
+  ipcMain.handle('terminal:agent-exec-observed', async (_event, payload: unknown) => {
+    const svc = getTerminalService()
+    if (!svc) return { ok: false as const, message: 'Terminal service is not available.' }
+    const request = parseIpcPayload(
+      'terminal:agent-exec-observed',
+      terminalAgentExecObservedPayloadSchema,
+      payload
+    )
+    const detailParts: string[] = []
+    if (request.toolName) detailParts.push(`tool=${request.toolName}`)
+    if (request.toolKind) detailParts.push(`kind=${request.toolKind}`)
+    if (request.exitCode !== undefined) detailParts.push(`exit_code=${request.exitCode}`)
+    if (request.threadId) detailParts.push(`thread=${request.threadId}`)
+    if (request.turnId) detailParts.push(`turn=${request.turnId}`)
+    const detail = detailParts.length > 0 ? detailParts.join(' ') : undefined
+    const summary = request.summary?.trim()
+    svc.agentExecObserved({
+      toolName: request.toolName,
+      toolKind: request.toolKind,
+      summary,
+      outputTruncated: request.outputTruncated,
+      exitCode: request.exitCode,
+      threadId: request.threadId,
+      detail
+    })
+    return { ok: true as const }
   })
 }

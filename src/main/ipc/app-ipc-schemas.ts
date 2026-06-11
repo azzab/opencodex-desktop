@@ -354,6 +354,9 @@ const kunRuntimePatchSchema = z.object({
       source: z.string().max(MAX_PATH_LENGTH),
       message: z.string().max(2048)
     }).strict()).max(512).optional()
+  }).strict().optional(),
+  terminal: z.object({
+    enabled: z.boolean().optional()
   }).strict().optional()
 }).strict()
 
@@ -968,3 +971,44 @@ export const sseStartPayloadSchema = z
   .strict()
 
 export const streamIdSchema = trimmedString(MAX_ID_LENGTH)
+
+export const terminalSpawnPayloadSchema = z
+  .object({
+    cwd: optionalTrimmedString(MAX_PATH_LENGTH),
+    cols: z.number().int().min(10).max(500).optional(),
+    rows: z.number().int().min(4).max(200).optional()
+  })
+  .strict()
+
+export const terminalWritePayloadSchema = z
+  .object({
+    sessionId: streamIdSchema,
+    data: z.string().max(10_000)
+  })
+  .strict()
+
+export const terminalResizePayloadSchema = z
+  .object({
+    sessionId: streamIdSchema,
+    cols: z.number().int().min(10).max(500),
+    rows: z.number().int().min(4).max(200)
+  })
+  .strict()
+
+export const terminalSessionIdSchema = z
+  .object({
+    sessionId: streamIdSchema
+  })
+  .strict()
+
+export const terminalAgentExecObservedPayloadSchema = z
+  .object({
+    threadId: optionalTrimmedString(MAX_ID_LENGTH),
+    turnId: optionalTrimmedString(MAX_ID_LENGTH),
+    toolName: optionalTrimmedString(128),
+    toolKind: optionalTrimmedString(128),
+    summary: z.string().trim().max(2000).optional(),
+    outputTruncated: z.string().trim().max(10000).optional(),
+    exitCode: z.number().int().optional()
+  })
+  .strict()
