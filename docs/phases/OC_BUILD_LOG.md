@@ -11,7 +11,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | 0 | H0 Baseline Commit & Lanes | — (orchestrator) | gpt-5.5 high | ✅ | — | Full H0 gate green on final baseline; wrapper selftest/list green | `776e571` (`d37daee` wrapper metadata hardening) | Logical commits landed, `pidev-dispatch` vendored, Wave 1 lanes prepared; `baseline-v0.2.8-rc` pushed |
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ✅ | $0.4015 / in 340,885 out 224,620 cache 97.9% | Merged to `main`; post-merge full gate green (root 844/844, Kun 451/451) | `dfe60ef` | Missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
-| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | 🟡 | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Branch commit `19c60f1` verified; live-dev manual proof and merge pending | — | Full gate green after same-id steering added loading/empty/error/success UsagePanel tests |
+| 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | 🟡 | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Branch commit `d315287` verified; full H3 gate green; mounted renderer tests and real `node-pty` smoke passed | — | Wave 1 merge pending; `dist:mac:arm64:dmg` green with signing/notarization skipped as expected |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap) |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
@@ -71,3 +71,12 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 - 2026-06-12: H1 merged to `main` as `dfe60ef`. Post-merge gate passed:
   `typecheck`, `lint` (7 warnings, exit 0), root tests 844/844, Kun
   typecheck/tests 451/451, `build`, and `git diff --check`.
+- 2026-06-12: H2 merged to `main` as `4c92769` after resolving the single
+  Arabic `common.json` locale conflict by keeping H1's completed file and
+  adding the 50 missing H2 `usage*` keys. Post-merge gate passed:
+  `typecheck`, `lint` (7 warnings, exit 0), root tests 870/870, Kun
+  typecheck/tests 451/451, `build`, `git diff --check`, and
+  `rg -n "UsagePanel" src/renderer/src/components | head`. Live dev proof used
+  local insecure Kun at `127.0.0.1:18999`: thread `thr_rlt445z1` completed one
+  turn and `/v1/usage?group_by=thread`, `group_by=day`, and `group_by=model`
+  all reported the same 14,482-token / $0.00631533 usage sample.
