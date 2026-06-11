@@ -270,6 +270,25 @@ The long-term target is to reach a near-Codex local desktop experience while sta
 - packaging and update-channel review;
 - release-readiness report before any publish.
 
+Current Phase 10 evidence: `docs/PHASE_10_PARITY_HARDENING_RELEASE_REPORT.md`
+records the parity/security/localization audit, the upstream DeepSeek GUI
+`v0.2.8` review, and the release blockers. OpenCodex managed Kun now defaults
+to `127.0.0.1:18999` with `~/.opencodex/kun`, separate from the upstream
+DeepSeek GUI legacy `127.0.0.1:8899` default.
+
+### Next Milestone: H-Series Harness Phases (v0.3.0)
+
+The post-v0.2.8 roadmap lives under [docs/phases](docs/phases/PHASE_RUNNER.md).
+It closes the remaining gaps to a complete agent harness (Arabic completion,
+telemetry and terminal panes, planner/executor split, checkpoint/rewind, real
+browser automation, executable hooks, goal/loop automations, packaged CLI and
+IDE clients, SSH remote runners, upstream Wave-8 ports) and is structured for
+orchestrator-driven parallel execution:
+
+- [docs/phases/_OC_HARNESS_FOUNDATION.md](docs/phases/_OC_HARNESS_FOUNDATION.md) — keystone rules, worker model, gates;
+- [docs/phases/PHASE_RUNNER.md](docs/phases/PHASE_RUNNER.md) — wave-ordered execution manifest with parallel worktree lanes;
+- [docs/phases/OC_BUILD_LOG.md](docs/phases/OC_BUILD_LOG.md) — resumable build ledger.
+
 ## Language Support
 
 English, Arabic, and Chinese are first-class product requirements. When Arabic is selected, the app sets:
