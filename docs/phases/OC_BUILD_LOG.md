@@ -13,7 +13,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ✅ | $0.4015 / in 340,885 out 224,620 cache 97.9% | Merged to `main`; post-merge full gate green (root 844/844, Kun 451/451) | `dfe60ef` | Missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
-| 3.5 | H3.5 Electron 42 Security Fixpack | `oc-h3-5-electron` | dsv4-pro max | ⬜ | — | — | — | Operator approved 2026-06-12: upgrade to `electron@42.4.0` (fallback `39.8.10` only with recorded reason); unblocks Wave 2 |
+| 3.5 | H3.5 Electron 42 Security Fixpack | `oc-h3-5-electron` | dsv4-pro max | 🔵 | — | Dispatched; verification pending worker completion | — | Operator approved 2026-06-12: upgrade to `electron@42.4.0` (fallback `39.8.10` only with recorded reason); unblocks Wave 2 |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap); dispatch after H3.5 merges gate-green |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -127,3 +127,8 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   gates will be pursued; the 0.2.8 operator runbook and Wave 5–7 evidence
   carry forward into the H12 readiness report, and the H12 runbook
   (`docs/release/0.3.0-operator-runbook.md`) supersedes the 0.2.8 one.
+- 2026-06-12: H3.5 dispatched after `pidev` preflight passed for
+  `oc-h3-5-electron` in `../ocx-h3-5` (fresh session id, clean tree, no live
+  pi worker at preflight). Dispatch used the H3.5 Short Launcher Prompt
+  verbatim with `--max`. Initial report stream shows the worker researching
+  Electron 42 compatibility; orchestrator verification is pending completion.
