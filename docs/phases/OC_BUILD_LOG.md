@@ -22,7 +22,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ✅ | $1.8121 total: initial READY rejected $0.4439 / in 426,260 out 188,447 cacheRead 26,083,712 cache 98.4%; remediation1 rejected $0.4357 / in 538,083 out 121,456 cacheRead 26,484,736 cache 98.0%; remediation2 blocked $0.4203 / in 453,945 out 139,471 cacheRead 28,002,176 cache 98.4%; remediation3 rejected $0.3566 / in 387,396 out 126,924 cacheRead 21,433,344 cache 98.2%; remediation4 accepted $0.1556 / in 191,882 out 61,170 cacheRead 5,208,832 cache 96.4% | Merged to `main`; post-merge full gate green (root 996/996, Kun 657 passed / 4 skipped); live CLI smoke passed with streamed `CLI_SMOKE_OK` and approval round-trip; CLI tarball temp-prefix install passed; VSIX package passed; client package typechecks/tests passed on main after package deps install (CLI 39/39, VS Code 23/23). | `990e526` | Packaged CLI, VS Code extension, strict smoke, approvals listing/test fixture, and parity docs merged |
 | 10 | H10 SSH Remote Runner | `oc-h10-ssh`; remediation `oc-h10-ssh-r11`; `oc-h10-ssh-r12`; `oc-h10-ssh-r13`; `oc-h10-ssh-r14`; `oc-h10-ssh-r15`; `oc-h10-ssh-r16` | dsv4-pro max | ✅ | initial READY rejected $0.7052 / in 657,664 out 237,472 cacheRead 58,612,864 cache 98.9%; remediation1 rejected $0.8065 / in 1,051,583 out 172,136 cacheRead 54,973,184 cache 98.1%; remediation2 stopped $0.5691 / in 860,112 out 118,873 cacheRead 25,243,264 cache 96.7%; remediation3 rejected $0.3179 / in 480,833 out 64,627 cacheRead 14,477,696 cache 96.8%; remediation4 rejected $0.5002 / in 803,560 out 88,241 cacheRead 20,369,664 cache 96.2%; remediation5 rejected $0.4385 / in 702,410 out 71,709 cacheRead 19,468,800 cache 96.5%; remediation6 rejected $0.2337 / in 248,995 out 108,326 cacheRead 8,593,024 cache 97.2%; remediation7 rejected $0.3020 / in 328,412 out 125,573 cacheRead 13,773,184 cache 97.7%; remediation8 stopped $0.3978 / in 453,812 out 147,255 cacheRead 19,933,824 cache 97.8%; remediation9 rejected $0.0514 / in 72,702 out 17,867 cacheRead 1,168,128 cache 94.1%; remediation10 READY $0.3329 / in 398,357 out 112,861 cacheRead 16,932,608 cache 97.7%; remediation11 rejected $0.3730 / in 385,608 out 144,970 cacheRead 21,831,680 cache 98.3%; remediation12 rejected $0.2152 / in 268,800 out 78,004 cacheRead 8,390,784 cache 96.9%; remediation13 rejected $0.3330 / in 377,953 out 121,782 cacheRead 17,271,296 cache 97.9%; remediation14 READY, independent full gate green; remediation15 rejected $0.0862 / in 128,833 out 25,064 cacheRead 2,311,040 cache 94.7%; remediation16 accepted $0.4171 / in 382,078 out 218,604 cacheRead 16,758,144 cache 97.8% | Merged to `main`; post-merge full gate green (root 149 files/1167 tests, Kun 57 files passed/1 skipped and 657 tests passed/4 skipped) | `69438fd` | Outbound-only SSH runner, REMOTE approvals, trust, stop/resume/reconnect, app-server/CLI/UI surfaces, en/zh/ar strings, no-listener/no-secret probes, redacted real-host smoke |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ✅ | initial READY rejected $1.0572 / in 626,354 out 347,459 cacheRead 133,089,024 cache 99.5%; remediation accepted $0.3942 / in 435,291 out 162,189 cacheRead 17,583,360 cache 97.6% | Merged to `main`; post-merge full gate green (root 150 files/1183 tests, Kun 58 files passed/1 skipped and 658 tests passed/4 skipped); targeted H4/H5/store/SSE tests green; 8D perf evidence recorded | `4b66c10` | 8A git root discovery, 8C sandbox/stuck-turn guardrails, 8D store/startup/SSE batching merged; remediation commit `689d798` ports safe 8e5da5d store optimizations and documents skipped hunks |
-| 12 | H12 Parity Audit & v0.3.0 | `oc-h12-parity` | gpt-5.5 xhigh + dsv4-pro max | ⬜ | — | — | — | Operator gates remain manual |
+| 12 | H12 Parity Audit & v0.3.0 | `oc-h12-parity` | gpt-5.5 xhigh (orchestrator) | ✅ | — | Direct-to-main H12 judgment complete; focused release/locale tests green; final full gate green (root 150 files/1184 tests, Kun 58 files passed/1 skipped and 658 tests passed/4 skipped); `npm audit` 0 vulnerabilities; `smoke:release`; `dist:mac:arm64:dmg`; `release:readiness` local v0.3 gates OK and blocked only on manual operator gates | `bc0d7a9` | Produced `docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md`, `docs/release/0.3.0-operator-runbook.md`, v0.3 readiness gates, package version `0.3.0-rc`; no publish/sign/notary/upload mutation |
 
 ## Decisions & Incidents
 
@@ -538,6 +538,27 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   startup performance evidence. H11 merged to main as `4b66c10`; post-merge
   full gate on main exited 0 with the same root/Kun/build/whitespace evidence.
   Remove `../ocx-h11` after this ledger update.
+- 2026-06-12: H12 completed as an orchestrator-owned judgment phase on `main`
+  with no pidev implementation lane because the H12 phase doc assigns final
+  judgment to the orchestrator and contains no separate Short Launcher Prompt.
+  Produced `docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md`,
+  `docs/release/0.3.0-operator-runbook.md`, bumped package metadata to
+  `0.3.0-rc`, and extended `npm run release:readiness` to target
+  `opencodex-desktop-v0.3.0-rc-release-readiness` with local v0.3 evidence
+  gates for package version, H12 report, v0.3 runbook, new-surface security
+  review, and Arabic parity re-verification. Verification evidence:
+  focused release-readiness/locale tests passed 2 files/11 tests; final full
+  H12 gate exited 0 (`npm run typecheck`, `npm run lint` with 7 warnings/0
+  errors, root tests 150 files/1184 tests, Kun typecheck, Kun tests 58 files
+  passed/1 skipped and 658 tests passed/4 skipped, build, `smoke:release`,
+  `release:readiness`, `git diff --check`); `npm audit` found 0
+  vulnerabilities; `npm run dist:mac:arm64:dmg` produced
+  `dist/OpenCodex-Desktop-0.3.0-rc-mac-arm64.dmg` and blockmap with signing
+  and notarization skipped because operator credentials are absent.
+  `release:readiness -- --json` reports all local v0.3 gates OK and remains
+  blocked only on manual operator gates: release approval, mac signing or
+  unsigned-beta decision, manual packaged smoke, live-provider smoke, Arabic
+  release-scope decision, update/rollback notes, and publish authorization.
 - 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
   worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
   preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
