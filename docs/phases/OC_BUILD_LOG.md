@@ -16,9 +16,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | ✅ | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 $0.2463 / in 387,586 out 59,117 cacheRead 7,244,032 cache 94.9% | Merged to `main`; post-merge full gate green (root 932/932, Kun 487/487); H4 stop gates independently reviewed | `0ee4c19` | Plan-mode tool isolation, persistent plan artifacts, approval-only execute transition, renderer approve surface, en/zh/ar keys |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ✅ | $3.2120 total: initial $0.5778 / in 544,726 out 204,438 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cache 96.6%; remediation5 $0.1811 / in 272,671 out 52,697 cache 94.4% | Merged to `main`; post-merge full gate green (root 932/932, Kun 525/525); H5 stop gates independently reviewed | `4bfe95f` | Safe checkpoint restore/fork semantics merged: code/conversation/both restore, full snapshot fork worktree, retention settings, audit events, visible timeline, en/zh/ar keys |
-| 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | 🟡 | initial READY rejected: $0.5786 / in 538,383 out 233,780 cacheRead 38,910,848 cache 98.6%; remediation1 rejected: $0.5525 / in 706,017 out 150,481 cacheRead 31,565,952 cache 97.8%; remediation2 running | Full command gate green in remediation1, but orchestrator stop-gate review rejected before merge because the real Playwright smoke path was unavailable | — | Remediation2 log `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T150945.log` |
-| 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | 🟡 | initial READY rejected: $0.5901 / in 490,731 out 217,334 cacheRead 51,750,016 cache 99.1%; remediation1 rejected: $0.6608 / in 606,142 out 194,460 cacheRead 62,872,832 cache 99.0%; remediation2 running | Full command gate green in remediation1, but orchestrator stop-gate review rejected before merge because persisted trust settings do not reach the managed Kun runtime | — | Remediation2 log `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T151316.log` |
-| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🟡 | initial READY rejected; remediation1 rejected: $0.8411 / in 909,073 out 206,990 cacheRead 73,251,200 cache 98.8%; remediation2 rejected: $0.6332 / in 582,488 out 193,452 cacheRead 58,347,776 cache 99.0% | Worker self-reports only; orchestrator review rejected remediation2 before merge because the visible loop/settings surface still was not complete | — | Parent does not supply real loop data to LoopsManager and settings UI lacks editable goal/loop automations controls; remediation3 required |
+| 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | 🟡 | initial READY rejected: $0.5786 / in 538,383 out 233,780 cacheRead 38,910,848 cache 98.6%; remediation1 rejected: $0.5525 / in 706,017 out 150,481 cacheRead 31,565,952 cache 97.8%; remediation2 rejected: $0.5998 / in 583,822 out 193,979 cacheRead 48,839,424 cache 98.8% | Remediation2 full command gate green in worktree, but stop-gate review rejected before merge because package metadata and smoke proof were invalid | — | Remediation3 required: update `kun/package-lock.json`, prove Kun ci dry-run, and run a correct real-browser smoke command |
+| 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | 🟡 | initial READY rejected: $0.5901 / in 490,731 out 217,334 cacheRead 51,750,016 cache 99.1%; remediation1 rejected: $0.6608 / in 606,142 out 194,460 cacheRead 62,872,832 cache 99.0%; remediation2 under orchestrator review: $0.5366 / in 443,804 out 178,083 cacheRead 54,368,256 cache 99.0% | Remediation2 full command gate green in worktree; final source stop-gate review pending before merge | — | Remediation2 log `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T151316.log` |
+| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🟡 | initial READY rejected; remediation1 rejected: $0.8411 / in 909,073 out 206,990 cacheRead 73,251,200 cache 98.8%; remediation2 rejected: $0.6332 / in 582,488 out 193,452 cacheRead 58,347,776 cache 99.0%; remediation3 running | Worker self-reports only; orchestrator review rejected remediation2 before merge because the visible loop/settings surface still was not complete | — | Remediation3 log `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T152511.log` |
 | 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ⬜ | — | — | — | |
 | 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | ⬜ | — | — | — | |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ⬜ | — | — | — | 8A → 8C → 8D order |
@@ -442,3 +442,26 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `settings-section-agents.tsx` does not expose editable goal/loop automation
   controls. The H8 phase requires visible `/loop` UI/API data and settings
   under `agents.kun.automations`, so a third same-tree remediation is required.
+- 2026-06-12: H6 same-tree remediation2 reported READY with cost `$0.5998`
+  and the orchestrator independently reran the full command gate in
+  `../ocx-h6`; it exited 0 (`npm run typecheck`, `npm run lint`, root tests
+  938/938, Kun typecheck, Kun tests 553 passed / 4 skipped, `npm run build`,
+  and `git diff --check`). Stop-gate review still rejected the lane: the worker
+  changed `kun/package.json` without updating `kun/package-lock.json`, so
+  `npm --prefix kun ci --dry-run --ignore-scripts` fails with missing
+  Playwright lock entries. The reported smoke command was also invalid from
+  repo root because root Vitest only includes `src/**/*.test.ts`. A third
+  same-tree remediation is required.
+- 2026-06-12: H7 same-tree remediation2 reported READY with cost `$0.5366`
+  and the orchestrator independently reran the full command gate in
+  `../ocx-h7`; it exited 0 (`npm run typecheck`, `npm run lint`, root tests
+  956/956, Kun typecheck, Kun tests 557/557, `npm run build`, and
+  `git diff --check`). Source stop-gate review confirmed the managed-runtime
+  bridge now writes hook settings into Kun config, `kun serve` maps config
+  hooks into `createKunServeRuntime`, and settings changes post to
+  `/v1/runtime/hooks/reload`; final acceptance is pending a focused route/auth
+  review before merge.
+- 2026-06-12: H8 remediation3 was ordered on the existing dirty `../ocx-h8`
+  worktree to finish the visible loop parent wiring and persisted automation
+  settings UI. Log:
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T152511.log`.
