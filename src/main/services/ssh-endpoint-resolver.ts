@@ -17,6 +17,18 @@ export interface ResolvedSshEndpoint {
   host: string
   port: number
   username?: string
+  /**
+   * Path references to identity files from ~/.ssh/config IdentityFile directives.
+   * These are path references ONLY — the resolver never reads, decrypts, or
+   * stores key material. The connector passes the reference to the SSH layer
+   * (ssh2 or system ssh subprocess), which handles key loading natively.
+   */
+  identityFileRefs?: string[]
+  /**
+   * Explicit key path reference set by the host config (not from ssh-config).
+   * Same safety rules as identityFileRefs — path reference only.
+   */
+  keyPathRef?: string
 }
 
 /**
@@ -70,6 +82,20 @@ function parseSshConfig(configPath: string): Map<string, ResolvedSshEndpoint> {
       const userMatch = line.match(/^User\s+(.+)/i)
       if (userMatch) {
         currentEndpoint.username = userMatch[1]!.trim()
+        continue
+      }
+
+      const identityFileMatch = line.match(/^IdentityFile\s+(.+)/i)
+      if (identityFileMatch) {
+        const raw = identityFileMatch[1]!.trim()
+        // Expand ~ to home directory
+        const expanded = raw.startsWith('~')
+          ? join(homedir(), raw.slice(1))
+          : raw
+        if (!currentEndpoint.identityFileRefs) {
+          currentEndpoint.identityFileRefs = []
+        }
+        currentEndpoint.identityFileRefs.push(expanded)
         continue
       }
     }
@@ -154,16 +180,22 @@ export function resolveHostEndpoint(config: {
   port?: number
   username?: string
   usernameRef?: string
+  keyPathRef?: string
 }): ResolvedSshEndpoint {
   // If explicit host is provided, use it directly
   if (config.host) {
     return {
       host: config.host,
       port: config.port ?? 22,
-      username: config.username ?? config.usernameRef
+      username: config.username ?? config.usernameRef,
+      keyPathRef: config.keyPathRef
     }
   }
 
-  // Otherwise resolve from endpointRef
-  return resolveSshEndpoint(config.endpointRef)
+  // Otherwise resolve from endpointRef (may include IdentityFile refs from ssh-config)
+  const resolved = resolveSshEndpoint(config.endpointRef)
+  if (config.keyPathRef) {
+    resolved.keyPathRef = config.keyPathRef
+  }
+  return resolved
 }

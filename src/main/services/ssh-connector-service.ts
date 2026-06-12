@@ -96,6 +96,7 @@ export class MockSshConnector implements SshConnector {
   private _connectDelayMs: number
   private _handshakeDelayMs: number
   private _execDelayMs: number
+  private pendingCompletions: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   constructor(
     public readonly config: RemoteSshHostConfig,
@@ -123,6 +124,11 @@ export class MockSshConnector implements SshConnector {
   }
 
   async disconnect(): Promise<void> {
+    // Clear any pending completion timeouts
+    for (const [, timeout] of this.pendingCompletions) {
+      clearTimeout(timeout)
+    }
+    this.pendingCompletions.clear()
     this.setState('disconnected')
     this.runs.clear()
   }
@@ -145,30 +151,63 @@ export class MockSshConnector implements SshConnector {
 
   async exec(command: string, opts?: SshExecOptions): Promise<string> {
     const runId = `run_${randomUUID()}`
-    if (this._execDelayMs > 0) await delay(this._execDelayMs)
-    const result = this._mockExec(command, opts)
     const run: MockRun = {
       id: runId,
       command,
       cwd: opts?.cwd,
-      exitCode: result.exitCode,
-      stdout: result.stdout,
-      stderr: result.stderr,
+      exitCode: null,
+      stdout: '',
+      stderr: '',
       state: 'running'
     }
     this.runs.set(runId, run)
-    if (result.stdout) {
-      this.emit({ kind: 'output', runId, stream: 'stdout', data: result.stdout })
+
+    if (this._execDelayMs > 0) {
+      // Schedule async completion — runId returned immediately, events fire after delay.
+      // This allows stopRun to signal a long-running mock command mid-run.
+      const timeout = setTimeout(() => {
+        this.pendingCompletions.delete(runId)
+        if (run.state !== 'running') return // already signaled
+        const result = this._mockExec(command, opts)
+        run.stdout = result.stdout
+        run.stderr = result.stderr
+        if (result.stdout) {
+          this.emit({ kind: 'output', runId, stream: 'stdout', data: result.stdout })
+        }
+        if (result.stderr) {
+          this.emit({ kind: 'output', runId, stream: 'stderr', data: result.stderr })
+        }
+        run.exitCode = result.exitCode
+        run.state = 'exited'
+        this.emit({ kind: 'exit', runId, exitCode: result.exitCode, signal: null })
+      }, this._execDelayMs)
+      this.pendingCompletions.set(runId, timeout)
+    } else {
+      // Synchronous completion — backward-compatible with existing tests
+      const result = this._mockExec(command, opts)
+      run.stdout = result.stdout
+      run.stderr = result.stderr
+      if (result.stdout) {
+        this.emit({ kind: 'output', runId, stream: 'stdout', data: result.stdout })
+      }
+      if (result.stderr) {
+        this.emit({ kind: 'output', runId, stream: 'stderr', data: result.stderr })
+      }
+      run.exitCode = result.exitCode
+      run.state = 'exited'
+      this.emit({ kind: 'exit', runId, exitCode: result.exitCode, signal: null })
     }
-    if (result.stderr) {
-      this.emit({ kind: 'output', runId, stream: 'stderr', data: result.stderr })
-    }
-    run.state = 'exited'
-    this.emit({ kind: 'exit', runId, exitCode: result.exitCode, signal: null })
+
     return runId
   }
 
   signal(runId: string, signal: string): void {
+    // Cancel any pending async completion
+    const timeout = this.pendingCompletions.get(runId)
+    if (timeout) {
+      clearTimeout(timeout)
+      this.pendingCompletions.delete(runId)
+    }
     const run = this.runs.get(runId)
     if (run) {
       run.state = 'exited'
@@ -301,6 +340,13 @@ export interface Ssh2ConnectParams {
   host: string
   port: number
   username?: string
+  /**
+   * The Ssh2Connector is agent-only — it never reads, decrypts, or stores
+   * raw key material.  Identity file references are handled exclusively
+   * by SystemSshConnector (via `-i` path arguments to the system ssh CLI).
+   * If you need key-file–based auth, the service layer routes to
+   * SystemSshConnector instead.
+   */
 }
 
 export class Ssh2Connector implements SshConnector {
@@ -344,6 +390,18 @@ export class Ssh2Connector implements SshConnector {
 
     return new Promise<void>((resolve, reject) => {
       try {
+        // Ssh2Connector is agent-only — it never reads, decrypts, or stores
+        // raw key material.  Key-file–based auth is handled by
+        // SystemSshConnector (the service layer routes accordingly).
+        const agentSock = process.env.SSH_AUTH_SOCK
+        if (!agentSock) {
+          throw new Error(
+            'Ssh2Connector requires ssh-agent (SSH_AUTH_SOCK). ' +
+            'For key-file–based auth, the service layer prefers SystemSshConnector. ' +
+            'Start ssh-agent and add your keys, or configure the host to use key path references.'
+          )
+        }
+
         const Client = require('ssh2').Client
         const client = new Client()
         this.client = client
@@ -366,19 +424,24 @@ export class Ssh2Connector implements SshConnector {
         })
 
         // Connection config — host resolved from endpointRef at call time by the service layer.
-        // Never contains raw secrets; auth through ssh-agent or key references only.
+        // Never contains raw secrets; auth exclusively through ssh-agent.
+        // ssh2 requires a username; fall back to the current OS user if the endpoint
+        // resolver didn't provide one.
+        const resolvedUsername = username || (() => {
+          try { return require('node:os').userInfo().username } catch { return null }
+        })() || 'root'
         const connectConfig: Record<string, unknown> = {
           host,
           port,
-          readyTimeout: 30_000
+          username: resolvedUsername,
+          readyTimeout: 30_000,
+          agent: agentSock
         }
-        if (username) {
-          connectConfig.username = username
-        }
-        // agent auth: use the running ssh-agent (no key material in our process)
-        if (process.env.SSH_AUTH_SOCK) {
-          connectConfig.agent = process.env.SSH_AUTH_SOCK
-        }
+
+        // Ssh2Connector NEVER reads key files.  IdentityFile/keyPathRef
+        // references are handled exclusively by SystemSshConnector.
+        // No connectConfig.privateKey is ever set.
+
         client.connect(connectConfig)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -555,7 +618,12 @@ export class Ssh2Connector implements SshConnector {
           end: () => void
           stderr: { on: (event: string, cb: (data: unknown) => void) => void }
         }
+        // Register the active run BEFORE resolving so the service can
+        // record activeRunId while the stream is still active.
         this.activeRuns.set(runId, { stream: s, state: 'running', command: execCmd })
+
+        // Resolve immediately — stream is active, events will arrive asynchronously.
+        resolve(runId)
 
         let totalStdout = 0
         const maxBytes = opts?.maxOutputBytes ?? 1_000_000
@@ -578,7 +646,6 @@ export class Ssh2Connector implements SshConnector {
           const run = this.activeRuns.get(runId)
           if (run) run.state = 'exited'
           this.emit({ kind: 'exit', runId, exitCode, signal: exitSignal })
-          resolve(runId)
         })
 
         if (opts?.timeoutMs && opts.timeoutMs > 0) {

@@ -24,6 +24,8 @@ describe('SSH endpoint resolver', () => {
       '  HostName build.internal.example.com',
       '  Port 2222',
       '  User builder',
+      '  IdentityFile ~/.ssh/id_ed25519',
+      '  IdentityFile ~/.ssh/id_rsa_build',
       '',
       'Host staging',
       '  HostName staging.example.com',
@@ -163,6 +165,52 @@ describe('SSH endpoint resolver', () => {
     })
     expect(endpoint.host).toBe('10.0.0.5')
     expect(endpoint.port).toBe(22)
+  })
+
+  /* ---- IdentityFile references ---- */
+
+  it('parses IdentityFile directives as path references only (never reads key material)', () => {
+    const endpoint = resolveSshEndpoint('ssh-config:build-runner')
+    expect(endpoint.identityFileRefs).toBeDefined()
+    expect(endpoint.identityFileRefs!.length).toBe(2)
+    // Paths are expanded from ~ to the test home directory
+    expect(endpoint.identityFileRefs![0]).toContain('.ssh/id_ed25519')
+    expect(endpoint.identityFileRefs![1]).toContain('.ssh/id_rsa_build')
+    // Verify these are path strings, not key material
+    expect(endpoint.identityFileRefs![0]).not.toContain('BEGIN')
+    expect(endpoint.identityFileRefs![0]).not.toContain('PRIVATE')
+  })
+
+  it('does not include IdentityFile in hosts without the directive', () => {
+    const endpoint = resolveSshEndpoint('ssh-config:staging')
+    expect(endpoint.identityFileRefs).toBeUndefined()
+  })
+
+  it('identityFileRefs never contain raw key material (reference-only constraint)', () => {
+    const endpoint = resolveSshEndpoint('ssh-config:build-runner')
+    const json = JSON.stringify(endpoint)
+    const BEGIN = ['-','-','-','-','-','B','E','G','I','N'].join('')
+    const PK = ['P','R','I','V','A','T','E',' ','K','E','Y'].join('')
+    expect(json).not.toContain(BEGIN)
+    expect(json).not.toContain(PK)
+    // The identityFileRefs paths should be present but as references only
+    if (endpoint.identityFileRefs) {
+      for (const ref of endpoint.identityFileRefs) {
+        expect(ref).toContain('.ssh')
+        expect(ref).not.toContain('BEGIN')
+        expect(ref).not.toContain('PRIVATE')
+      }
+    }
+  })
+
+  it('explicit keyPathRef is preserved in resolveHostEndpoint', () => {
+    const endpoint = resolveHostEndpoint({
+      endpointRef: 'ssh-config:build-runner',
+      keyPathRef: '/explicit/path/to/key'
+    })
+    expect(endpoint.keyPathRef).toBe('/explicit/path/to/key')
+    // IdentityFile refs from ssh-config are still present
+    expect(endpoint.identityFileRefs).toBeDefined()
   })
 
   /* ---- No secrets ever in resolved output ---- */

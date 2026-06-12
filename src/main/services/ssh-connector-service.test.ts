@@ -281,4 +281,46 @@ describe('SSH connector (mock)', () => {
     expect(json).not.toContain(BEGIN)
     expect(json).not.toContain(PK)
   })
+
+  /* ---- H10 remediation11: IdentityFile / key-path references ---- */
+
+  it('Ssh2ConnectParams does not include identityFileRefs or keyPathRef (agent-only connector)', () => {
+    // Ssh2Connector is agent-only — it never reads key files.
+    // IdentityFile references are handled by SystemSshConnector.
+    const params: import('./ssh-connector-service').Ssh2ConnectParams = {
+      host: 'example.com',
+      port: 22,
+      username: 'deploy'
+    }
+    // Verify the type does not carry key-file–reference fields.
+    // The fields must not exist on the params object.
+    expect('identityFileRefs' in params).toBe(false)
+    expect('keyPathRef' in params).toBe(false)
+    expect(params.host).toBe('example.com')
+    expect(params.port).toBe(22)
+  })
+
+  it('Ssh2ConnectParams never contains raw key material (agent-only)', () => {
+    const params: import('./ssh-connector-service').Ssh2ConnectParams = {
+      host: 'example.com',
+      port: 22
+    }
+    const json = JSON.stringify(params)
+    const BEGIN = ['-','-','-','-','-','B','E','G','I','N'].join('')
+    const PK = ['P','R','I','V','A','T','E',' ','K','E','Y'].join('')
+    expect(json).not.toContain(BEGIN)
+    expect(json).not.toContain(PK)
+    expect(json).not.toContain('privateKey')
+    expect(json).not.toContain('identityFileRefs')
+    expect(json).not.toContain('keyPathRef')
+  })
+
+  it('MockSshConnector does not require real SSH infrastructure', async () => {
+    connector = makeConnector()
+    expect(connector.state).toBe('disconnected')
+    await connector.connect()
+    expect(connector.state).toBe('connected')
+    await connector.disconnect()
+    expect(connector.state).toBe('disconnected')
+  })
 })

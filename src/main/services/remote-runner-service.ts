@@ -30,6 +30,10 @@ import {
   type Ssh2ConnectParams
 } from './ssh-connector-service'
 import {
+  SystemSshConnector,
+  isSystemSshAvailable
+} from './system-ssh-connector'
+import {
   resolveHostEndpoint,
   clearSshConfigCache
 } from './ssh-endpoint-resolver'
@@ -101,10 +105,20 @@ export class RemoteRunnerService {
   private activeRuns: Map<string, { runnerId: string; command: string; cwd?: string; output: string; exitCode: number | null; signal: string | null }> = new Map()
   private pausedRuns: Map<string, { runnerId: string; command: string; cwd?: string }> = new Map()
   private connectorUnsubscribers: Map<string, () => void> = new Map()
+  /**
+   * When true, use MockSshConnector for all hosts (test-only).
+   * When false (default), real connectors (Ssh2Connector or SystemSshConnector)
+   * are used. Mock fallback is NEVER used silently in production.
+   */
+  private useMockConnectors: boolean
+  /** Delay in ms for mock exec completion (test-only, for lifecycle tests). */
+  private mockExecDelayMs: number
 
-  constructor(settings: RemoteRunnerSettingsV1, callbacks?: RemoteRunnerCallbacks) {
+  constructor(settings: RemoteRunnerSettingsV1, callbacks?: RemoteRunnerCallbacks, opts?: { useMockConnectors?: boolean; mockExecDelayMs?: number }) {
     this.settings = settings
     this.callbacks = callbacks ?? null
+    this.useMockConnectors = opts?.useMockConnectors ?? false
+    this.mockExecDelayMs = opts?.mockExecDelayMs ?? 0
   }
 
   /* ---- Lifecycle ---- */
@@ -195,21 +209,53 @@ export class RemoteRunnerService {
     this.updateHandleStatus(hostId, 'connecting')
 
     const sshConfig = this.hostConfigToSshConfig(handle.hostConfig)
-    const connector = isSsh2Available()
-      ? new Ssh2Connector(sshConfig)
-      : new MockSshConnector(sshConfig)
 
-    // Resolve the endpoint from host config before connecting (real connectors only).
-    // Mock connectors don't need endpoint resolution.
-    if (connector instanceof Ssh2Connector) {
-      const resolvedEndpoint = resolveHostEndpoint({
-        endpointRef: handle.hostConfig.endpointRef,
-        host: (handle.hostConfig as Record<string, unknown>).host as string | undefined,
-        port: (handle.hostConfig as Record<string, unknown>).port as number | undefined,
-        username: (handle.hostConfig as Record<string, unknown>).username as string | undefined,
-        usernameRef: handle.hostConfig.usernameRef
-      })
-      connector.setEndpoint(resolvedEndpoint)
+    // Resolve the endpoint BEFORE connector selection so we can
+    // route key-file–based hosts to SystemSshConnector (which passes
+    // paths as -i arguments without reading key material) and
+    // key-file–free hosts to Ssh2Connector (agent-only, SSH_AUTH_SOCK).
+    const resolvedEndpoint = resolveHostEndpoint({
+      endpointRef: handle.hostConfig.endpointRef,
+      host: (handle.hostConfig as Record<string, unknown>).host as string | undefined,
+      port: (handle.hostConfig as Record<string, unknown>).port as number | undefined,
+      username: (handle.hostConfig as Record<string, unknown>).username as string | undefined,
+      usernameRef: handle.hostConfig.usernameRef,
+      keyPathRef: (handle.hostConfig as Record<string, unknown>).keyPathRef as string | undefined
+    })
+
+    const hasKeyFileRefs =
+      (resolvedEndpoint.keyPathRef ||
+        (resolvedEndpoint.identityFileRefs && resolvedEndpoint.identityFileRefs.length > 0))
+
+    // Connector selection logic:
+    // - useMockConnectors=true        → MockSshConnector (test-only)
+    // - key file refs present         → SystemSshConnector (passes -i path refs;
+    //                                    the system ssh CLI reads key material
+    //                                    natively; our process never touches raw key bytes)
+    // - no key refs && ssh2 available → Ssh2Connector (agent-only, SSH_AUTH_SOCK)
+    // - no key refs && system ssh     → SystemSshConnector (documented fallback)
+    // - neither                       → throw (never silently mock in production)
+    let connector: SshConnector
+    if (this.useMockConnectors) {
+      connector = new MockSshConnector(sshConfig, { execDelayMs: this.mockExecDelayMs })
+    } else if (hasKeyFileRefs && isSystemSshAvailable()) {
+      connector = new SystemSshConnector(sshConfig)
+      ;(connector as SystemSshConnector).setEndpoint(resolvedEndpoint)
+    } else if (hasKeyFileRefs && !isSystemSshAvailable()) {
+      throw new Error(
+        'SSH host requires key-file–based authentication but the system `ssh` command is not available on PATH. ' +
+        'Install OpenSSH or configure the host to use ssh-agent (no IdentityFile / keyPathRef references).'
+      )
+    } else if (isSsh2Available()) {
+      connector = new Ssh2Connector(sshConfig)
+      ;(connector as Ssh2Connector).setEndpoint(resolvedEndpoint)
+    } else if (isSystemSshAvailable()) {
+      connector = new SystemSshConnector(sshConfig)
+      ;(connector as SystemSshConnector).setEndpoint(resolvedEndpoint)
+    } else {
+      throw new Error(
+        'No SSH connector available. Install the ssh2 npm package (npm install ssh2) or ensure the system `ssh` command is on PATH.'
+      )
     }
 
     this.connectors.set(hostId, connector)
@@ -426,7 +472,13 @@ export class RemoteRunnerService {
       maxOutputBytes: opts?.maxOutputBytes ?? 1_000_000
     }
     const runId = await connector.exec(command, execOpts)
-    handle.activeRunId = runId
+
+    // Re-read the handle from the map — updateHandleStatus created a new
+    // handle object and the old reference is stale.
+    const liveHandle = this.handles.get(hostId)
+    if (liveHandle) {
+      liveHandle.activeRunId = runId
+    }
 
     this.activeRuns.set(runId, {
       runnerId: hostId,
@@ -544,9 +596,17 @@ export class RemoteRunnerService {
           run.exitCode = event.exitCode
           run.signal = event.signal
         }
-        this.updateHandleStatus(hostId, 'connected')
-        if (handle.activeRunId === event.runId) {
-          handle.activeRunId = null
+        // Only transition to 'connected' if the handle is still in 'executing'.
+        // stopRun sets status to 'paused' before the exit event fires; we must
+        // not overwrite that transition.
+        if (handle.status === 'executing') {
+          this.updateHandleStatus(hostId, 'connected')
+        }
+        // Re-read the handle from the map — updateHandleStatus may have
+        // created a new object, and the old reference is stale.
+        const currentHandle = this.handles.get(hostId)
+        if (currentHandle && currentHandle.activeRunId === event.runId) {
+          currentHandle.activeRunId = null
         }
         this.audit(hostId, 'exec-complete', event.exitCode === 0 ? 'completed' : 'failed',
           `Exit: ${event.exitCode}${event.signal ? ` signal:${event.signal}` : ''}`, event.runId)

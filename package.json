@@ -68,6 +68,9 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.3"
   },
+  "optionalDependencies": {
+    "ssh2": "^1.17.0"
+  },
   "overrides": {
     "axios": "1.17.0"
   },
