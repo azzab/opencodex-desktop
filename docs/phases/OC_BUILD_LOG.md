@@ -30,7 +30,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | ✅ | $0.8769 total: initial stalled $0.6039 / in 590,648 out 221,918 cacheRead 42,452,480 cache 98.6%; recovery $0.2730 / in 383,460 out 86,491 cacheRead 8,532,736 cache 95.7% | Merged to `main`; post-merge full gate green (root 150 files/1184 tests, Kun 58 files passed / 1 skipped and 658 tests passed / 4 skipped); full audit 0; corrected Kun SSE smoke green before and after Electron 42; clean-room install gate green; DMG Electron `42.4.0`; PTY/native ABI proof | `11c4ab6` | Lane commit `aa0b660`; report `docs/PHASE_M1_ELECTRON_42_REPORT.md`; first post-merge gate was infrastructure-failed by ENOSPC during Electron extraction/temp repo creation, then generated artifacts were removed, Electron reinstalled, and the full gate reran green |
 | M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ✅ | Orchestrator only; no pidev cost | Version bumped to `0.3.1-beta`; release notes written; `npm run dist:mac` green; unsigned x64+arm64 DMG/zip artifacts built; arm64 packaged app proves version `0.3.1-beta` and Electron `42.4.0`; packaged app opened from `dist/mac-arm64/OpenCodex Desktop.app`; VS Code client typecheck/tests/package green and VSIX installed into Cursor (`undefined_publisher.opencodex-vscode@0.1.0`) because Visual Studio Code was not installed | `e90e083` | Artifacts: `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.zip`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.zip`, `dist/latest-mac.yml`; no Apple signing/notary credentials detected, so `dist:mac:signed`, `verify:apple`, upload, publish, tag, and update-channel mutation were not run |
-| M2 | Provider Auth & Model Discovery | `oc-m2-providers`; retry `oc-m2-providers-r2` | dsv4-pro max | ❌ | initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation1 no-tree-change $0.3687 / in=544,068 out=108,062 cacheRead=10,493,952 cache 95.1%; fresh retry no-tree-change $0.2603 / in=272,730 out=130,584 cacheRead=7,742,848 cache 96.6% | Blocked: initial + existing dirty tree full gate passed, but orchestrator source review found unsafe custom-provider fallback validation and unused `endpointFormat`; same-id remediation and one fresh retry both produced `NO_TREE_CHANGES` while claiming rewrites, so the M2 stop gate remains unresolved after recovery rules | — | Worktree `../ocx-m2` retained dirty for forensic review; logs: initial `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`, remediation1 `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260613T000402.log`, retry `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers-r2/run-20260613T000931.log` |
+| M2 | Provider Auth & Model Discovery | `oc-m2-providers`; retry `oc-m2-providers-r2` | dsv4-pro max | 🟡 | initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation1 no-tree-change $0.3687 / in=544,068 out=108,062 cacheRead=10,493,952 cache 95.1%; retry $0.2603 / in=272,730 out=130,584 cacheRead=7,742,848 cache 96.6%; secret-fixture scrub running | Current dirty tree full gate green and provider fallback/`endpointFormat` fix is present in untracked files; targeted M2 tests 132 passed / 1 skipped. Stop-gate review found secret-shaped fake fixture literals in new tests/report artifacts, so scrub remediation is running before merge | — | Worktree `../ocx-m2`; wrapper `NO_TREE_CHANGES` warnings were misleading for untracked file content; logs: initial `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`, remediation1 `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260613T000402.log`, retry `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers-r2/run-20260613T000931.log` |
 | M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
 | M4a | Mobile Pairing Host | `oc-m4a-pairing` | dsv4-pro max | ⬜ | — | — | — | Opt-in TLS LAN listener, QR pairing, device scopes |
 | M4b | Mobile Companion App | `oc-m4b-mobile` | dsv4-pro high | ⬜ | — | — | — | Expo/RN, depends on M4a |
@@ -1157,10 +1157,14 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   rules, one fresh retry was dispatched as `oc-m2-providers-r2` on the dirty
   `../ocx-m2` tree with `--max --allow-dirty`.
 - 2026-06-12: M2 fresh retry `oc-m2-providers-r2` cost `$0.2603`
-  (in 272,730 / out 130,584 / cacheRead 7,742,848 / cache 96.6%) and was also
-  rejected. `pidev wait` again flagged `NO_TREE_CHANGES`, while the report
-  claimed edits to `provider-validation-service.ts` and its tests. The actual
-  worktree still contains the unresolved unsafe fallback validation and unused
-  `endpointFormat`. The allowed fresh retry for an empty/no-change run is
-  exhausted, so M2 is blocked and Wave M-B cannot advance until a human decides
-  how to proceed or a new authorized recovery approach is recorded.
+  (in 272,730 / out 130,584 / cacheRead 7,742,848 / cache 96.6%). A later
+  forensic check found the wrapper's `NO_TREE_CHANGES` warning was misleading
+  because the provider-validation files were untracked; their actual content
+  did include the retry fix. Orchestrator reran the M2 full gate and it exited
+  0 (`typecheck`, `lint`, root tests 153 files / 1270 passed / 1 skipped, Kun
+  typecheck/tests 58 files passed / 1 skipped and 658 tests passed / 4 skipped,
+  build, `git diff --check`). Targeted M2 security tests also passed
+  (132 passed / 1 skipped). Source review then found a separate stop-gate
+  issue: new tests/report artifacts contain fake provider-key-shaped literals,
+  which violates the foundation no-secret-shaped-material rule. A scrub
+  remediation was ordered under `oc-m2-providers-r2` with `--max --allow-dirty`.
