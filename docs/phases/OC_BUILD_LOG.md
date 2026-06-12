@@ -18,7 +18,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ✅ | $3.2120 total: initial $0.5778 / in 544,726 out 204,438 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cache 96.6%; remediation5 $0.1811 / in 272,671 out 52,697 cache 94.4% | Merged to `main`; post-merge full gate green (root 932/932, Kun 525/525); H5 stop gates independently reviewed | `4bfe95f` | Safe checkpoint restore/fork semantics merged: code/conversation/both restore, full snapshot fork worktree, retention settings, audit events, visible timeline, en/zh/ar keys |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | 🟡 | initial READY rejected: $0.5786 / in 538,383 out 233,780 cacheRead 38,910,848 cache 98.6%; remediation running | Initial worker self-report only; orchestrator review rejected before merge because required sidecar/artifact stop gates were missing | — | Missing DOM snapshot action and evidence artifacts on disk/thread artifacts; same-tree remediation log `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T145215.log` |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | 🟡 | initial READY rejected: $0.5901 / in 490,731 out 217,334 cacheRead 51,750,016 cache 99.1%; remediation running | Initial worker self-report only; orchestrator review rejected before merge because worker reported a nonzero gate and missing phase-scope integrations | — | Worker reported Kun typecheck nonzero, actual Kun turn hooks not wired, HooksBrowser not mounted, and `node_modules` left untracked; same-tree remediation log `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T145215.log` |
-| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🟡 | initial READY rejected; remediation ordered | Initial worker self-report only; orchestrator review rejected before merge because phase-scope integrations were missing | — | Missing router/runtime wiring, file-backed loop persistence, settings UI integration, and AgentLoop post-turn goal continuation |
+| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🟡 | initial READY rejected; remediation1 rejected: $0.8411 / in 909,073 out 206,990 cacheRead 73,251,200 cache 98.8% | Worker self-reports only; orchestrator review rejected remediation1 before merge because required goal/loop surfaces and accounting remained incomplete | — | Remediation1 fixed router/runtime/file-store shape but left loop UI data empty, automation settings unpersisted, evaluator cost placeholder, and goal iteration hardcoded |
 | 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ⬜ | — | — | — | |
 | 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | ⬜ | — | — | — | |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ⬜ | — | — | — | 8A → 8C → 8D order |
@@ -391,3 +391,13 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   the one-worker-per-git-tree rule. Logs:
   `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T145215.log`
   and `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T145215.log`.
+- 2026-06-12: H8 same-tree remediation1 reported READY with cost `$0.8411`
+  but remains rejected before merge. The worker closed the earlier router and
+  file-store gaps, but still listed phase-scope gaps: LoopsManager is rendered
+  with empty data instead of the real `/v1/loops` surface, automation settings
+  toggles do not persist through the app-settings pipeline under
+  `agents.kun.automations`, evaluator cost accounting is a hardcoded zero, and
+  goal iteration tracking is hardcoded to `1`. The H8 phase requires proven
+  `/goal` and `/loop` features, budget/cost/iteration caps, per-loop usage
+  accounting, visible loop UI, and persisted automation settings, so a second
+  same-tree remediation is required.
