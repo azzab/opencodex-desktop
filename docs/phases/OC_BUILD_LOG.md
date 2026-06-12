@@ -19,8 +19,8 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ✅ | $1.8337 total: initial READY rejected $0.5786 / in 538,383 out 233,780 cacheRead 38,910,848 cache 98.6%; remediation1 rejected $0.5525 / in 706,017 out 150,481 cacheRead 31,565,952 cache 97.8%; remediation2 rejected $0.5998 / in 583,822 out 193,979 cacheRead 48,839,424 cache 98.8%; remediation3 $0.1028 / in 79,120 out 63,146 cacheRead 3,708,928 cache 97.9% | Merged to `main`; post-merge full gate green (root 938/938, Kun 553 passed / 4 skipped); lockfile ci dry-run green; real Playwright smoke 4/4; no browser bundle artifacts | `82592a0` | Real Playwright sidecar, DOM/screenshot/console/network evidence store + API/UI, disabled-by-default and non-allowed-host proofs |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ✅ | $1.7875 total: initial READY rejected $0.5901 / in 490,731 out 217,334 cacheRead 51,750,016 cache 99.1%; remediation1 rejected $0.6608 / in 606,142 out 194,460 cacheRead 62,872,832 cache 99.0%; remediation2 $0.5366 / in 443,804 out 178,083 cacheRead 54,368,256 cache 99.0% | Merged to `main`; post-merge full gate green (root 962/962, Kun 585 passed / 4 skipped); managed-runtime hook bridge and reload route reviewed | `8f13b76` | Hook trust store, per-hook source review, approve/revoke, hash auto-revoke, timeout/audit/kill switch, managed Kun config/reload bridge |
 | 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | ✅ | initial READY rejected cost unavailable; recorded remediation total $2.8008: remediation1 rejected $0.8411 / in 909,073 out 206,990 cacheRead 73,251,200 cache 98.8%; remediation2 rejected $0.6332 / in 582,488 out 193,452 cacheRead 58,347,776 cache 99.0%; remediation3 rejected $0.6296 / in 789,692 out 143,304 cacheRead 44,522,240 cache 98.3%; remediation4 accepted $0.6969 / in 841,311 out 181,537 cacheRead 47,710,464 cache 98.3% | Merged to `main`; post-merge full gate green (root 996/996, Kun 657 passed / 4 skipped); H8 stop gates independently reviewed | `5ac3826` | Tool-free goal evaluator, persistent loop scheduler/store/routes, real create/list/cancel UI, automation settings, en/zh/ar keys; H8 lane commit `9b3c14b` |
-| 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ⬜ | — | — | — | |
-| 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | ⬜ | — | — | — | |
+| 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | 🔵 | pending | Dispatched in fresh Wave 4 worktree `../ocx-h9`; orchestrator verification pending worker READY | — | Dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h9-clients/run-20260612T160310.log`; worker pi pid `77117` |
+| 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | 🔵 | pending | Dispatched in fresh Wave 4 worktree `../ocx-h10`; orchestrator verification pending worker READY | — | Dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h10-ssh/run-20260612T160439.log`; worker pi pid `78780` |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ⬜ | — | — | — | 8A → 8C → 8D order |
 | 12 | H12 Parity Audit & v0.3.0 | `oc-h12-parity` | gpt-5.5 xhigh + dsv4-pro max | ⬜ | — | — | — | Operator gates remain manual |
 
@@ -517,3 +517,14 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   passed / 4 skipped, `npm run build`, and `git diff --check`). It merged to
   `main` as `5ac3826`; the post-merge full gate on `main` exited 0 with the
   same test counts.
+- 2026-06-12: Wave 4 dispatched after H8 merged gate-green. Created fresh
+  worktrees `../ocx-h9` on `phase/h9-clients` and `../ocx-h10` on
+  `phase/h10-ssh` from main `12e4f88`. `pidev` preflight passed for
+  `oc-h9-clients` (fresh session id, clean tree, no live pi worker) and
+  `oc-h10-ssh` (fresh session id, clean tree; live H9 worker acknowledged but
+  isolated by separate worktree). Dispatched H9 Short Launcher Prompt verbatim
+  with `--thinking high` and H10 Short Launcher Prompt verbatim with `--max`.
+  Logs:
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h9-clients/run-20260612T160310.log`
+  and
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h10-ssh/run-20260612T160439.log`.
