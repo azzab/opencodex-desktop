@@ -17,9 +17,11 @@ Ledger: [OC_BUILD_LOG.md](./OC_BUILD_LOG.md)
 | 1 | [H1 Arabic i18n Completion](./PHASE_H1_ARABIC_I18N_COMPLETION.md) | pidev | deepseek-v4-pro medium | `oc-h1-arabic` | `../ocx-h1` | 0 | locale-coverage test enforces full ar parity |
 | 2 | [H2 Telemetry Dashboard](./PHASE_H2_WORKBENCH_TELEMETRY_DASHBOARD.md) | pidev | `--thinking high` | `oc-h2-telemetry` | `../ocx-h2` | 0 | usage pane renders real Kun telemetry incl. unknown-cache state |
 | 3 | [H3 Terminal Panel](./PHASE_H3_TERMINAL_PANEL.md) | pidev | `--max` | `oc-h3-terminal` | `../ocx-h3` | 0 | PTY sessions gated by approvals + audited |
+| **Wave 1.5 — sequential ×1 (security fixpack)** | | | | | | | |
+| 3.5 | [H3.5 Electron 42 Security Fixpack](./PHASE_H3_5_ELECTRON_SECURITY_FIXPACK.md) | pidev | `--max` | `oc-h3-5-electron` | `../ocx-h3-5` | 1–3 merged | full `npm audit` exit 0; dev boot + DMG dry-run + node-pty ABI proof on Electron 42.4.0 |
 | **Wave 2 — parallel ×2** | | | | | | | |
-| 4 | [H4 Planner/Executor Split](./PHASE_H4_PLANNER_EXECUTOR_SPLIT.md) | pidev | `--max` | `oc-h4-planner` | `../ocx-h4` | 1–3 merged | plan mode provably read-only; transition requires approval |
-| 5 | [H5 Checkpoint & Rewind](./PHASE_H5_CHECKPOINT_REWIND.md) | pidev | `--max` | `oc-h5-checkpoint` | `../ocx-h5` | 1–3 merged | restore code-only / conversation-only / fork all proven by tests |
+| 4 | [H4 Planner/Executor Split](./PHASE_H4_PLANNER_EXECUTOR_SPLIT.md) | pidev | `--max` | `oc-h4-planner` | `../ocx-h4` | 3.5 merged | plan mode provably read-only; transition requires approval |
+| 5 | [H5 Checkpoint & Rewind](./PHASE_H5_CHECKPOINT_REWIND.md) | pidev | `--max` | `oc-h5-checkpoint` | `../ocx-h5` | 3.5 merged | restore code-only / conversation-only / fork all proven by tests |
 | **Wave 3 — parallel ×3** | | | | | | | |
 | 6 | [H6 Browser Automation Sidecar](./PHASE_H6_BROWSER_AUTOMATION_SIDECAR.md) | pidev | `--max` | `oc-h6-browser` | `../ocx-h6` | 4–5 merged | real Playwright actions behind Phase 4 gates; evidence captured |
 | 7 | [H7 Hooks Execution & Trust](./PHASE_H7_HOOKS_EXECUTION_TRUST.md) | pidev | `--max` | `oc-h7-hooks` | `../ocx-h7` | 4–5 merged | only trusted+pinned hooks run; kill switch works |
