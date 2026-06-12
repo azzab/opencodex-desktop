@@ -867,6 +867,206 @@ describe('HTTP server', () => {
     expect(body.parentThreadId).toBe('thr_default_fork')
   })
 
+  it('GET /v1/threads/:id/plan returns null when no plan exists', async () => {
+    const h = buildHarness()
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_plan_empty', title: 'No plan' }
+    )
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_plan_empty/plan', {
+        headers: { authorization: 'Bearer tok-1' }
+      })
+    )
+    expect(response.status).toBe(200)
+    const body = (await readJson(response)) as { plan: unknown }
+    expect(body.plan).toBeNull()
+  })
+
+  it('GET /v1/threads/:id/plan returns plan after setPlan', async () => {
+    const h = buildHarness()
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_plan_set', title: 'Has plan' }
+    )
+    await h.threadService.setPlan('thr_plan_set', {
+      planId: 'plan_api',
+      relativePath: '.kunsdd/plan/api.md',
+      title: 'API plan',
+      status: 'ready'
+    })
+
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_plan_set/plan', {
+        headers: { authorization: 'Bearer tok-1' }
+      })
+    )
+    expect(response.status).toBe(200)
+    const body = (await readJson(response)) as { plan: { planId: string; status: string; title: string } }
+    expect(body.plan).not.toBeNull()
+    expect(body.plan.planId).toBe('plan_api')
+    expect(body.plan.status).toBe('ready')
+    expect(body.plan.title).toBe('API plan')
+  })
+
+  it('POST /v1/threads/:id/plan/approve approves plan and transitions mode', async () => {
+    const h = buildHarness()
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_approve', title: 'Approve thread' }
+    )
+    await h.threadService.setPlan('thr_approve', {
+      planId: 'plan_to_approve',
+      relativePath: '.kunsdd/plan/approve.md',
+      title: 'Approve this',
+      status: 'ready'
+    })
+
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_approve/plan/approve', {
+        method: 'POST',
+        headers: { authorization: 'Bearer tok-1' }
+      })
+    )
+    expect(response.status).toBe(200)
+    const body = (await readJson(response)) as { plan: { status: string }; mode: string }
+    expect(body.plan.status).toBe('approved')
+    expect(body.mode).toBe('agent')
+
+    // Verify thread is now in agent mode
+    const thread = await h.threadStore.get('thr_approve')
+    expect(thread!.mode).toBe('agent')
+    expect(thread!.plan!.status).toBe('approved')
+
+    // Verify approval event was recorded
+    const events = await h.sessionStore.loadEventsSince('thr_approve', 0)
+    const approvalEvent = events.find((e) => e.kind === 'approval_resolved' && (e as any).toolName === 'plan_approve')
+    expect(approvalEvent).toBeDefined()
+    expect((approvalEvent as any).status).toBe('allowed')
+  })
+
+  it('POST /v1/threads/:id/plan/approve fails without a plan', async () => {
+    const h = buildHarness()
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_no_plan', title: 'No plan thread' }
+    )
+
+    const response = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_no_plan/plan/approve', {
+        method: 'POST',
+        headers: { authorization: 'Bearer tok-1' }
+      })
+    )
+    expect(response.status).toBe(404)
+    const body = (await readJson(response)) as { code: string; message: string }
+    expect(body.code).toBe('not_found')
+    expect(body.message).toMatch(/no plan to approve/)
+  })
+
+  it('plan approval event is visible in thread events SSE', async () => {
+    const h = buildHarness()
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_sse', title: 'SSE plan thread' }
+    )
+    await h.threadService.setPlan('thr_sse', {
+      planId: 'plan_sse',
+      relativePath: '.kunsdd/plan/sse.md',
+      status: 'ready'
+    })
+
+    // Record the current event seq before approving
+    const beforeEvents = await h.sessionStore.loadEventsSince('thr_sse', 0)
+    const beforeSeq = beforeEvents.length
+
+    // Approve the plan
+    await h.threadService.approvePlan('thr_sse')
+
+    // Read events after approval
+    const events = await h.sessionStore.loadEventsSince('thr_sse', beforeSeq)
+    const threadUpdatedEvent = events.find((e) => e.kind === 'thread_updated' && (e as any).mode === 'agent')
+    expect(threadUpdatedEvent).toBeDefined()
+  })
+
+  it('rejects plan→execute mode transition via PATCH /v1/threads/:id and only allows approvePlan', async () => {
+    const h = buildHarness()
+
+    // Create a plan-mode thread with a ready plan
+    await h.threadService.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_mode_gate', title: 'Mode gate test' }
+    )
+    await h.threadService.setPlan('thr_mode_gate', {
+      planId: 'plan_gate',
+      relativePath: '.kunsdd/plan/gate.md',
+      title: 'Gate plan',
+      status: 'ready'
+    })
+
+    // Attempt 1: PATCH with { mode: 'agent' } — mode is not a valid update field
+    const patchMode = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_mode_gate', {
+        method: 'PATCH',
+        headers: { authorization: 'Bearer tok-1', 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'agent' })
+      })
+    )
+    // Should fail validation because mode is not in UpdateThreadRequest schema
+    expect(patchMode.status).toBe(400)
+    const patchModeBody = (await readJson(patchMode)) as { code: string; message: string }
+    expect(patchModeBody.code).toBe('validation_error')
+
+    // Verify thread mode is still 'plan'
+    let thread = await h.threadStore.get('thr_mode_gate')
+    expect(thread!.mode).toBe('plan')
+
+    // Attempt 2: PATCH with a valid field (rename) — mode must still be 'plan'
+    const patchValid = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_mode_gate', {
+        method: 'PATCH',
+        headers: { authorization: 'Bearer tok-1', 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Renamed gate' })
+      })
+    )
+    expect(patchValid.status).toBe(200)
+    thread = await h.threadStore.get('thr_mode_gate')
+    expect(thread!.mode).toBe('plan')
+    expect(thread!.title).toBe('Renamed gate')
+
+    // The only endpoint that transitions plan→agent is plan/approve
+    const approve = await dispatchRequest(
+      h.router,
+      new Request('http://localhost/v1/threads/thr_mode_gate/plan/approve', {
+        method: 'POST',
+        headers: { authorization: 'Bearer tok-1' }
+      })
+    )
+    expect(approve.status).toBe(200)
+    const approveBody = (await readJson(approve)) as { plan: { status: string }; mode: string }
+    expect(approveBody.plan.status).toBe('approved')
+    expect(approveBody.mode).toBe('agent')
+
+    // Verify thread mode is now 'agent' after approvePlan
+    thread = await h.threadStore.get('thr_mode_gate')
+    expect(thread!.mode).toBe('agent')
+    expect(thread!.plan!.status).toBe('approved')
+
+    // Verify approval_resolved event was recorded
+    const events = await h.sessionStore.loadEventsSince('thr_mode_gate', 0)
+    const approvalEvent = events.find(
+      (e) => e.kind === 'approval_resolved' && (e as any).toolName === 'plan_approve'
+    )
+    expect(approvalEvent).toBeDefined()
+    expect((approvalEvent as any).status).toBe('allowed')
+  })
+
   it('resumes a persisted session into a new Kun thread', async () => {
     const h = buildHarness()
     await h.threadService.create(

@@ -329,6 +329,11 @@ export async function createKunServeRuntime(
     ...(attachmentStore ? { attachmentStore } : {}),
     ...(memoryStore ? { memoryStore } : {}),
     onPlanWritten: async ({ threadId, planId, relativePath, markdown }) => {
+      // Persist the plan artifact reference on the thread so it survives restarts.
+      await threadService.setPlan(threadId, {
+        planId,
+        relativePath
+      })
       await threadService.syncTodosFromPlan(threadId, {
         planId,
         relativePath,

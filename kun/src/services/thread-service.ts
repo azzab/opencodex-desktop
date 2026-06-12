@@ -9,6 +9,8 @@ import type {
   SetThreadTodosRequest,
   ThreadGoal,
   ThreadMode,
+  ThreadPlan,
+  ThreadPlanStatus,
   ThreadRecord,
   ThreadRelation,
   ThreadStatus,
@@ -279,6 +281,85 @@ export class ThreadService {
       cleared: true
     })
     return true
+  }
+
+  /**
+   * Set the thread-level plan artifact reference. Called by the agent loop
+   * after a successful create_plan tool result, and by the renderer when
+   * loading a persisted plan after restart.
+   */
+  async setPlan(
+    threadId: string,
+    plan: Omit<ThreadPlan, 'status' | 'createdAt' | 'updatedAt'> & { status?: ThreadPlanStatus }
+  ): Promise<ThreadPlan> {
+    const current = await this.threadStore.get(threadId)
+    if (!current) throw new Error(`thread not found: ${threadId}`)
+    const now = this.nowIso()
+    const existing = current.plan
+    const threadPlan: ThreadPlan = {
+      planId: plan.planId,
+      relativePath: plan.relativePath,
+      ...(plan.title ? { title: plan.title } : {}),
+      ...(plan.workspaceRoot ? { workspaceRoot: plan.workspaceRoot } : {}),
+      ...(plan.sourceRequest ? { sourceRequest: plan.sourceRequest } : {}),
+      status: plan.status ?? existing?.status ?? 'ready',
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now
+    }
+    const updated = touchThread({ ...current, plan: threadPlan }, now)
+    await this.threadStore.upsert(updated)
+    await this.events.record({
+      kind: 'thread_updated',
+      threadId,
+      title: updated.title,
+      status: updated.status,
+      mode: updated.mode
+    })
+    return threadPlan
+  }
+
+  /**
+   * Approve a plan and transition the thread to execute mode.
+   * Records an approval event and updates the plan status to 'approved'.
+   * The next turn will run in agent mode with the approved plan attached.
+   */
+  async approvePlan(threadId: string): Promise<ThreadPlan> {
+    const current = await this.threadStore.get(threadId)
+    if (!current) throw new Error(`thread not found: ${threadId}`)
+    if (!current.plan) throw new Error(`thread ${threadId} has no plan to approve`)
+    const now = this.nowIso()
+    const approvedPlan: ThreadPlan = {
+      ...current.plan,
+      status: 'approved',
+      updatedAt: now
+    }
+    const updated = touchThread({ ...current, plan: approvedPlan, mode: 'agent' }, now)
+    await this.threadStore.upsert(updated)
+    await this.events.record({
+      kind: 'approval_resolved',
+      threadId,
+      approvalId: `plan_${approvedPlan.planId}`,
+      toolName: 'plan_approve',
+      status: 'allowed',
+      summary: `Plan "${approvedPlan.title ?? approvedPlan.planId}" approved. Thread mode transitioned to execute.`
+    })
+    await this.events.record({
+      kind: 'thread_updated',
+      threadId,
+      title: updated.title,
+      status: updated.status,
+      mode: updated.mode
+    })
+    return approvedPlan
+  }
+
+  /**
+   * Get the thread-level plan artifact reference.
+   */
+  async getPlan(threadId: string): Promise<ThreadPlan | null> {
+    const current = await this.threadStore.get(threadId)
+    if (!current) throw new Error(`thread not found: ${threadId}`)
+    return current.plan ?? null
   }
 
   async syncTodosFromPlan(threadId: string, options: SyncPlanTodosOptions): Promise<ThreadTodoList> {

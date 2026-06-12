@@ -26,6 +26,7 @@ export const RuntimeEventKind = z.enum([
   'tool_storm_suppressed',
   'tool_catalog_changed',
   'automation_audit',
+  'plan_mode_violation',
   'tool_call_started',
   'tool_call_finished',
   'approval_requested',
@@ -96,7 +97,8 @@ export type ItemEvent = z.infer<typeof ItemEvent>
 export const ThreadLifecycleEvent = RuntimeEventBase.extend({
   kind: z.enum(['thread_created', 'thread_updated']),
   title: z.string().optional(),
-  status: z.string().optional()
+  status: z.string().optional(),
+  mode: z.string().optional()
 })
 export type ThreadLifecycleEvent = z.infer<typeof ThreadLifecycleEvent>
 
@@ -193,6 +195,14 @@ export const AutomationAuditRuntimeEvent = RuntimeEventBase.extend({
 })
 export type AutomationAuditRuntimeEvent = z.infer<typeof AutomationAuditRuntimeEvent>
 
+export const PlanModeViolationEvent = RuntimeEventBase.extend({
+  kind: z.literal('plan_mode_violation'),
+  toolName: z.string().min(1),
+  callId: z.string().min(1),
+  message: z.string()
+})
+export type PlanModeViolationEvent = z.infer<typeof PlanModeViolationEvent>
+
 export const CompactionEvent = RuntimeEventBase.extend({
   kind: z.enum(['compaction_started', 'compaction_completed']),
   summary: z.string().optional(),
@@ -258,6 +268,7 @@ export const RuntimeEvent = z.discriminatedUnion('kind', [
   ToolStormSuppressedEvent,
   ToolCatalogEvent,
   AutomationAuditRuntimeEvent,
+  PlanModeViolationEvent,
   CompactionEvent,
   GoalEvent,
   TodoEvent,

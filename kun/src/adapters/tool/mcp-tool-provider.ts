@@ -282,6 +282,10 @@ function createMcpLocalTool(
     description: descriptor.description ?? `MCP tool ${descriptor.name} from ${state.serverId}`,
     inputSchema: descriptor.inputSchema ?? { type: 'object' },
     policy: policyFromAnnotations(descriptor.annotations),
+    // Plan-mode: MCP tools are allowed only when annotated readOnlyHint.
+    // Conservative default is false (denied in plan mode) to prevent
+    // unknown MCP tools from mutating during investigation.
+    planModeAllowed: descriptor.annotations?.readOnlyHint === true,
     shouldAdvertise: (context: ToolHostContext) => isMcpServerTrusted(state.server, context.workspace),
     execute: async (args, context) => {
       if (!isMcpServerTrusted(state.server, context.workspace)) {

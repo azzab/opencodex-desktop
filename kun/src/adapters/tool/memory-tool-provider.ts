@@ -25,6 +25,7 @@ export function buildMemoryToolProviders(store: MemoryStore | undefined): Capabi
           additionalProperties: false
         },
         policy: 'on-request',
+        planModeAllowed: false,
         execute: async (args, context) => {
           const content = typeof args.content === 'string' ? args.content.trim() : ''
           if (!content) return { output: { error: 'content is required' }, isError: true }
@@ -56,6 +57,7 @@ export function buildMemoryToolProviders(store: MemoryStore | undefined): Capabi
           additionalProperties: false
         },
         policy: 'on-request',
+        planModeAllowed: false,
         execute: async (args) => {
           if (typeof args.id !== 'string') return { output: { error: 'id is required' }, isError: true }
           return {
@@ -78,6 +80,7 @@ export function buildMemoryToolProviders(store: MemoryStore | undefined): Capabi
           additionalProperties: false
         },
         policy: 'on-request',
+        planModeAllowed: false,
         execute: async (args) => {
           if (typeof args.id !== 'string') return { output: { error: 'id is required' }, isError: true }
           return { output: { memory: await store.delete(args.id) } }

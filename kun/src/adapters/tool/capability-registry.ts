@@ -66,6 +66,12 @@ export class CapabilityRegistry {
       if (record.tool.shouldAdvertise) {
         if (!context || !record.tool.shouldAdvertise(context)) continue
       }
+      // Kernel-enforced plan-mode tool isolation: mutating tools are not
+      // advertised to the model during Plan-mode turns. This is NOT a
+      // prompt-level suggestion — the tool is absent from the model's
+      // tool list entirely, and a defense-in-depth check in
+      // LocalToolHost.execute() denies any call that slips through.
+      if (context?.threadMode === 'plan' && record.tool.planModeAllowed === false) continue
       specs.push({
         name: record.tool.name,
         description: record.tool.description,

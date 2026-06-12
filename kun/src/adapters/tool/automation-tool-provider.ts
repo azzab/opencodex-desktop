@@ -186,6 +186,7 @@ function createAutomationTool(options: {
     inputSchema: options.inputSchema,
     policy: 'auto',
     toolKind: 'tool_call',
+    planModeAllowed: false,
     execute: async (args, context) => executeAutomationTool(options, args, context)
   })
 }

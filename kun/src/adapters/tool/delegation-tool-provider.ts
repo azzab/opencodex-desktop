@@ -29,6 +29,7 @@ export function buildDelegationToolProviders(runtime: DelegationRuntime | undefi
           additionalProperties: false
         },
         policy: 'auto',
+        planModeAllowed: false,
         execute: async (args, context) => {
           const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : ''
           if (!prompt) return { output: { error: 'prompt is required' }, isError: true }

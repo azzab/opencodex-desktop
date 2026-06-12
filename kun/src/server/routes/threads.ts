@@ -363,4 +363,41 @@ function parseListThreadsOptions(
   }
 }
 
+/**
+ * GET /v1/threads/:id/plan — retrieve the thread-level plan artifact reference.
+ */
+export async function getThreadPlan(
+  threads: ThreadService,
+  threadId: string
+): Promise<JsonResponse> {
+  try {
+    const plan = await threads.getPlan(threadId)
+    return jsonResponse({ plan })
+  } catch (error) {
+    if (error instanceof Error && /not found/i.test(error.message)) {
+      return jsonResponse({ code: 'not_found', message: error.message }, 404)
+    }
+    throw error
+  }
+}
+
+/**
+ * POST /v1/threads/:id/plan/approve — approve the current plan and transition
+ * the thread to execute (agent) mode. Records an approval event.
+ */
+export async function approveThreadPlan(
+  threads: ThreadService,
+  threadId: string
+): Promise<JsonResponse> {
+  try {
+    const plan = await threads.approvePlan(threadId)
+    return jsonResponse({ plan, mode: 'agent' })
+  } catch (error) {
+    if (error instanceof Error && (/not found/i.test(error.message) || /no plan/i.test(error.message))) {
+      return jsonResponse({ code: 'not_found', message: error.message }, 404)
+    }
+    throw error
+  }
+}
+
 void z

@@ -2,12 +2,14 @@ import { Router } from '../router.js'
 import { healthJsonResponse } from './health.js'
 import { buildWorkspaceStatusResponse } from './workspace.js'
 import {
+  approveThreadPlan,
   createThread,
   clearThreadGoal,
   clearThreadTodos,
   deleteThread,
   forkThread,
   getThreadGoal,
+  getThreadPlan,
   getThreadTodos,
   getThread,
   listThreads,
@@ -155,6 +157,14 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('POST', '/v1/threads/:id/fork', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return forkThread(runtime.threadService, ctx.params.id, request)
+  })
+  router.add('GET', '/v1/threads/:id/plan', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return getThreadPlan(runtime.threadService, ctx.params.id)
+  })
+  router.add('POST', '/v1/threads/:id/plan/approve', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return approveThreadPlan(runtime.threadService, ctx.params.id)
   })
   router.add('GET', '/v1/threads/:id/goal', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()

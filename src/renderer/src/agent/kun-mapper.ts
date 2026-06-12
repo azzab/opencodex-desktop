@@ -9,6 +9,7 @@ import type {
   RuntimeErrorEventPayload,
   RuntimeStatusEventPayload,
   ThreadGoal,
+  ThreadPlan,
   ThreadTodoList,
   UserInputRequestPayload,
   UserMessageEventPayload,
@@ -24,6 +25,7 @@ import type {
   CoreChildRuntimeMetadataJson,
   CoreRuntimeEventJson,
   CoreThreadGoalJson,
+  CoreThreadPlanJson,
   CoreThreadTodoListJson,
   CoreThreadSummaryJson,
   CoreTurnItemJson,
@@ -61,7 +63,8 @@ export function threadFromCore(thread: CoreThreadSummaryJson): NormalizedThread 
     forkedFromMessageCount: thread.forkedFromMessageCount,
     forkedFromTurnCount: thread.forkedFromTurnCount,
     goal: thread.goal ? goalFromCore(thread.goal) : null,
-    todos: thread.todos ? todosFromCore(thread.todos) : null
+    todos: thread.todos ? todosFromCore(thread.todos) : null,
+    plan: thread.plan ? planFromCore(thread.plan) : null
   }
 }
 
@@ -90,6 +93,19 @@ export function todosFromCore(todos: CoreThreadTodoListJson): ThreadTodoList {
       updatedAt: item.updatedAt
     })),
     updatedAt: todos.updatedAt
+  }
+}
+
+export function planFromCore(plan: CoreThreadPlanJson): ThreadPlan {
+  return {
+    planId: plan.planId,
+    relativePath: plan.relativePath,
+    ...(plan.title ? { title: plan.title } : {}),
+    ...(plan.workspaceRoot ? { workspaceRoot: plan.workspaceRoot } : {}),
+    ...(plan.sourceRequest ? { sourceRequest: plan.sourceRequest } : {}),
+    status: plan.status,
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt
   }
 }
 
@@ -1070,6 +1086,34 @@ export async function dispatchKunRuntimeEvent(
         createdAt: event.timestamp
       })
       return
+    case 'thread_updated': {
+      // Forward mode changes to clients so plan→execute transitions are visible.
+      if (event.mode) {
+        sink.onThreadMode?.({
+          threadId: event.threadId ?? '',
+          mode: event.mode,
+          createdAt: event.timestamp
+        })
+      }
+      return
+    }
+    case 'approval_resolved': {
+      // When a plan is approved, forward the approval event so clients can refresh plan state.
+      if (event.toolName === 'plan_approve') {
+        sink.onThreadMode?.({
+          threadId: event.threadId ?? '',
+          mode: 'agent',
+          createdAt: event.timestamp
+        })
+      }
+      return
+    }
+    case 'plan_mode_violation': {
+      // Forward plan mode violations to clients for audit visibility.
+      const violation = runtimeErrorFromEvent(event, event.message ?? `Tool '${event.toolName}' denied in plan mode.`)
+      sink.onRuntimeError?.(violation)
+      return
+    }
     case 'usage':
       if (event.usage) sink.onUsage?.(usageFromCore(event.usage))
       return

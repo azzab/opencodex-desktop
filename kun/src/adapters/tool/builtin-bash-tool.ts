@@ -523,6 +523,7 @@ export function createBashLocalTool(options: BashLocalToolOptions = {}): LocalTo
     },
     policy: 'on-request',
     toolKind: 'command_execution',
+    planModeAllowed: false,
     execute: async (args, context, onUpdate) => withToolBoundary(async () => {
       const action = typeof args.action === 'string' ? args.action.trim() : ''
       if (action && action !== 'run') {
