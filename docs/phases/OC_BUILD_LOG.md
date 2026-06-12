@@ -24,6 +24,21 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ✅ | initial READY rejected $1.0572 / in 626,354 out 347,459 cacheRead 133,089,024 cache 99.5%; remediation accepted $0.3942 / in 435,291 out 162,189 cacheRead 17,583,360 cache 97.6% | Merged to `main`; post-merge full gate green (root 150 files/1183 tests, Kun 58 files passed/1 skipped and 658 tests passed/4 skipped); targeted H4/H5/store/SSE tests green; 8D perf evidence recorded | `4b66c10` | 8A git root discovery, 8C sandbox/stuck-turn guardrails, 8D store/startup/SSE batching merged; remediation commit `689d798` ports safe 8e5da5d store optimizations and documents skipped hunks |
 | 12 | H12 Parity Audit & v0.3.0 | `oc-h12-parity` | gpt-5.5 xhigh (orchestrator) | ✅ | — | Direct-to-main H12 judgment complete; focused release/locale tests green; final full gate green (root 150 files/1184 tests, Kun 58 files passed/1 skipped and 658 tests passed/4 skipped); `npm audit` 0 vulnerabilities; `smoke:release`; `dist:mac:arm64:dmg`; `release:readiness` local v0.3 gates OK and blocked only on manual operator gates | `bc0d7a9` | Produced `docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md`, `docs/release/0.3.0-operator-runbook.md`, v0.3 readiness gates, package version `0.3.0-rc`; no publish/sign/notary/upload mutation |
 
+## M-Series (v0.4.0) — approved 2026-06-12
+
+| # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
+|---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
+| M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | ⬜ | — | — | — | Fix Kun/SSE smoke FIRST (H3.5 42.4.0 failed on a wrong-endpoint smoke, 11/12 gates passed); then bump to latest 42.x |
+| M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ⬜ | — | — | — | Operator-approved 2026-06-12: release notes + mac DMG artifacts after M1; `dist:mac:signed` + `verify:apple` if signing creds present, else unsigned-beta with unquarantine notes; artifact paths reported for operator testing; NO upload/publish without `OPENCODEX_RELEASE_PUBLISH_AUTHORIZED` |
+| M2 | Provider Auth & Model Discovery | `oc-m2-providers` | dsv4-pro max | ⬜ | — | — | — | OAuth PKCE + safeStorage; Kilo-Code-style connect UX |
+| M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
+| M4a | Mobile Pairing Host | `oc-m4a-pairing` | dsv4-pro max | ⬜ | — | — | — | Opt-in TLS LAN listener, QR pairing, device scopes |
+| M4b | Mobile Companion App | `oc-m4b-mobile` | dsv4-pro high | ⬜ | — | — | — | Expo/RN, depends on M4a |
+| M5 | Win/Linux Packaging | `oc-m5-packaging` | dsv4-pro high | ⬜ | — | — | — | CI proof on win+linux runners |
+| M6 | Upstream 8E/8G/8H Ports | `oc-m6-upstream` | dsv4-pro high | ⬜ | — | — | — | 8F verdict only; sequential before M7 |
+| M7 | Coding Harness Quality | `oc-m7-quality` | dsv4-pro max | ⬜ | — | — | — | Eval harness baseline → optimize → re-measure |
+| M8 | v0.4.0 Release Readiness | `oc-m8-release` | gpt-5.5 xhigh + dsv4-pro max | ⬜ | — | — | — | Operator gates remain manual |
+
 ## Decisions & Incidents
 
 - 2026-06-12: H0 logical commit series landed on `main`; `pidev-dispatch`
@@ -1057,3 +1072,24 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   conformance tests, and real-host smoke documentation without touching the H9
   client directories. Remediation3 log:
   `/Users/mohamedazab/.pidev-orchestrator/oc-h10-ssh/run-20260612T171612.log`.
+- 2026-06-12: M-series approved by operator. Root-cause finding for H3.5:
+  the `oc-h3-5-electron` 42.4.0 lane passed 11/12 gates; the single failure
+  was its own `kun-smoke.cjs` asserting SSE on the turn-create response,
+  which by Kun design returns 202+JSON ack (events stream on the separate SSE
+  subscription endpoint). Electron 42 itself showed no regression. M1
+  therefore fixes the smoke first, proves it on main, then re-applies 42.x.
+  Additional operator directions folded into M-series: provider OAuth/key
+  UX like Kilo Code (M2), Antigravity/fork extension + shared sessions (M3),
+  phone control of the laptop agent (M4a/M4b direct-connection MVP; cloud
+  relay + push deferred to next milestone), and a coding-loop quality
+  benchmark vs Codex/Claude Code/OpenCode-class harnesses (M7).
+- 2026-06-12: Operator approved the M1.5 test-release checkpoint: after M1
+  (Electron 42.x) merges, the orchestrator bumps the version to `0.3.1-beta`,
+  writes release notes (`docs/release/NOTES-0.3.1-beta.md`) covering the
+  H-series + Electron 42, builds mac DMG/zip artifacts, attempts the signed
+  path (`npm run dist:mac:signed` + `npm run verify:apple`) when signing
+  credentials are present in the environment, and otherwise produces
+  unsigned-beta artifacts with `mac:unquarantine` instructions in the notes.
+  Artifact paths are reported to the operator for manual testing. Upload,
+  publish, promote, and update-channel actions remain forbidden without
+  `OPENCODEX_RELEASE_PUBLISH_AUTHORIZED=1`.

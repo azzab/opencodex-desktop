@@ -33,6 +33,37 @@ Ledger: [OC_BUILD_LOG.md](./OC_BUILD_LOG.md)
 | 11 | [H11 Upstream Wave-8 Ports](./PHASE_H11_UPSTREAM_WAVE8_PORTS.md) | pidev | `--thinking high` | `oc-h11-upstream` | `../ocx-h11` | 9–10 merged | 8A/8C/8D ported; guardrail skips documented |
 | 12 | [H12 Parity Audit & v0.3.0 Release](./PHASE_H12_PARITY_RELEASE_V030.md) | orchestrator + pidev `--max` | gpt-5.5 extra high | `oc-h12-parity` | main | 11 | evidence-backed parity matrix; security review; readiness report |
 
+## M-Series — v0.4.0 Milestone (approved 2026-06-12)
+
+H-series (above) is complete (`5ec9803`, version `0.3.0-rc`). The M-series
+closes: Electron 42, provider auth/OAuth + model discovery, IDE-fork +
+publishing prep, mobile companion, Windows/Linux packaging, remaining
+upstream ports, and coding-loop quality. Same wave protocol and ledger.
+
+| # | Phase | Actor | Model / flag | Session id | Worktree lane | Depends on | Advance gate |
+|---|-------|-------|--------------|------------|---------------|------------|--------------|
+| **Wave M-A — parallel ×2** | | | | | | | |
+| M1 | [Electron 42 Retry](./PHASE_M1_ELECTRON_42_RETRY.md) | pidev | `--max` | `oc-m1-electron42` | `../ocx-m1` | H12 | corrected SSE smoke green on main first, then on Electron 42.x; full audit 0 |
+| M2 | [Provider Auth & Model Discovery](./PHASE_M2_PROVIDER_AUTH_MODEL_DISCOVERY.md) | pidev | `--max` | `oc-m2-providers` | `../ocx-m2` | H12 | OAuth PKCE + safeStorage proofs; no key material outside encrypted store |
+| **Wave M-A.5 — orchestrator checkpoint** | | | | | | | |
+| M1.5 | Test Release Prep (0.3.1-beta) | orchestrator | gpt-5.5 high | — | main | M1 merged | release notes written; mac DMG artifacts built on Electron 42 (signed if `MAC_SIGN` creds present, else unsigned-beta with unquarantine notes); artifact paths reported to operator; NO upload/publish |
+| **Wave M-B — parallel ×2** | | | | | | | |
+| M3 | [IDE Everywhere](./PHASE_M3_IDE_EVERYWHERE.md) | pidev | `--thinking high` | `oc-m3-ide` | `../ocx-m3` | M1.5 done | .vsix installs in a real fork; cross-client session parity proven |
+| M4a | [Mobile Pairing Host](./PHASE_M4A_MOBILE_PAIRING_HOST.md) | pidev | `--max` | `oc-m4a-pairing` | `../ocx-m4a` | M-A merged | default-off lsof proof; pairing/scope/revoke negative tests green |
+| **Wave M-C — parallel ×2** | | | | | | | |
+| M4b | [Mobile Companion App](./PHASE_M4B_MOBILE_APP.md) | pidev | `--thinking high` | `oc-m4b-mobile` | `../ocx-m4b` | M4a merged | device smoke: pair, stream, approve, revoke-kill |
+| M5 | [Win/Linux Packaging](./PHASE_M5_WIN_LINUX_PACKAGING.md) | pidev | `--thinking high` | `oc-m5-packaging` | `../ocx-m5` | M-B merged | CI run green: NSIS + AppImage + per-platform smoke |
+| **Wave M-D — sequential (both touch Kun core)** | | | | | | | |
+| M6 | [Upstream 8E/8G/8H Ports](./PHASE_M6_UPSTREAM_8E_8H_PORTS.md) | pidev | `--thinking high` | `oc-m6-upstream` | `../ocx-m6` | M-C merged | gate green per lane; 8F verdict written |
+| M7 | [Coding Harness Quality](./PHASE_M7_CODING_HARNESS_QUALITY.md) | pidev | `--max` | `oc-m7-quality` | `../ocx-m7` | M6 merged | baseline-then-improved eval scorecards; no eval-aware shortcuts |
+| **Wave M-E — sequential** | | | | | | | |
+| M8 | [v0.4.0 Release Readiness](./PHASE_M8_RELEASE_V040.md) | orchestrator + pidev `--max` | gpt-5.5 extra high | `oc-m8-release` | main | M7 | parity+security evidence; readiness report; 0.4.0-rc |
+
+M-series conflict notes: M1 (electron tooling/scripts) and M2 (provider
+settings/credentials) are disjoint. M3 (clients/vscode) and M4a (app-server
+listener) are disjoint. M4b (clients/mobile) and M5 (packaging/CI) are
+disjoint. M6 and M7 both touch Kun core — strictly sequential.
+
 ## Wave Protocol
 
 For each wave:
