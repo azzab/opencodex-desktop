@@ -28,7 +28,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 
 | # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
-| M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | 🔵 | — | Dispatched; verification pending worker READY and orchestrator full gate | — | Worktree `../ocx-m1`; log `/Users/mohamedazab/.pidev-orchestrator/oc-m1-electron42/run-20260612T225807.log`; must fix Kun/SSE smoke FIRST on Electron 39.8.10, then bump to latest 42.x |
+| M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | 🔵 | initial pending; recovery pending | Initial run stopped after stale foreground worker without READY; same-id recovery running; verification pending worker READY and orchestrator full gate | — | Worktree `../ocx-m1`; initial log `/Users/mohamedazab/.pidev-orchestrator/oc-m1-electron42/run-20260612T225807.log`; must fix Kun/SSE smoke FIRST on Electron 39.8.10, then bump to latest 42.x |
 | M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ⬜ | — | — | — | Operator-approved 2026-06-12: release notes + mac DMG artifacts after M1; `dist:mac:signed` + `verify:apple` if signing creds present, else unsigned-beta with unquarantine notes; artifact paths reported for operator testing; NO upload/publish without `OPENCODEX_RELEASE_PUBLISH_AUTHORIZED` |
 | M2 | Provider Auth & Model Discovery | `oc-m2-providers` | dsv4-pro max | 🔵 | — | Dispatched; verification pending worker READY and orchestrator full gate | — | Worktree `../ocx-m2`; log `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`; OAuth PKCE + safeStorage; Kilo-Code-style connect UX |
 | M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
@@ -1101,3 +1101,13 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `/Users/mohamedazab/.pidev-orchestrator/oc-m1-electron42/run-20260612T225807.log`
   and
   `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`.
+- 2026-06-12: M1 initial foreground worker stalled after a tool result with
+  latest assistant text "DMG built successfully! Let me verify the packaged
+  Electron version and run remaining checks." The transcript did not contain
+  `READY_FOR_ORCHESTRATOR_REVIEW`; `pidev wait oc-m1-electron42 5` exited 0
+  with "report lacks READY" rather than a usable final report. The worker was
+  stopped and a same-id recovery order was issued against the current dirty
+  `../ocx-m1` tree with `--max --allow-dirty`, explicitly preserving current
+  Electron 42/native rebuild edits and requiring the remaining M1 stop gates.
+  The wrapper warned no existing session file was available, so the recovery
+  starts a fresh underlying pi run under the same orchestrator id.
