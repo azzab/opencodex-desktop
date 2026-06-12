@@ -14,7 +14,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap); dispatch after H3.5 merges gate-green |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h4`; verification pending worker completion | — | Merge before H5 (thread-service overlap); dispatch followed H3.5 gate-green merge |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
@@ -175,3 +175,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   with 3 SSE events; clean-room `rm -rf node_modules kun/node_modules && npm
   ci && npm --prefix kun ci` followed by the full gate stayed green. Merged as
   `29ae887`; Wave 2 is now unblocked.
+- 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
+  worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
+  preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
+  pi worker). Dispatched the H4 Short Launcher Prompt verbatim with `--max`;
+  worker pid `61384`, log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner/run-20260612T122052.log`.
