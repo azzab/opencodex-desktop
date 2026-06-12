@@ -349,6 +349,12 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   succeeded with 0 vulnerabilities and typecheck + 23 tests passed. H10 remains
   unmerged because the real-host SSH smoke/operator evidence stop gate is still
   pending.
+- 2026-06-12: Orchestrator attempted to order H10 remediation11 on
+  `oc-h10-ssh`, but the wrapper reported no existing session and began a fresh
+  session context from the main tree. The invocation was interrupted before
+  implementation work to preserve the H10 lane rule; no main-tree worker
+  changes were produced. Remediation11 must be re-issued explicitly against
+  `../ocx-h10`.
 - 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
   worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
   preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
