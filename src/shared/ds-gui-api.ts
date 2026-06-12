@@ -221,6 +221,69 @@ export type HookSourceResult =
   | { ok: true; content: string; scriptPath: string }
   | { ok: false; message: string }
 
+export type RemoteRunnerHostSummary = {
+  id: string
+  label: string
+  enabled: boolean
+  connectionStatus: string
+  lastHandshake: { issuedAt: string; shell: { os: string; shell: string }; gitAvailable: boolean; toolPolicy: Record<string, string> } | null
+  lastError: string | null
+  trustedPaths: Array<{ path: string; label: string; trustedAt: string; auditId: string }>
+}
+
+export type RemoteRunnerStatusResult = {
+  hosts: RemoteRunnerHostSummary[]
+  enabled: boolean
+  auditLog: Array<{
+    id: string
+    timestamp: string
+    runnerId: string
+    action: string
+    outcome: string
+    reason?: string
+  }>
+}
+
+export type RemoteRunnerActionResult = { ok: true } | { ok: false; message: string }
+
+export type RemoteRunnerExecPayload = {
+  hostId: string
+  command: string
+  cwd?: string
+  timeoutMs?: number
+  maxOutputBytes?: number
+}
+
+export type RemoteRunnerExecResult =
+  | { ok: true; runId: string; output: string; exitCode: number | null }
+  | { ok: false; message: string }
+
+export type RemoteRunnerStopResult =
+  | { ok: true; hostId: string; wasRunning: boolean }
+  | { ok: false; message: string }
+
+export type RemoteRunnerResumeResult =
+  | { ok: true; hostId: string; runId: string | null; restored: boolean }
+  | { ok: false; message: string }
+
+/** Payload sent to the renderer when a remote command requires operator approval. */
+export type RemoteRunnerApprovalRequiredPayload = {
+  approvalId: string
+  runnerId: string
+  hostLabel: string
+  command: string
+  cwd: string
+  requestedAt: string
+  requireRemoteLabel: boolean
+}
+
+/** Payload sent to the renderer when an approval decision has been made (by any surface). */
+export type RemoteRunnerApprovalDecisionPayload = {
+  approvalId: string
+  runnerId: string
+  decision: 'allow' | 'deny'
+}
+
 export type DsGuiApi = {
   platform: string
   getSettings: () => Promise<AppSettingsV1>
@@ -380,4 +443,28 @@ export type DsGuiApi = {
   terminalGetAuditEvents: () => Promise<TerminalAuditEventSummary[]>
   terminalAgentExecObserved: (payload: TerminalAgentExecObservedPayload) => Promise<TerminalBoolResult>
   onTerminalData: (handler: (payload: TerminalDataPayload) => void) => () => void
+  /** Remote runner host management. */
+  remoteRunnerStatus: () => Promise<RemoteRunnerStatusResult>
+  remoteRunnerConnect: (hostId: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerDisconnect: (hostId: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerReconnect: (hostId: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerHandshake: (hostId: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerTrustPath: (hostId: string, path: string, label: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerRevokeTrust: (hostId: string, path: string) => Promise<RemoteRunnerActionResult>
+  remoteRunnerGetAuditLog: () => Promise<RemoteRunnerStatusResult['auditLog']>
+  /** Remote command execution with full policy enforcement (trust, approval, data egress, budget, audit). */
+  remoteRunnerExec: (payload: RemoteRunnerExecPayload) => Promise<RemoteRunnerExecResult>
+  /** Stop/kill a running remote command. */
+  remoteRunnerStop: (hostId: string) => Promise<RemoteRunnerStopResult>
+  /** Resume (re-execute) a previously paused remote command. */
+  remoteRunnerResume: (hostId: string) => Promise<RemoteRunnerResumeResult>
+  /** Listen for remote command approval requests. The renderer MUST display a visible
+   *  REMOTE-labeled surface and the operator's allow/deny decision determines execution. */
+  onRemoteRunnerApprovalRequired: (
+    handler: (payload: RemoteRunnerApprovalRequiredPayload) => void
+  ) => () => void
+  /** Listen for approval decision notifications (allow/deny from any surface). */
+  onRemoteRunnerApprovalDecision: (
+    handler: (payload: RemoteRunnerApprovalDecisionPayload) => void
+  ) => () => void
 }

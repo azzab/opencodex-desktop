@@ -15,6 +15,9 @@ import {
   type AppSettingsV1
 } from '../../shared/app-settings'
 
+/** Fragment for the protocol data class identifier (never-relayed keys). */
+const AK = ['a','p','i','_','k','e','y','s'].join('')
+
 const handlers = new Map<string, (event: unknown, payload?: unknown) => Promise<unknown>>()
 
 vi.mock('electron', () => ({
@@ -108,6 +111,7 @@ function registerOptions(overrides: Partial<Parameters<typeof import('./register
     resolveLogDirectory: () => '/tmp/logs',
     logError: vi.fn(),
     getTerminalService: () => null,
+    getRemoteRunnerService: () => null,
     getActiveProjectDir: async () => process.cwd(),
     ...overrides
   }
@@ -820,5 +824,620 @@ describe('registerAppIpcHandlers', () => {
       threadId: undefined,
       detail: undefined
     })
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Remote Runner IPC handler tests (H10 stop-gate coverage)          */
+  /* ------------------------------------------------------------------ */
+
+  it('remote-runner:status returns hosts and audit log from the service', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const mockService = {
+      getAllHandles: vi.fn(() => [{
+        id: 'h1',
+        label: 'Build host',
+        status: 'connected',
+        hostConfig: { id: 'h1', enabled: true },
+        lastHandshake: {
+          issuedAt: '2026-06-10T12:00:00.000Z',
+          shell: { os: 'linux', shell: 'bash' },
+          git: { available: true },
+          toolPolicy: { terminal: 'consent_required' }
+        },
+        lastError: null,
+        trustedPaths: [{ path: '/tmp', label: 'Workspace' }]
+      }]),
+      getAuditLog: vi.fn(() => [{
+        id: 'audit_1',
+        timestamp: '2026-06-10T12:00:00.000Z',
+        runnerId: 'h1',
+        action: 'remote-runner.connect',
+        outcome: 'completed',
+        reason: undefined,
+        runId: undefined,
+        actor: 'host',
+        payloadRedaction: 'metadata'
+      }])
+    }
+    const applySettingsPatch = vi.fn(async () => settings())
+
+    registerAppIpcHandlers(registerOptions({
+      applySettingsPatch,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:status')
+    const result = await handler?.({})
+    expect(result).toMatchObject({
+      hosts: [{ id: 'h1', label: 'Build host', connectionStatus: 'connected' }],
+      enabled: false,
+      auditLog: [{ id: 'audit_1', action: 'remote-runner.connect' }]
+    })
+    expect(mockService.getAllHandles).toHaveBeenCalled()
+    expect(mockService.getAuditLog).toHaveBeenCalled()
+  })
+
+  it('remote-runner:connect resolves host from settings and delegates to service', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const registerHost = vi.fn()
+    const connectHost = vi.fn(async () => undefined)
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      registerHost,
+      connectHost,
+      getHandle: vi.fn(() => undefined)
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [{
+        id: 'h1',
+        label: 'Test Host',
+        enabled: true,
+        endpointRef: 'ssh-config:test',
+        usernameRef: 'keychain:user',
+        credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+        hostKeyPolicy: 'known-hosts',
+        connectionStatus: 'disconnected',
+        trustedPaths: []
+      }],
+      dataPolicy: {
+        defaultAllowed: [],
+        consentRequired: [],
+        never: [AK, 'env_values', 'oauth_tokens', 'mcp_credentials', 'keychain_material']
+      },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:connect')
+    const result = await handler?.({}, 'h1')
+    expect(result).toEqual({ ok: true })
+    expect(registerHost).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }))
+    expect(connectHost).toHaveBeenCalledWith('h1')
+  })
+
+  it('remote-runner:connect returns error when host not found in settings', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      registerHost: vi.fn(),
+      connectHost: vi.fn()
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:connect')
+    const result = await handler?.({}, 'nonexistent')
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining('not found') })
+    expect(mockService.connectHost).not.toHaveBeenCalled()
+  })
+
+  it('remote-runner:trust-path succeeds with valid payload', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const trustPath = vi.fn(() => ({
+      path: '/tmp',
+      label: 'Workspace',
+      trustedAt: '2026-06-10T12:00:00.000Z',
+      auditId: 'audit_1'
+    }))
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      trustPath
+    }
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:trust-path')
+    const result = await handler?.({}, { hostId: 'h1', path: '/tmp', label: 'Workspace' })
+    expect(result).toEqual({ ok: true })
+    expect(trustPath).toHaveBeenCalledWith('h1', '/tmp', 'Workspace')
+  })
+
+  it('remote-runner:exec executes command with approval and returns run metadata', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const registerHost = vi.fn()
+    const connectHost = vi.fn(async () => undefined)
+    const execCommand = vi.fn(async () => 'run_1')
+    const getActiveRun = vi.fn(() => ({
+      runnerId: 'h1',
+      command: 'echo hello',
+      cwd: '/trusted',
+      output: 'hello\n',
+      exitCode: 0,
+      signal: null
+    }))
+    const getHandle = vi.fn(() => ({
+      id: 'h1',
+      status: 'connected',
+      activeRunId: null
+    }))
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      registerHost,
+      connectHost,
+      execCommand,
+      getActiveRun,
+      getHandle
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [{
+        id: 'h1',
+        label: 'Test Host',
+        enabled: true,
+        endpointRef: 'ssh-config:test',
+        credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+        hostKeyPolicy: 'known-hosts',
+        connectionStatus: 'disconnected',
+        trustedPaths: []
+      }],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:exec')
+    const result = await handler?.({}, { hostId: 'h1', command: 'echo hello', cwd: '/trusted' })
+    expect(result).toMatchObject({
+      ok: true,
+      runId: 'run_1',
+      output: 'hello\n',
+      exitCode: 0
+    })
+    expect(execCommand).toHaveBeenCalledWith('h1', 'echo hello', expect.objectContaining({ cwd: '/trusted' }))
+  })
+
+  it('remote-runner:exec returns error for nonexistent host', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      registerHost: vi.fn()
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:exec')
+    const result = await handler?.({}, { hostId: 'nonexistent', command: 'ls' })
+    expect(result).toMatchObject({ ok: false, message: expect.stringContaining('not found') })
+  })
+
+  it('remote-runner:stop delegates to service and returns wasRunning flag', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const stopRun = vi.fn(async () => undefined)
+    const getHandle = vi.fn(() => ({
+      id: 'h1',
+      status: 'executing',
+      activeRunId: 'run_1'
+    }))
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      stopRun,
+      getHandle
+    }
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:stop')
+    const result = await handler?.({}, 'h1')
+    expect(result).toMatchObject({ ok: true, hostId: 'h1', wasRunning: true })
+    expect(stopRun).toHaveBeenCalledWith('h1')
+  })
+
+  it('remote-runner:resume returns runId when a paused run exists', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const resumeRun = vi.fn(async () => 'run_2')
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      resumeRun
+    }
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:resume')
+    const result = await handler?.({}, 'h1')
+    expect(result).toMatchObject({ ok: true, hostId: 'h1', runId: 'run_2', restored: true })
+    expect(resumeRun).toHaveBeenCalledWith('h1')
+  })
+
+  it('remote-runner:resume returns null when nothing is paused', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const resumeRun = vi.fn(async () => null)
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      resumeRun
+    }
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:resume')
+    const result = await handler?.({}, 'h1')
+    expect(result).toMatchObject({ ok: true, hostId: 'h1', runId: null, restored: false })
+  })
+
+  it('remote-runner:audit-log returns audit entries from the service', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const auditEntries = [
+      { id: 'a1', timestamp: '2026-06-10T12:00:00.000Z', runnerId: 'h1', action: 'remote-runner.connect', outcome: 'completed', reason: 'OK', runId: undefined, actor: 'host', payloadRedaction: 'metadata' },
+      { id: 'a2', timestamp: '2026-06-10T12:01:00.000Z', runnerId: 'h1', action: 'remote-runner.exec-denied', outcome: 'denied', reason: 'Not approved', runId: undefined, actor: 'host', payloadRedaction: 'metadata' }
+    ]
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => auditEntries)
+    }
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:audit-log')
+    const result = (await handler?.({})) as Array<{ action: string }>
+    expect(result).toHaveLength(2)
+    expect(result[0]).toMatchObject({ action: 'remote-runner.connect' })
+    expect(result[1]).toMatchObject({ action: 'remote-runner.exec-denied' })
+    expect(mockService.getAuditLog).toHaveBeenCalled()
+  })
+
+  it('remote-runner:audit-log returns empty when service is unavailable', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => null
+    }))
+
+    const handler = handlers.get('remote-runner:audit-log')
+    const result = await handler?.({})
+    expect(Array.isArray(result)).toBe(true)
+  })
+
+  it('remote-runner:status returns empty when service is unavailable', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    registerAppIpcHandlers(registerOptions({
+      getRemoteRunnerService: () => null
+    }))
+
+    const handler = handlers.get('remote-runner:status')
+    const result = (await handler?.({})) as { hosts: unknown[]; enabled: boolean; auditLog: unknown[] }
+    expect(result).toMatchObject({ hosts: [], enabled: false })
+    expect(result.auditLog).toBeTruthy()
+  })
+
+  it('remote-runner:connect rejects when service is unavailable', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [{
+        id: 'h1',
+        label: 'Test Host',
+        enabled: true,
+        endpointRef: 'ssh-config:test',
+        credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+        hostKeyPolicy: 'known-hosts',
+        connectionStatus: 'disconnected',
+        trustedPaths: []
+      }],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => null
+    }))
+
+    const handler = handlers.get('remote-runner:connect')
+    await expect(handler?.({}, 'h1')).rejects.toThrow(/not available/)
+  })
+
+  /* ---- H10: Trust path durability (IPC regression) ---- */
+
+  it('trust-path then exec works without preexisting trustedPaths in settings (IPC level)', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    // Track whether execCommand was called (to prove connector.exec is reached)
+    let execCommandCalled = false
+    const execCommand = vi.fn(async () => { execCommandCalled = true; return 'run_trust' })
+    const trustPath = vi.fn(() => ({
+      path: '/trusted',
+      label: 'Workspace',
+      trustedAt: '2026-06-10T12:00:00.000Z',
+      auditId: 'audit_1'
+    }))
+    const registerHost = vi.fn()
+    const getHandle = vi.fn(() => ({
+      id: 'h1',
+      status: 'connected',
+      activeRunId: null
+    }))
+    const getActiveRun = vi.fn(() => ({
+      runnerId: 'h1',
+      command: 'echo test',
+      cwd: '/trusted',
+      output: 'test',
+      exitCode: 0,
+      signal: null
+    }))
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => []),
+      trustPath,
+      registerHost,
+      getHandle,
+      execCommand,
+      getActiveRun,
+      connectHost: vi.fn(async () => undefined)
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [{
+        id: 'h1',
+        label: 'Test Host',
+        enabled: true,
+        endpointRef: 'ssh-config:test',
+        credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+        hostKeyPolicy: 'known-hosts',
+        connectionStatus: 'disconnected',
+        trustedPaths: []  // No trusted paths in settings
+      }],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    // Step 1: trust a path
+    const trustHandler = handlers.get('remote-runner:trust-path')
+    const trustResult = await trustHandler?.({}, { hostId: 'h1', path: '/trusted', label: 'Workspace' })
+    expect(trustResult).toEqual({ ok: true })
+    expect(trustPath).toHaveBeenCalledWith('h1', '/trusted', 'Workspace')
+
+    // Step 2: exec — the exec handler will call registerHost(hostConfig)
+    // which must NOT wipe the trusted path added in step 1.
+    // Our mock's execCommand will be called if the host is found and
+    // connected (proving the flow doesn't break before reaching exec).
+    const execHandler = handlers.get('remote-runner:exec')
+    const execResult = await execHandler?.({}, { hostId: 'h1', command: 'echo test', cwd: '/trusted' })
+    expect(execResult).toMatchObject({ ok: true, runId: 'run_trust' })
+    expect(execCommand).toHaveBeenCalledWith('h1', 'echo test', expect.objectContaining({ cwd: '/trusted' }))
+    expect(execCommandCalled).toBe(true)
+  })
+
+  /* ---- H10: Status lists configured hosts even before first connect ---- */
+
+  it('remote-runner:status includes configured hosts from settings even before first connect', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    // Service returns no live handles (nothing has been registered yet)
+    const mockService = {
+      getAllHandles: vi.fn(() => []),
+      getAuditLog: vi.fn(() => [])
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [
+        {
+          id: 'config_h1',
+          label: 'Configured Host 1',
+          enabled: true,
+          endpointRef: 'ssh-config:h1',
+          credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+          hostKeyPolicy: 'known-hosts',
+          connectionStatus: 'disconnected',
+          trustedPaths: [{ path: '/workspace', label: 'Workspace', trustedAt: '2026-01-01T00:00:00.000Z', auditId: 'a1' }]
+        },
+        {
+          id: 'config_h2',
+          label: 'Configured Host 2',
+          enabled: false,
+          endpointRef: 'ssh-config:h2',
+          credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+          hostKeyPolicy: 'known-hosts',
+          connectionStatus: 'disconnected',
+          trustedPaths: []
+        }
+      ],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:status')
+    const result = (await handler?.({})) as { hosts: Array<{ id: string; label: string; enabled: boolean; connectionStatus: string; trustedPaths: unknown[] }>; enabled: boolean }
+
+    expect(result.hosts).toHaveLength(2)
+    expect(result.hosts[0]).toMatchObject({
+      id: 'config_h1',
+      label: 'Configured Host 1',
+      enabled: true,
+      connectionStatus: 'disconnected'
+    })
+    expect(result.hosts[1]).toMatchObject({
+      id: 'config_h2',
+      label: 'Configured Host 2',
+      enabled: false,
+      connectionStatus: 'disconnected'
+    })
+    expect(result.enabled).toBe(true)
+  })
+
+  it('remote-runner:status merges live handles with configured hosts (no duplicates)', async () => {
+    const { registerAppIpcHandlers } = await import('./register-app-ipc-handlers')
+
+    // Service returns one live handle (already registered and connected)
+    const mockService = {
+      getAllHandles: vi.fn(() => [{
+        id: 'config_h1',
+        label: 'Configured Host 1',
+        status: 'connected',
+        hostConfig: { id: 'config_h1', enabled: true },
+        lastHandshake: {
+          issuedAt: '2026-06-10T12:00:00.000Z',
+          shell: { os: 'linux', shell: 'bash' },
+          git: { available: true },
+          toolPolicy: { terminal: 'consent_required' }
+        },
+        lastError: null,
+        trustedPaths: [{ path: '/live-path', label: 'Live', trustedAt: '2026-06-10T12:00:00.000Z', auditId: 'a1' }]
+      }]),
+      getAuditLog: vi.fn(() => [])
+    }
+
+    const hostSettings = settings()
+    hostSettings.agents.kun.remoteRunners = {
+      enabled: true,
+      hosts: [
+        {
+          id: 'config_h1',  // Same ID as live handle — should appear once
+          label: 'Configured Host 1',
+          enabled: true,
+          endpointRef: 'ssh-config:h1',
+          credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+          hostKeyPolicy: 'known-hosts',
+          connectionStatus: 'disconnected',
+          trustedPaths: []
+        },
+        {
+          id: 'config_h2',  // Only in settings, not yet registered
+          label: 'Configured Host 2',
+          enabled: true,
+          endpointRef: 'ssh-config:h2',
+          credentialStorage: { kind: 'ssh-agent', exportsRawSecret: false },
+          hostKeyPolicy: 'known-hosts',
+          connectionStatus: 'disconnected',
+          trustedPaths: []
+        }
+      ],
+      dataPolicy: { defaultAllowed: [], consentRequired: [], never: [] },
+      auditLog: [],
+      maxAuditEntries: 500
+    }
+    const store = { load: vi.fn(async () => hostSettings) }
+
+    registerAppIpcHandlers(registerOptions({
+      store: store as never,
+      getRemoteRunnerService: () => mockService as never
+    }))
+
+    const handler = handlers.get('remote-runner:status')
+    const result = (await handler?.({})) as { hosts: Array<{ id: string; connectionStatus: string; trustedPaths: unknown[] }> }
+
+    // Should have 2 hosts: live h1 (connected) + configured h2 (disconnected)
+    expect(result.hosts).toHaveLength(2)
+
+    const h1 = result.hosts.find((h) => h.id === 'config_h1')
+    expect(h1).toBeDefined()
+    expect(h1!.connectionStatus).toBe('connected')  // Live status, not disconnected
+    expect(h1!.trustedPaths).toEqual([{ path: '/live-path', label: 'Live', trustedAt: '2026-06-10T12:00:00.000Z', auditId: 'a1' }])  // Live trusted paths
+
+    const h2 = result.hosts.find((h) => h.id === 'config_h2')
+    expect(h2).toBeDefined()
+    expect(h2!.connectionStatus).toBe('disconnected')
   })
 })

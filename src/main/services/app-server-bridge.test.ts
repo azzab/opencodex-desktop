@@ -151,4 +151,312 @@ describe('AppServerBridge', () => {
       optOutCategories: ['usage', 'automation']
     }).categories).not.toEqual(expect.arrayContaining(['usage', 'automation']))
   })
+
+  /* ------------------------------------------------------------------ */
+  /*  Remote Runner Bridge Tests (Phase H10)                            */
+  /* ------------------------------------------------------------------ */
+
+  it('exposes remote runner capability in health', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const getRemoteRunnerStatus = vi.fn(async () => ({
+      hosts: [{
+        id: 'host_1',
+        label: 'Build Host',
+        enabled: true,
+        connectionStatus: 'connected',
+        lastHandshake: {
+          issuedAt: '2026-06-12T10:00:00.000Z',
+          shell: { os: 'linux', shell: 'bash' },
+          gitAvailable: true,
+          toolPolicy: { terminal: 'consent_required' }
+        },
+        lastError: null,
+        trustedPathCount: 3
+      }],
+      enabled: true,
+      auditLog: []
+    }))
+
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => [],
+      getRemoteRunnerStatus
+    })
+
+    const result = await service.health({ host: '127.0.0.1', token: 'local-token' })
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        remoteRunners: { available: true, enabled: true }
+      }
+    })
+    expect(getRemoteRunnerStatus).toHaveBeenCalled()
+  })
+
+  it('returns remote runner status with metadata-only hosts and audit log', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const getRemoteRunnerStatus = vi.fn(async () => ({
+      hosts: [{
+        id: 'host_1',
+        label: 'Build Host',
+        enabled: true,
+        connectionStatus: 'connected',
+        lastHandshake: {
+          issuedAt: '2026-06-12T10:00:00.000Z',
+          shell: { os: 'linux', shell: 'bash' },
+          gitAvailable: true,
+          toolPolicy: { terminal: 'consent_required' }
+        },
+        lastError: null,
+        trustedPathCount: 3
+      }],
+      enabled: true,
+      auditLog: [{
+        id: 'audit_1',
+        timestamp: '2026-06-12T10:00:00.000Z',
+        runnerId: 'host_1',
+        action: 'remote-runner.connect',
+        outcome: 'completed',
+        reason: null
+      }]
+    }))
+
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => [],
+      getRemoteRunnerStatus
+    })
+
+    const result = await service.remoteRunnerStatus({ host: '127.0.0.1', token: 'local-token' })
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        hosts: [{ id: 'host_1', trustedPathCount: 3 }],
+        enabled: true,
+        auditLog: [{ action: 'remote-runner.connect' }]
+      }
+    })
+
+    // Verify metadata-only: no raw endpoint refs, credential refs, or trusted path details
+    const json = JSON.stringify(result)
+    expect(json).not.toContain('endpointRef')
+    expect(json).not.toContain('credentialRef')
+    expect(json).not.toContain('ssh-config')
+    expect(json).not.toContain('keychain')
+  })
+
+  it('returns 501 when remote runner service is not available', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => []
+    })
+
+    const result = await service.remoteRunnerStatus({ host: '127.0.0.1', token: 'local-token' })
+    expect(result).toMatchObject({
+      ok: false,
+      status: 501,
+      message: expect.stringContaining('not available')
+    })
+  })
+
+  it('routes remote runner actions (connect/disconnect/reconnect/handshake)', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const remoteRunnerConnect = vi.fn(async () => ({ ok: true }))
+    const remoteRunnerDisconnect = vi.fn(async () => ({ ok: true }))
+    const remoteRunnerReconnect = vi.fn(async () => ({ ok: true }))
+    const remoteRunnerHandshake = vi.fn(async () => ({ ok: true }))
+
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => [],
+      remoteRunnerConnect,
+      remoteRunnerDisconnect,
+      remoteRunnerReconnect,
+      remoteRunnerHandshake
+    })
+
+    const client = { host: '127.0.0.1', token: 'local-token' }
+
+    expect(await service.remoteRunnerAction(client, { hostId: 'host_1', action: 'connect' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1' } })
+    expect(remoteRunnerConnect).toHaveBeenCalledWith('host_1')
+
+    expect(await service.remoteRunnerAction(client, { hostId: 'host_1', action: 'disconnect' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1' } })
+    expect(remoteRunnerDisconnect).toHaveBeenCalledWith('host_1')
+
+    expect(await service.remoteRunnerAction(client, { hostId: 'host_1', action: 'reconnect' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1' } })
+    expect(remoteRunnerReconnect).toHaveBeenCalledWith('host_1')
+
+    expect(await service.remoteRunnerAction(client, { hostId: 'host_1', action: 'handshake' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1' } })
+    expect(remoteRunnerHandshake).toHaveBeenCalledWith('host_1')
+  })
+
+  it('routes trust and revoke trust path operations', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const remoteRunnerTrustPath = vi.fn(async (_hostId: string, _path: string, _label?: string) => ({
+      ok: true,
+      path: '/trusted/path'
+    }))
+    const remoteRunnerRevokeTrust = vi.fn(async (_hostId: string, _path: string) => ({
+      ok: true,
+      path: '/trusted/path'
+    }))
+
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => [],
+      remoteRunnerTrustPath,
+      remoteRunnerRevokeTrust
+    })
+
+    const client = { host: '127.0.0.1', token: 'local-token' }
+
+    expect(await service.remoteRunnerTrust(client, {
+      hostId: 'host_1',
+      action: 'trust',
+      path: '/trusted/path',
+      label: 'Workspace'
+    })).toMatchObject({ ok: true, value: { ok: true, path: '/trusted/path' } })
+    expect(remoteRunnerTrustPath).toHaveBeenCalledWith('host_1', '/trusted/path', 'Workspace')
+
+    expect(await service.remoteRunnerTrust(client, {
+      hostId: 'host_1',
+      action: 'revoke',
+      path: '/trusted/path'
+    })).toMatchObject({ ok: true, value: { ok: true, path: '/trusted/path' } })
+    expect(remoteRunnerRevokeTrust).toHaveBeenCalledWith('host_1', '/trusted/path')
+  })
+
+  it('routes exec, stop, resume, and audit log operations', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const remoteRunnerExec = vi.fn(async () => ({
+      ok: true,
+      runId: 'run_1',
+      output: 'hello\n',
+      exitCode: 0
+    }))
+    const remoteRunnerStop = vi.fn(async () => ({
+      ok: true,
+      hostId: 'host_1',
+      wasRunning: true
+    }))
+    const remoteRunnerResume = vi.fn(async () => ({
+      ok: true,
+      hostId: 'host_1',
+      runId: 'run_2',
+      restored: true
+    }))
+    const remoteRunnerAuditLog = vi.fn(async () => [{
+      id: 'audit_1',
+      timestamp: '2026-06-12T10:00:00.000Z',
+      runnerId: 'host_1',
+      action: 'remote-runner.exec-allowed',
+      outcome: 'allowed',
+      reason: 'Approved'
+    }])
+
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => [],
+      remoteRunnerExec,
+      remoteRunnerStop,
+      remoteRunnerResume,
+      remoteRunnerAuditLog
+    })
+
+    const client = { host: '127.0.0.1', token: 'local-token' }
+
+    expect(await service.remoteRunnerExec(client, {
+      hostId: 'host_1',
+      command: 'echo hello',
+      cwd: '/trusted'
+    })).toMatchObject({
+      ok: true,
+      value: { ok: true, runId: 'run_1', output: 'hello\n', exitCode: 0 }
+    })
+
+    expect(await service.remoteRunnerStop(client, { hostId: 'host_1' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1', wasRunning: true } })
+
+    expect(await service.remoteRunnerResume(client, { hostId: 'host_1' }))
+      .toMatchObject({ ok: true, value: { ok: true, hostId: 'host_1', runId: 'run_2', restored: true } })
+
+    expect(await service.remoteRunnerAuditLog(client, { limit: 10 }))
+      .toMatchObject({
+        ok: true,
+        value: { entries: [{ action: 'remote-runner.exec-allowed' }] }
+      })
+
+    expect(remoteRunnerExec).toHaveBeenCalledWith({ hostId: 'host_1', command: 'echo hello', cwd: '/trusted' })
+    expect(remoteRunnerStop).toHaveBeenCalledWith('host_1')
+    expect(remoteRunnerResume).toHaveBeenCalledWith('host_1')
+    expect(remoteRunnerAuditLog).toHaveBeenCalledWith(10)
+  })
+
+  it('returns 501 when remote runner operation callbacks are missing', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => []
+    })
+
+    const client = { host: '127.0.0.1', token: 'local-token' }
+
+    expect(await service.remoteRunnerAction(client, { hostId: 'h1', action: 'connect' }))
+      .toMatchObject({ ok: false, status: 501 })
+    expect(await service.remoteRunnerTrust(client, { hostId: 'h1', action: 'trust', path: '/tmp' }))
+      .toMatchObject({ ok: false, status: 501 })
+    expect(await service.remoteRunnerExec(client, { hostId: 'h1', command: 'ls' }))
+      .toMatchObject({ ok: false, status: 501 })
+    expect(await service.remoteRunnerStop(client, { hostId: 'h1' }))
+      .toMatchObject({ ok: false, status: 501 })
+    expect(await service.remoteRunnerResume(client, { hostId: 'h1' }))
+      .toMatchObject({ ok: false, status: 501 })
+    expect(await service.remoteRunnerAuditLog(client))
+      .toMatchObject({ ok: false, status: 501 })
+  })
+
+  it('health reports remote runners unavailable when getRemoteRunnerStatus is not provided', async () => {
+    const runtimeRequest = vi.fn(async () => ({ ok: true, status: 200, body: '{}' }))
+    const service = new AppServerBridge({
+      runtimeRequest,
+      auth: { token: 'local-token', loopbackOnly: true },
+      defaultModel: 'gpt-5.5',
+      now,
+      getProjects: async () => []
+    })
+
+    const result = await service.health({ host: '127.0.0.1', token: 'local-token' })
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        remoteRunners: { available: false, enabled: false }
+      }
+    })
+  })
 })

@@ -82,7 +82,8 @@ import {
   hookApprovePayloadSchema,
   hookRevokePayloadSchema,
   hookSourcePayloadSchema,
-  hooksKillSwitchPayloadSchema
+  hooksKillSwitchPayloadSchema,
+  remoteRunnerExecPayloadSchema
 } from './app-ipc-schemas'
 import {
   approveHook,
@@ -92,6 +93,7 @@ import {
   revokeHook,
   setKillSwitch
 } from '../services/hook-runner-service'
+import { RemoteRunnerService, type RemoteRunnerHandle } from '../services/remote-runner-service'
 import { getKunRuntimeSettings, applyKunRuntimePatch, type KunHookSettingsV1 } from '../../shared/app-settings'
 import type { JsonSettingsStore } from '../settings-store'
 import type { ClawRuntime } from '../claw-runtime'
@@ -177,6 +179,7 @@ type RegisterAppIpcHandlersOptions = {
   resolveLogDirectory: () => string
   logError: (category: string, message: string, detail?: unknown) => void
   getTerminalService: () => TerminalService | null
+  getRemoteRunnerService: () => RemoteRunnerService | null
   getActiveProjectDir: () => Promise<string>
 }
 
@@ -332,6 +335,7 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     resolveLogDirectory,
     logError,
     getTerminalService,
+    getRemoteRunnerService,
     getActiveProjectDir
   } = options
   const workspaceFileWatchers = new Map<string, WorkspaceFileWatchRecord>()
@@ -1336,5 +1340,229 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     // Push kill-switch state to running Kun if alive
     await pushHookSettingsToKun()
     return { ok: true as const }
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Remote Runner IPC handlers                                        */
+  /* ------------------------------------------------------------------ */
+
+  const zHostId = z.string().trim().min(1).max(256)
+  const zRemoteRunnerTrustPath = z.object({
+    hostId: zHostId,
+    path: z.string().trim().min(1),
+    label: z.string().trim().min(1).max(200)
+  }).strict()
+  const zRemoteRunnerRevokeTrust = z.object({
+    hostId: zHostId,
+    path: z.string().trim().min(1)
+  }).strict()
+
+  function requireRemoteRunner(): RemoteRunnerService {
+    const svc = getRemoteRunnerService()
+    if (!svc) throw new Error('Remote runner service is not available.')
+    return svc
+  }
+
+  ipcMain.handle('remote-runner:status', async () => {
+    const settings = await store.load()
+    const rrSettings = getKunRuntimeSettings(settings).remoteRunners
+    const svc = getRemoteRunnerService()
+    const liveHandles: RemoteRunnerHandle[] = svc?.getAllHandles() ?? []
+    const liveIds = new Set(liveHandles.map((h) => h.id))
+
+    // Map live (registered) handles with current runtime state.
+    const liveHosts = liveHandles.map((h) => ({
+      id: h.id,
+      label: h.label,
+      enabled: h.hostConfig.enabled,
+      connectionStatus: h.status,
+      lastHandshake: h.lastHandshake ? {
+        issuedAt: h.lastHandshake.issuedAt,
+        shell: { os: h.lastHandshake.shell.os, shell: h.lastHandshake.shell.shell },
+        gitAvailable: h.lastHandshake.git.available,
+        toolPolicy: h.lastHandshake.toolPolicy as Record<string, string>
+      } : null,
+      lastError: h.lastError,
+      trustedPaths: h.trustedPaths
+    }))
+
+    // Include configured hosts that haven't been registered yet (H10:
+    // status must list configured hosts even before first connect).
+    const configuredHosts = rrSettings.hosts
+      .filter((h) => !liveIds.has(h.id))
+      .map((h) => ({
+        id: h.id,
+        label: h.label,
+        enabled: h.enabled,
+        connectionStatus: 'disconnected' as const,
+        lastHandshake: null,
+        lastError: null,
+        trustedPaths: h.trustedPaths
+      }))
+
+    const hosts = [...liveHosts, ...configuredHosts]
+
+    // Read audit log from the live service so connect/trust/exec events appear immediately.
+    // Only metadata fields are returned — no raw secrets.
+    const serviceAuditLog = svc?.getAuditLog() ?? rrSettings.auditLog
+    return {
+      hosts,
+      enabled: rrSettings.enabled,
+      auditLog: serviceAuditLog.slice(-50).map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        runnerId: entry.runnerId,
+        action: entry.action,
+        outcome: entry.outcome,
+        reason: entry.reason
+      }))
+    }
+  })
+
+  ipcMain.handle('remote-runner:connect', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:connect', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    const settings = await store.load()
+    const rrSettings = getKunRuntimeSettings(settings).remoteRunners
+    const hostConfig = rrSettings.hosts.find((h) => h.id === id)
+    if (!hostConfig) return { ok: false as const, message: `Host not found: ${id}` }
+    svc.registerHost(hostConfig)
+    try {
+      await svc.connectHost(id)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:disconnect', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:disconnect', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    try {
+      await svc.disconnectHost(id)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:reconnect', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:reconnect', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    try {
+      await svc.reconnectHost(id)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:handshake', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:handshake', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    try {
+      await svc.handshakeHost(id)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:trust-path', async (_event, payload: unknown) => {
+    const request = parseIpcPayload('remote-runner:trust-path', zRemoteRunnerTrustPath, payload)
+    const svc = requireRemoteRunner()
+    try {
+      svc.trustPath(request.hostId, request.path, request.label)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:revoke-trust', async (_event, payload: unknown) => {
+    const request = parseIpcPayload('remote-runner:revoke-trust', zRemoteRunnerRevokeTrust, payload)
+    const svc = requireRemoteRunner()
+    try {
+      svc.revokeTrustPath(request.hostId, request.path)
+      return { ok: true as const }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:audit-log', async () => {
+    const svc = getRemoteRunnerService()
+    const settings = await store.load()
+    const rrSettings = getKunRuntimeSettings(settings).remoteRunners
+    const serviceAuditLog = svc?.getAuditLog() ?? rrSettings.auditLog
+    return serviceAuditLog.slice(-50).map((entry) => ({
+      id: entry.id,
+      timestamp: entry.timestamp,
+      runnerId: entry.runnerId,
+      action: entry.action,
+      outcome: entry.outcome,
+      reason: entry.reason
+    }))
+  })
+
+  /* ---- Remote exec / stop / resume ---- */
+
+  ipcMain.handle('remote-runner:exec', async (_event, payload: unknown) => {
+    const request = parseIpcPayload('remote-runner:exec', remoteRunnerExecPayloadSchema, payload)
+    const svc = requireRemoteRunner()
+    const settings = await store.load()
+    const rrSettings = getKunRuntimeSettings(settings).remoteRunners
+    const hostConfig = rrSettings.hosts.find((h) => h.id === request.hostId)
+    if (!hostConfig) return { ok: false as const, message: `Host not found: ${request.hostId}` }
+    // Ensure host is registered and connected
+    svc.registerHost(hostConfig)
+    const handle = svc.getHandle(request.hostId)
+    if (!handle || handle.status !== 'connected') {
+      try {
+        await svc.connectHost(request.hostId)
+      } catch (err) {
+        return { ok: false as const, message: `Cannot connect to host: ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
+    try {
+      const runId = await svc.execCommand(request.hostId, request.command, {
+        cwd: request.cwd,
+        timeoutMs: request.timeoutMs,
+        maxOutputBytes: request.maxOutputBytes
+      })
+      const activeRun = svc.getActiveRun(runId)
+      return {
+        ok: true as const,
+        runId,
+        output: activeRun?.output ?? '',
+        exitCode: activeRun?.exitCode ?? null
+      }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:stop', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:stop', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    const handle = svc.getHandle(id)
+    const wasRunning = handle?.activeRunId !== null
+    try {
+      await svc.stopRun(id)
+      return { ok: true as const, hostId: id, wasRunning }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle('remote-runner:resume', async (_event, hostId: unknown) => {
+    const id = parseIpcPayload('remote-runner:resume', zHostId, hostId)
+    const svc = requireRemoteRunner()
+    try {
+      const runId = await svc.resumeRun(id)
+      return { ok: true as const, hostId: id, runId, restored: runId !== null }
+    } catch (err) {
+      return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
   })
 }

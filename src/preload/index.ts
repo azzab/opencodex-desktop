@@ -219,6 +219,33 @@ const api = {
     ) => handler(payload)
     ipcRenderer.on('terminal:data', wrapped)
     return () => ipcRenderer.removeListener('terminal:data', wrapped)
+  },
+  remoteRunnerStatus: () => ipcRenderer.invoke('remote-runner:status'),
+  remoteRunnerConnect: (hostId) => ipcRenderer.invoke('remote-runner:connect', hostId),
+  remoteRunnerDisconnect: (hostId) => ipcRenderer.invoke('remote-runner:disconnect', hostId),
+  remoteRunnerReconnect: (hostId) => ipcRenderer.invoke('remote-runner:reconnect', hostId),
+  remoteRunnerHandshake: (hostId) => ipcRenderer.invoke('remote-runner:handshake', hostId),
+  remoteRunnerTrustPath: (hostId, path, label) => ipcRenderer.invoke('remote-runner:trust-path', { hostId, path, label }),
+  remoteRunnerRevokeTrust: (hostId, path) => ipcRenderer.invoke('remote-runner:revoke-trust', { hostId, path }),
+  remoteRunnerGetAuditLog: () => ipcRenderer.invoke('remote-runner:audit-log'),
+  remoteRunnerExec: (payload) => ipcRenderer.invoke('remote-runner:exec', payload),
+  remoteRunnerStop: (hostId) => ipcRenderer.invoke('remote-runner:stop', hostId),
+  remoteRunnerResume: (hostId) => ipcRenderer.invoke('remote-runner:resume', hostId),
+  onRemoteRunnerApprovalRequired: (handler) => {
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      payload: Parameters<typeof handler>[0]
+    ) => handler(payload)
+    ipcRenderer.on('remote-runner:approval-required', wrapped)
+    return () => ipcRenderer.removeListener('remote-runner:approval-required', wrapped)
+  },
+  onRemoteRunnerApprovalDecision: (handler) => {
+    const wrapped = (
+      _: Electron.IpcRendererEvent,
+      payload: Parameters<typeof handler>[0]
+    ) => handler(payload)
+    ipcRenderer.on('remote-runner:approval-decision', wrapped)
+    return () => ipcRenderer.removeListener('remote-runner:approval-decision', wrapped)
   }
 } satisfies DsGuiApi
 

@@ -15,6 +15,7 @@ import {
   type KunHookSettingsV1,
   type KunHookTrustEntryV1,
   type KunMcpSearchSettingsV1,
+  type KunRemoteRunnersSettingsV1,
   type KunRuntimeTuningSettingsV1,
   type KunRuntimeSettingsPatchV1,
   type KunRuntimeSettingsV1,
@@ -34,6 +35,10 @@ import {
   type KunSubagentWorkflowPresetIdV1,
   type KunSubagentWorkflowPresetSettingsV1,
   type KunTokenEconomySettingsV1,
+  type RemoteRunnerAuditEntryV1,
+  type RemoteRunnerHostConfigV1,
+  type RemoteRunnerSettingsV1,
+  type RemoteRunnerTrustedPathV1,
   type UserAgentStackCliStatusV1,
   type UserAgentStackMcpServerV1,
   type UserAgentStackProfileV1,
@@ -119,6 +124,20 @@ function legacyReasoningRuntimeDefaults(): LegacyReasoningRuntimeSettingsV1 {
   }
 }
 
+export function defaultKunRemoteRunnersSettings(): KunRemoteRunnersSettingsV1 {
+  return {
+    enabled: false,
+    hosts: [],
+    dataPolicy: {
+      defaultAllowed: ['thread_metadata', 'redacted_progress', 'approval_metadata', 'audit_metadata', 'workspace_label'],
+      consentRequired: ['selected_file_excerpt', 'diff_excerpt', 'terminal_excerpt', 'screenshot', 'browser_evidence', 'full_prompt', 'full_assistant_output'],
+      never: ['source_file', 'raw_terminal_stream', 'browser_cookies', 'api_keys', 'oauth_tokens', 'mcp_credentials', 'env_values', 'keychain_material']
+    },
+    auditLog: [],
+    maxAuditEntries: 500
+  }
+}
+
 export function defaultKunRuntimeSettings(
   port = DEFAULT_KUN_PORT
 ): KunRuntimeSettingsV1 {
@@ -148,7 +167,8 @@ export function defaultKunRuntimeSettings(
     automations: defaultKunAutomationsSettings(),
     terminal: defaultKunTerminalSettings(),
     checkpoints: defaultKunCheckpointSettings(),
-    hooks: defaultKunHookSettings()
+    hooks: defaultKunHookSettings(),
+    remoteRunners: defaultKunRemoteRunnersSettings()
   }
 }
 
@@ -507,6 +527,17 @@ export function mergeKunRuntimeSettings(
     },
     auditLog: patch?.hooks?.auditLog ?? currentHooks.auditLog
   })
+  const currentRemoteRunners = normalizeRemoteRunnersSettings(current.remoteRunners)
+  const nextRemoteRunners = normalizeRemoteRunnersSettings({
+    ...currentRemoteRunners,
+    ...(patch?.remoteRunners ?? {}),
+    hosts: mergeRemoteRunnerHosts(currentRemoteRunners.hosts, patch?.remoteRunners?.hosts ?? []),
+    auditLog: mergeRemoteRunnerAuditLog(
+      currentRemoteRunners.auditLog,
+      patch?.remoteRunners?.auditLog ?? [],
+      patch?.remoteRunners?.maxAuditEntries ?? currentRemoteRunners.maxAuditEntries
+    )
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -523,7 +554,8 @@ export function mergeKunRuntimeSettings(
     automations: nextAutomations,
     terminal: nextTerminal,
     checkpoints: nextCheckpoints,
-    hooks: nextHooks
+    hooks: nextHooks,
+    remoteRunners: nextRemoteRunners
   }
 }
 
@@ -976,6 +1008,80 @@ function normalizeKunRuntimeTuningSettings(
       )
     }
   }
+}
+
+function normalizeRemoteRunnersSettings(
+  input: Partial<RemoteRunnerSettingsV1> | undefined
+): RemoteRunnerSettingsV1 {
+  const defaults = defaultKunRemoteRunnersSettings()
+  return {
+    enabled: input?.enabled === true,
+    hosts: Array.isArray(input?.hosts) ? input.hosts.map(normalizeRemoteRunnerHost) : defaults.hosts,
+    dataPolicy: {
+      defaultAllowed: Array.isArray(input?.dataPolicy?.defaultAllowed) ? input.dataPolicy.defaultAllowed : defaults.dataPolicy.defaultAllowed,
+      consentRequired: Array.isArray(input?.dataPolicy?.consentRequired) ? input.dataPolicy.consentRequired : defaults.dataPolicy.consentRequired,
+      never: Array.isArray(input?.dataPolicy?.never) ? input.dataPolicy.never : defaults.dataPolicy.never
+    },
+    auditLog: Array.isArray(input?.auditLog) ? input.auditLog.slice(0, input?.maxAuditEntries ?? defaults.maxAuditEntries) : defaults.auditLog,
+    maxAuditEntries: boundedPositiveInt(input?.maxAuditEntries, defaults.maxAuditEntries, 10_000)
+  }
+}
+
+function normalizeRemoteRunnerHost(host: Partial<RemoteRunnerHostConfigV1>): RemoteRunnerHostConfigV1 {
+  return {
+    id: nonEmptyTrimmedString(host.id, `host_${Date.now()}`),
+    label: nonEmptyTrimmedString(host.label, 'SSH Host'),
+    enabled: host.enabled !== false,
+    endpointRef: nonEmptyTrimmedString(host.endpointRef, ''),
+    usernameRef: typeof host.usernameRef === 'string' ? host.usernameRef : undefined,
+    credentialStorage: {
+      kind: (host.credentialStorage?.kind === 'os-keychain' || host.credentialStorage?.kind === 'ssh-agent' || host.credentialStorage?.kind === 'secret-manager' || host.credentialStorage?.kind === 'none') ? host.credentialStorage.kind : 'ssh-agent',
+      credentialRef: typeof host.credentialStorage?.credentialRef === 'string' ? host.credentialStorage.credentialRef : undefined,
+      exportsRawSecret: false
+    },
+    hostKeyPolicy: (host.hostKeyPolicy === 'known-hosts' || host.hostKeyPolicy === 'pinned-fingerprint-ref' || host.hostKeyPolicy === 'manual-confirm') ? host.hostKeyPolicy : 'known-hosts',
+    connectionStatus: (host.connectionStatus === 'connected' || host.connectionStatus === 'connecting' || host.connectionStatus === 'handshaking' || host.connectionStatus === 'error') ? host.connectionStatus : 'disconnected',
+    lastHandshake: host.lastHandshake ?? null,
+    lastHandshakeError: typeof host.lastHandshakeError === 'string' ? host.lastHandshakeError : null,
+    trustedPaths: Array.isArray(host.trustedPaths) ? host.trustedPaths.map(normalizeRemoteRunnerTrustedPath) : []
+  }
+}
+
+function normalizeRemoteRunnerTrustedPath(path: Partial<RemoteRunnerTrustedPathV1>): RemoteRunnerTrustedPathV1 {
+  return {
+    path: nonEmptyTrimmedString(path.path, ''),
+    label: nonEmptyTrimmedString(path.label, ''),
+    trustedAt: nonEmptyTrimmedString(path.trustedAt, new Date().toISOString()),
+    auditId: nonEmptyTrimmedString(path.auditId, '')
+  }
+}
+
+function mergeRemoteRunnerHosts(
+  current: RemoteRunnerHostConfigV1[],
+  patches: Array<Partial<RemoteRunnerHostConfigV1>>
+): RemoteRunnerHostConfigV1[] {
+  if (patches.length === 0) return current
+  const hostMap = new Map<string, RemoteRunnerHostConfigV1>()
+  for (const host of current) {
+    hostMap.set(host.id, host)
+  }
+  for (const patch of patches) {
+    const id = typeof patch.id === 'string' && patch.id.trim() ? patch.id.trim() : ''
+    if (!id) continue
+    const existing = hostMap.get(id)
+    const merged = normalizeRemoteRunnerHost({ ...existing, ...patch })
+    hostMap.set(id, merged)
+  }
+  return [...hostMap.values()]
+}
+
+function mergeRemoteRunnerAuditLog(
+  current: RemoteRunnerAuditEntryV1[],
+  patches: RemoteRunnerAuditEntryV1[],
+  maxEntries: number
+): RemoteRunnerAuditEntryV1[] {
+  const combined = [...current, ...patches]
+  return combined.slice(-maxEntries)
 }
 
 export function withKunRuntimeSettings(

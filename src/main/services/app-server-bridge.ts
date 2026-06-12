@@ -4,6 +4,13 @@ import {
   AppServerHealthResponseSchema,
   AppServerNotificationOptionsSchema,
   AppServerProjectSchema,
+  AppServerRemoteRunnerActionResponseSchema,
+  AppServerRemoteRunnerAuditResponseSchema,
+  AppServerRemoteRunnerExecResponseSchema,
+  AppServerRemoteRunnerResumeResponseSchema,
+  AppServerRemoteRunnerStatusResponseSchema,
+  AppServerRemoteRunnerStopResponseSchema,
+  AppServerRemoteRunnerTrustResponseSchema,
   AppServerResumeThreadRequestSchema,
   AppServerStartThreadRequestSchema,
   AppServerSteerTurnRequestSchema,
@@ -14,6 +21,19 @@ import {
   type AppServerNotificationCategory,
   type AppServerNotificationOptions,
   type AppServerProject,
+  type AppServerRemoteRunnerActionRequest,
+  type AppServerRemoteRunnerActionResponse,
+  type AppServerRemoteRunnerAuditRequest,
+  type AppServerRemoteRunnerAuditResponse,
+  type AppServerRemoteRunnerExecRequest,
+  type AppServerRemoteRunnerExecResponse,
+  type AppServerRemoteRunnerResumeRequest,
+  type AppServerRemoteRunnerResumeResponse,
+  type AppServerRemoteRunnerStatusResponse,
+  type AppServerRemoteRunnerStopRequest,
+  type AppServerRemoteRunnerStopResponse,
+  type AppServerRemoteRunnerTrustRequest,
+  type AppServerRemoteRunnerTrustResponse,
   type AppServerResumeThreadRequest,
   type AppServerStartThreadRequest,
   type AppServerSteerTurnRequest,
@@ -48,11 +68,52 @@ export type AppServerBridgeProject = {
   active?: boolean
 }
 
+export type AppServerBridgeRemoteRunnerHost = {
+  id: string
+  label: string
+  enabled: boolean
+  connectionStatus: string
+  lastHandshake: {
+    issuedAt: string
+    shell: { os: string; shell: string }
+    gitAvailable: boolean
+    toolPolicy: Record<string, string>
+  } | null
+  lastError: string | null
+  trustedPathCount: number
+}
+
+export type AppServerBridgeRemoteRunnerAuditEntry = {
+  id: string
+  timestamp: string
+  runnerId: string
+  action: string
+  outcome: string
+  reason?: string | null
+}
+
+export type AppServerBridgeRemoteRunnerStatus = {
+  hosts: AppServerBridgeRemoteRunnerHost[]
+  enabled: boolean
+  auditLog: AppServerBridgeRemoteRunnerAuditEntry[]
+}
+
 export type AppServerBridgeOptions = {
   runtimeRequest: AppServerRuntimeRequest
   auth: AppServerAuthConfig
   defaultModel: string
   getProjects: () => Promise<AppServerBridgeProject[]>
+  getRemoteRunnerStatus?: () => Promise<AppServerBridgeRemoteRunnerStatus>
+  remoteRunnerConnect?: (hostId: string) => Promise<{ ok: boolean; message?: string }>
+  remoteRunnerDisconnect?: (hostId: string) => Promise<{ ok: boolean; message?: string }>
+  remoteRunnerReconnect?: (hostId: string) => Promise<{ ok: boolean; message?: string }>
+  remoteRunnerHandshake?: (hostId: string) => Promise<{ ok: boolean; message?: string }>
+  remoteRunnerTrustPath?: (hostId: string, path: string, label?: string) => Promise<{ ok: boolean; path: string; message?: string }>
+  remoteRunnerRevokeTrust?: (hostId: string, path: string) => Promise<{ ok: boolean; path: string; message?: string }>
+  remoteRunnerExec?: (request: AppServerRemoteRunnerExecRequest) => Promise<{ ok: boolean; runId?: string; output?: string; exitCode?: number | null; message?: string }>
+  remoteRunnerStop?: (hostId: string) => Promise<{ ok: boolean; hostId: string; wasRunning: boolean; message?: string }>
+  remoteRunnerResume?: (hostId: string) => Promise<{ ok: boolean; hostId: string; runId?: string | null; restored: boolean; message?: string }>
+  remoteRunnerAuditLog?: (limit?: number) => Promise<AppServerBridgeRemoteRunnerAuditEntry[]>
   now?: () => Date
 }
 
@@ -72,7 +133,8 @@ const ALL_NOTIFICATION_CATEGORIES: AppServerNotificationCategory[] = [
   'goal',
   'loop',
   'subagent',
-  'automation'
+  'automation',
+  'remote_runner'
 ]
 
 export class AppServerBridge {
@@ -81,6 +143,7 @@ export class AppServerBridge {
   async health(client: AppServerClientAuth): Promise<AppServerBridgeResult<AppServerHealthResponse>> {
     return this.authorized(client, async () => {
       const response = await this.options.runtimeRequest(KUN_HEALTH_PATH, { method: 'GET' })
+      const rrStatus = await this.options.getRemoteRunnerStatus?.().catch(() => undefined)
       return AppServerHealthResponseSchema.parse({
         ok: response.ok,
         protocolVersion: APP_SERVER_PROTOCOL_VERSION,
@@ -92,6 +155,10 @@ export class AppServerBridge {
         auth: {
           loopbackOnly: this.options.auth.loopbackOnly !== false,
           tokenRequired: Boolean(this.options.auth.requireToken || this.options.auth.token?.trim())
+        },
+        remoteRunners: {
+          available: this.options.getRemoteRunnerStatus !== undefined,
+          enabled: rrStatus?.enabled ?? false
         }
       })
     })
@@ -100,6 +167,7 @@ export class AppServerBridge {
   async listProjects(client: AppServerClientAuth): Promise<AppServerBridgeResult<AppServerProject[]>> {
     return this.authorized(client, async () => {
       const projects = await this.options.getProjects()
+      const rrStatus = await this.options.getRemoteRunnerStatus?.().catch(() => undefined)
       return projects.map((project, index) =>
         AppServerProjectSchema.parse({
           id: projectId(project.root),
@@ -113,7 +181,8 @@ export class AppServerBridge {
             usage: true,
             events: true,
             attachments: true,
-            automation: true
+            automation: true,
+            remoteRunners: rrStatus?.enabled ?? false
           }
         })
       )
@@ -229,6 +298,180 @@ export class AppServerBridge {
         body: JSON.stringify({ text: parsed.text })
       })
       return { ok: true as const }
+    })
+  }
+
+  async remoteRunnerStatus(
+    client: AppServerClientAuth
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerStatusResponse>> {
+    return this.authorized(client, async () => {
+      if (!this.options.getRemoteRunnerStatus) {
+        throw new RuntimeBridgeError(501, 'Remote runner support is not available on this host.')
+      }
+      const status = await this.options.getRemoteRunnerStatus()
+      return AppServerRemoteRunnerStatusResponseSchema.parse({
+        hosts: status.hosts.map((host) => ({
+          id: host.id,
+          label: host.label,
+          enabled: host.enabled,
+          connectionStatus: host.connectionStatus,
+          lastHandshake: host.lastHandshake
+            ? {
+                issuedAt: host.lastHandshake.issuedAt,
+                shell: {
+                  os: host.lastHandshake.shell.os,
+                  shell: host.lastHandshake.shell.shell
+                },
+                gitAvailable: host.lastHandshake.gitAvailable,
+                toolPolicy: host.lastHandshake.toolPolicy
+              }
+            : null,
+          lastError: host.lastError,
+          trustedPathCount: host.trustedPathCount
+        })),
+        enabled: status.enabled,
+        auditLog: status.auditLog.map((entry) => ({
+          id: entry.id,
+          timestamp: entry.timestamp,
+          runnerId: entry.runnerId,
+          action: entry.action,
+          outcome: entry.outcome,
+          reason: entry.reason
+        }))
+      })
+    })
+  }
+
+  async remoteRunnerAction(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerActionRequest
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerActionResponse>> {
+    return this.authorized(client, async () => {
+      const fn = mapRemoteRunnerActionFn(request.action, this.options)
+      if (!fn) {
+        throw new RuntimeBridgeError(501, `Remote runner action '${request.action}' is not available on this host.`)
+      }
+      const result = await fn(request.hostId)
+      return AppServerRemoteRunnerActionResponseSchema.parse({
+        ok: result.ok,
+        hostId: request.hostId,
+        message: result.message
+      })
+    })
+  }
+
+  async remoteRunnerTrust(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerTrustRequest
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerTrustResponse>> {
+    return this.authorized(client, async () => {
+      if (request.action === 'trust') {
+        const fn = this.options.remoteRunnerTrustPath
+        if (!fn) {
+          throw new RuntimeBridgeError(501, 'Remote runner trust-path operation is not available on this host.')
+        }
+        const result = await fn(request.hostId, request.path, request.label)
+        return AppServerRemoteRunnerTrustResponseSchema.parse({
+          ok: result.ok,
+          hostId: request.hostId,
+          path: result.path,
+          message: result.message
+        })
+      }
+      // revoke
+      const fn = this.options.remoteRunnerRevokeTrust
+      if (!fn) {
+        throw new RuntimeBridgeError(501, 'Remote runner revoke-trust operation is not available on this host.')
+      }
+      const result = await fn(request.hostId, request.path)
+      return AppServerRemoteRunnerTrustResponseSchema.parse({
+        ok: result.ok,
+        hostId: request.hostId,
+        path: result.path,
+        message: result.message
+      })
+    })
+  }
+
+  async remoteRunnerExec(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerExecRequest
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerExecResponse>> {
+    return this.authorized(client, async () => {
+      const fn = this.options.remoteRunnerExec
+      if (!fn) {
+        throw new RuntimeBridgeError(501, 'Remote runner exec operation is not available on this host.')
+      }
+      const result = await fn(request)
+      return AppServerRemoteRunnerExecResponseSchema.parse({
+        ok: result.ok,
+        runId: result.runId,
+        output: result.output,
+        exitCode: result.exitCode,
+        message: result.message
+      })
+    })
+  }
+
+  async remoteRunnerStop(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerStopRequest
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerStopResponse>> {
+    return this.authorized(client, async () => {
+      const fn = this.options.remoteRunnerStop
+      if (!fn) {
+        throw new RuntimeBridgeError(501, 'Remote runner stop operation is not available on this host.')
+      }
+      const result = await fn(request.hostId)
+      return AppServerRemoteRunnerStopResponseSchema.parse({
+        ok: result.ok,
+        hostId: result.hostId,
+        wasRunning: result.wasRunning,
+        message: result.message
+      })
+    })
+  }
+
+  async remoteRunnerResume(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerResumeRequest
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerResumeResponse>> {
+    return this.authorized(client, async () => {
+      const fn = this.options.remoteRunnerResume
+      if (!fn) {
+        throw new RuntimeBridgeError(501, 'Remote runner resume operation is not available on this host.')
+      }
+      const result = await fn(request.hostId)
+      return AppServerRemoteRunnerResumeResponseSchema.parse({
+        ok: result.ok,
+        hostId: result.hostId,
+        runId: result.runId,
+        restored: result.restored,
+        message: result.message
+      })
+    })
+  }
+
+  async remoteRunnerAuditLog(
+    client: AppServerClientAuth,
+    request: AppServerRemoteRunnerAuditRequest = {}
+  ): Promise<AppServerBridgeResult<AppServerRemoteRunnerAuditResponse>> {
+    return this.authorized(client, async () => {
+      const fn = this.options.remoteRunnerAuditLog
+      if (!fn) {
+        throw new RuntimeBridgeError(501, 'Remote runner audit log is not available on this host.')
+      }
+      const entries = await fn(request.limit)
+      return AppServerRemoteRunnerAuditResponseSchema.parse({
+        entries: entries.map((entry) => ({
+          id: entry.id,
+          timestamp: entry.timestamp,
+          runnerId: entry.runnerId,
+          action: entry.action,
+          outcome: entry.outcome,
+          reason: entry.reason
+        }))
+      })
     })
   }
 
@@ -394,4 +637,22 @@ function projectId(root: string): string {
 
 function compactProjectLabel(root: string): string {
   return root.replaceAll('\\', '/').split('/').filter(Boolean).pop() || root
+}
+
+function mapRemoteRunnerActionFn(
+  action: string,
+  options: AppServerBridgeOptions
+): ((hostId: string) => Promise<{ ok: boolean; message?: string }>) | undefined {
+  switch (action) {
+    case 'connect':
+      return options.remoteRunnerConnect
+    case 'disconnect':
+      return options.remoteRunnerDisconnect
+    case 'reconnect':
+      return options.remoteRunnerReconnect
+    case 'handshake':
+      return options.remoteRunnerHandshake
+    default:
+      return undefined
+  }
 }

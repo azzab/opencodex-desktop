@@ -1642,5 +1642,13 @@
   "automationLoopDefaultModel": "默认循环模型",
   "automationLoopMaxConcurrent": "最大并发循环",
   "automationLoopMinInterval": "最小间隔（分钟）",
-  "automationLoopRequireProject": "需要项目 ID"
+  "automationLoopRequireProject": "需要项目 ID",
+  "remoteApprovalDialogTitle": "远程 — 需要命令审批",
+  "remoteApprovalDialogMessage": "远程主机 \"{{host}}\" 请求执行命令。",
+  "remoteApprovalDialogDetail": "主机:       {{host}}\n主机 ID:    {{hostId}}\n命令:       {{command}}\n目录:       {{cwd}}\n时间:       {{time}}\n\n⚠️  此命令将在远程计算机上运行，而非您的本地计算机。\n仅允许您完全信任的远程主机命令。",
+  "remoteApprovalAllow": "允许",
+  "remoteApprovalDeny": "拒绝",
+  "remoteApprovalLabelRemote": "远程",
+  "remoteApprovalTrustContext": "信任上下文",
+  "remoteApprovalErrorNoCallback": "远程执行被拒绝：未配置审批回调。远程命令需要可见的审批界面。"
 }
