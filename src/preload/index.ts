@@ -27,6 +27,16 @@ const api = {
     ipcRenderer.invoke('skill:list', { workspaceRoot }),
   getPhase7Diagnostics: (workspaceRoot) =>
     ipcRenderer.invoke('phase7:diagnostics', { workspaceRoot }),
+  getHooksState: (workspaceRoot) =>
+    ipcRenderer.invoke('hooks:state', { workspaceRoot }),
+  approveHook: (hookId, workspaceRoot) =>
+    ipcRenderer.invoke('hooks:approve', { hookId, workspaceRoot }),
+  revokeHook: (hookId) =>
+    ipcRenderer.invoke('hooks:revoke', { hookId }),
+  readHookSource: (hookId, workspaceRoot) =>
+    ipcRenderer.invoke('hooks:read-source', { hookId, workspaceRoot }),
+  setHooksKillSwitch: (enabled) =>
+    ipcRenderer.invoke('hooks:kill-switch', { enabled }),
   saveSkillFile: (rootPath, skillName, content) =>
     ipcRenderer.invoke('skill:save-file', { rootPath, skillName, content }),
   openSkillRoot: (rootPath) =>

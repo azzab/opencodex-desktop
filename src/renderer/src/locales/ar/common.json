@@ -1532,5 +1532,21 @@
   "evidenceNetworkEmpty": "لم يتم التقاط طلبات الشبكة",
   "evidenceNetworkMethod": "الطريقة",
   "evidenceNetworkUrl": "الرابط",
-  "evidenceNetworkStatus": "الحالة"
+  "evidenceNetworkStatus": "الحالة",
+  "hooksKillSwitch": "تفعيل تنفيذ الخطافات (مفتاح القفل الرئيسي)",
+  "hooksKillSwitchHint": "عند التعطيل، لا يتم تنفيذ أي خطافات بغض النظر عن حالة الثقة.",
+  "hooksAuditLog": "سجل التدقيق",
+  "hooksDecisionDeny": "مرفوض",
+  "hooksNoneFound": "لم يتم العثور على خطافات. ضع البرامج النصية القابلة للتنفيذ في ~/.opencodex/hooks/ (مستخدم) أو .opencodex/hooks/ (مشروع).",
+  "hooksStatusDisabled": "معطل",
+  "hooksStatusTrusted": "موثوق",
+  "hooksStatusRevoked": "ملغى",
+  "hooksStatusChanged": "متغير",
+  "hooksStatusUntrusted": "غير موثوق",
+  "hooksReviewSource": "عرض المصدر",
+  "hooksRevoke": "إلغاء",
+  "hooksApprove": "موافقة",
+  "hooksReviewTitle": "عرض مصدر الخطاف",
+  "hooksSourceNotFound": "تعذر قراءة مصدر الخطاف.",
+  "hooksApproveAndClose": "موافقة وإغلاق"
 }

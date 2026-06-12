@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { KunHookSettingsV1 } from '../contracts/hooks.js'
 import {
   DEFAULT_SERVE_PORT,
   DEFAULT_SERVE_OPTIONS,
@@ -138,7 +139,8 @@ export function parseServeOptions(
     models: loadedConfig?.config.models,
     contextCompaction: loadedConfig?.config.contextCompaction,
     runtime: loadedConfig?.config.runtime,
-    capabilities: loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities
+    capabilities: loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities,
+    hookSettings: loadedConfig?.config.hooks as KunHookSettingsV1 | undefined
   }
   return ServeOptionsSchema.parse(merged)
 }

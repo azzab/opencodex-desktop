@@ -287,6 +287,7 @@ export async function syncGuiManagedKunConfig(
     | 'userAgentStack'
     | 'subagents'
     | 'automation'
+    | 'hooks'
   >,
   options?: {
     settings?: AppSettingsV1
@@ -379,7 +380,8 @@ export async function syncGuiManagedKunConfig(
           minScore: mcpSearch.minScore
         }
       }
-    }
+    },
+    hooks: hooksConfigForRuntime(runtime.hooks)
   }
   const parsedNext = KunConfigSchema.safeParse(next)
   if (!parsedNext.success) {
@@ -460,6 +462,19 @@ function automationCapabilityConfigForRuntime(
     allowedHosts: automation.allowedHosts,
     permissions: automation.permissions,
     auditLog: automation.auditLog
+  }
+}
+
+function hooksConfigForRuntime(
+  hooks: KunRuntimeSettingsV1['hooks']
+): Record<string, unknown> {
+  return {
+    enabled: hooks.enabled,
+    trustedHooks: hooks.trustedHooks,
+    defaultTimeoutMs: hooks.defaultTimeoutMs,
+    maxOutputBytes: hooks.maxOutputBytes,
+    maxAuditEvents: hooks.maxAuditEvents,
+    auditLog: hooks.auditLog
   }
 }
 

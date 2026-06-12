@@ -57,7 +57,10 @@ import { TurnService } from '../services/turn-service.js'
 import { ReviewService } from '../services/review-service.js'
 import { CheckpointService } from '../services/checkpoint-service.js'
 import { UsageService } from '../services/usage-service.js'
+import { HookRunner } from '../services/hook-service.js'
 import type { UsageEvent } from '../contracts/events.js'
+import type { KunHookSettingsV1 } from '../contracts/hooks.js'
+import type { HookGate } from '../ports/hook-gate.js'
 import type { AutomationAuditRecord } from '../automation/automation-sidecar.js'
 import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
@@ -86,6 +89,8 @@ export type KunServeRuntimeOptions = {
   runtime?: RuntimeTuningConfig
   storage?: StorageConfig
   capabilities?: KunCapabilitiesConfig
+  /** Optional lifecycle hook settings for PreToolUse, PostToolUse, etc. */
+  hookSettings?: KunHookSettingsV1
   startedAt?: string
 }
 
@@ -336,6 +341,12 @@ export async function createKunServeRuntime(
     ...buildDelegationToolProviders(delegationRuntime)
   ])
   const toolHost = new LocalToolHost({ registry, readTracker: true })
+
+  // Hook gate for lifecycle hook execution
+  const hooksDefault = { enabled: false, trustedHooks: {}, defaultTimeoutMs: 10_000, maxOutputBytes: 64 * 1024, maxAuditEvents: 200, auditLog: [] }
+  const hookSettings: KunHookSettingsV1 = options.hookSettings ?? hooksDefault
+  const hookGate: HookGate = new HookRunner(hookSettings)
+
   const loop = new AgentLoop({
     threadStore,
     sessionStore,
@@ -351,6 +362,7 @@ export async function createKunServeRuntime(
     steering,
     compactor,
     prefix,
+    hookGate,
     ids,
     nowIso,
     modelCapabilities: (model) => modelCapabilitiesForModel(model, modelProfiles),
@@ -388,6 +400,7 @@ export async function createKunServeRuntime(
     events,
     approvalGate,
     userInputGate,
+    hookGate,
     workspaceInspector,
     toolHost,
     ...(attachmentStore ? { attachmentStore } : {}),

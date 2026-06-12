@@ -17,6 +17,9 @@ export const KUN_RUNTIME_INFO_TEMPLATE = '/v1/runtime/info'
 export const KUN_RUNTIME_TOOLS_PATH = '/v1/runtime/tools'
 export const KUN_RUNTIME_TOOLS_TEMPLATE = '/v1/runtime/tools'
 
+export const KUN_RUNTIME_HOOKS_RELOAD_PATH = '/v1/runtime/hooks/reload'
+export const KUN_RUNTIME_HOOKS_RELOAD_TEMPLATE = '/v1/runtime/hooks/reload'
+
 export const KUN_SKILLS_PATH = '/v1/skills'
 export const KUN_SKILLS_TEMPLATE = '/v1/skills'
 

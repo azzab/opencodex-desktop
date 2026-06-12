@@ -215,6 +215,46 @@ export const CheckpointsConfigSchema = z
 
 export type CheckpointsConfig = z.infer<typeof CheckpointsConfigSchema>
 
+export const KunHookTrustEntryConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    scriptPath: z.string().min(1),
+    pinnedContent: z.string(),
+    contentHash: z.string().min(1),
+    scope: z.enum(['user', 'project']),
+    approvedAt: z.string(),
+    trusted: z.boolean()
+  })
+  .strict()
+
+export const KunHookAuditEventConfigSchema = z
+  .object({
+    hookId: z.string().min(1),
+    phase: z.enum(['PreToolUse', 'PostToolUse', 'PermissionRequest', 'UserPromptSubmit', 'SessionStart', 'SessionStop']),
+    startedAt: z.string(),
+    durationMs: z.number().int().nonnegative(),
+    exitCode: z.number().int().nullable(),
+    signal: z.string().nullable(),
+    stdoutBytes: z.number().int().nonnegative(),
+    stderrBytes: z.number().int().nonnegative(),
+    decision: z.enum(['allow', 'deny']).optional(),
+    error: z.string().optional()
+  })
+  .strict()
+
+export const KunHookSettingsConfigSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    trustedHooks: z.record(z.string().min(1), KunHookTrustEntryConfigSchema).default({}),
+    defaultTimeoutMs: z.number().int().positive().default(10_000),
+    maxOutputBytes: z.number().int().positive().default(64_000),
+    maxAuditEvents: z.number().int().positive().default(200),
+    auditLog: z.array(KunHookAuditEventConfigSchema).default([])
+  })
+  .strict()
+
+export type KunHookSettingsConfig = z.infer<typeof KunHookSettingsConfigSchema>
+
 export const KunConfigSchema = z
   .object({
     serve: KunServeConfigSchema.optional(),
@@ -222,7 +262,8 @@ export const KunConfigSchema = z
     contextCompaction: ContextCompactionConfigSchema.optional(),
     runtime: RuntimeTuningConfigSchema.optional(),
     capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG),
-    checkpoints: CheckpointsConfigSchema.default(DEFAULT_CHECKPOINT_RETENTION).optional()
+    checkpoints: CheckpointsConfigSchema.default(DEFAULT_CHECKPOINT_RETENTION).optional(),
+    hooks: KunHookSettingsConfigSchema.optional()
   })
   .strict()
 

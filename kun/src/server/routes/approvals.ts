@@ -6,17 +6,20 @@ import { jsonResponse, type JsonResponse } from '../response.js'
 import { readJsonBody } from '../read-json-body.js'
 import { ERRORS } from './runtime-error.js'
 import type { ApprovalGate } from '../../ports/approval-gate.js'
+import type { HookGate } from '../../ports/hook-gate.js'
 import type { RuntimeEventRecorder } from '../../services/runtime-event-recorder.js'
 
 /**
  * POST /v1/approvals/{approvalId}. Resolves a pending approval
  * request and emits a runtime event for the renderer to consume.
+ * Runs PermissionRequest hooks before resolving the approval.
  */
 export async function decideApproval(input: {
   approvalId: string
   request: Request
   gate: ApprovalGate
   events: RuntimeEventRecorder
+  hookGate?: HookGate
 }): Promise<JsonResponse | Response> {
   const body = await readJsonBody(input.request)
   if (!body.ok) return body.response
@@ -28,6 +31,38 @@ export async function decideApproval(input: {
   if (!approval) {
     return ERRORS.notFound(`approval not found: ${input.approvalId}`)
   }
+
+  // Run PermissionRequest hooks before deciding
+  if (input.hookGate) {
+    const hookResult = await input.hookGate.execute('PermissionRequest', {
+      threadId: approval.threadId,
+      turnId: approval.turnId,
+      payload: {
+        toolName: approval.toolName,
+        summary: approval.summary,
+        decision: parsed.data.decision
+      }
+    })
+    if (hookResult.decision === 'deny') {
+      const response: ApprovalDecisionResponse = {
+        approvalId: input.approvalId,
+        decision: 'deny',
+        status: 'denied'
+      }
+      await input.events.record({
+        kind: 'approval_resolved' as const,
+        threadId: approval.threadId,
+        turnId: approval.turnId,
+        itemId: undefined,
+        approvalId: input.approvalId,
+        toolName: approval.toolName,
+        status: 'denied',
+        summary: `Blocked by PermissionRequest hook: ${approval.summary}`
+      })
+      return jsonResponse(response)
+    }
+  }
+
   const ok = input.gate.decide(input.approvalId, parsed.data.decision, parsed.data.reason)
   if (!ok) {
     return ERRORS.conflict(`approval already decided: ${input.approvalId}`)

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ThreadService } from '../../services/thread-service.js'
+import type { HookGate } from '../../ports/hook-gate.js'
 import { jsonResponse, type JsonResponse } from '../response.js'
 import { readJsonBody } from '../read-json-body.js'
 import type { RuntimeError } from './runtime-error.js'
@@ -13,7 +14,8 @@ const ResumeSessionRequest = z.object({
 export async function resumeSession(
   service: ThreadService,
   sessionId: string,
-  request: Request
+  request: Request,
+  hookGate?: HookGate
 ): Promise<JsonResponse> {
   const body = await readJsonBody(request)
   if (!body.ok) return body.response
@@ -21,6 +23,19 @@ export async function resumeSession(
   if (!parsed.success) {
     return validationError('invalid resume session body', parsed.error.issues)
   }
+
+  // Run SessionStart hooks before resuming
+  if (hookGate) {
+    await hookGate.execute('SessionStart', {
+      workspaceRoot: parsed.data.workspace,
+      payload: {
+        sessionId,
+        model: parsed.data.model,
+        mode: parsed.data.mode
+      }
+    })
+  }
+
   try {
     const result = await service.resumeSession(sessionId, parsed.data)
     return jsonResponse(

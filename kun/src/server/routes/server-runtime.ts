@@ -21,6 +21,7 @@ import type { AttachmentStore } from '../../attachments/attachment-store.js'
 import type { MemoryDiagnostics } from '../../contracts/memory.js'
 import type { MemoryStore } from '../../memory/memory-store.js'
 import type { AutomationEvidenceStore } from '../../automation/evidence-store.js'
+import type { HookGate } from '../../ports/hook-gate.js'
 import type { ReviewTarget } from '../../contracts/review.js'
 
 export type RuntimeToolDiagnostics = {
@@ -55,6 +56,8 @@ export type ServerRuntime = {
   attachmentStore?: AttachmentStore
   memoryStore?: MemoryStore
   evidenceStore?: AutomationEvidenceStore
+  /** Optional hook gate for lifecycle hooks (PreToolUse, PostToolUse, etc.). */
+  hookGate?: HookGate
   runTurn(threadId: string, turnId: string): Promise<'completed' | 'failed' | 'aborted'> | void
   runReview?(input: {
     threadId: string
