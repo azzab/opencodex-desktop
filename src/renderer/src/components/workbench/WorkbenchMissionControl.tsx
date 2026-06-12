@@ -9,11 +9,13 @@ import {
   ShieldCheck,
   Terminal,
   Users,
-  Wrench
+  Wrench,
+  RefreshCw
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CoreRuntimeInfoJson } from '../../agent/kun-contract'
 import type { RuntimeConnectionStatus, ThreadGoal, ThreadTodoList } from '../../agent/types'
+import { GoalStatusChip } from '../GoalStatusChip'
 import {
   formatCompactNumber,
   formatCost,
@@ -64,6 +66,7 @@ type MissionTile = {
   disabled?: boolean
   ariaLabel?: string
   onClick?: () => void
+  extra?: ReactElement
 }
 
 function countByStatus(todos: ThreadTodoList | null | undefined, status: 'in_progress' | 'pending' | 'completed'): number {
@@ -87,6 +90,15 @@ function compactPath(path: string | undefined): string {
   return parts.slice(-2).join('/')
 }
 
+function mapGoalStatusToChip(status: string): 'active' | 'done' | 'blocked' | 'paused' | 'complete' {
+  switch (status) {
+    case 'complete': return 'complete'
+    case 'blocked': return 'blocked'
+    case 'paused': return 'paused'
+    default: return 'active'
+  }
+}
+
 function MissionControlTile({ tile }: { tile: MissionTile }): ReactElement {
   const Icon = tile.icon
   const className = `ds-mission-tile${tile.active ? ' is-active' : ''}`
@@ -99,6 +111,7 @@ function MissionControlTile({ tile }: { tile: MissionTile }): ReactElement {
         <span className="ds-mission-tile-label">{tile.label}</span>
         <span className="ds-mission-tile-value">{tile.value}</span>
         <span className="ds-mission-tile-detail">{tile.detail}</span>
+        {tile.extra}
       </span>
     </>
   )
@@ -168,11 +181,19 @@ export function WorkbenchMissionControlView(props: WorkbenchMissionControlProps)
       key: 'thread',
       label: t('missionThread'),
       value: props.activeGoal?.objective || props.activeThreadTitle || t('noThread'),
-      detail: `${todoStatus} / ${planStatus} / ${goalStatus}`,
+      detail: `${todoStatus} / ${planStatus}`,
       icon: ClipboardList,
       active: Boolean(props.activeGoal) || props.rightPanelMode === 'todo' || props.rightPanelMode === 'plan',
       ariaLabel: t('missionOpenTodo'),
-      onClick: props.onOpenTodo
+      onClick: props.onOpenTodo,
+      extra: props.activeGoal ? (
+        <GoalStatusChip
+          status={mapGoalStatusToChip(props.activeGoal.status)}
+          tokenBudget={props.activeGoal.tokenBudget}
+          tokensUsed={props.activeGoal.tokensUsed}
+          className="mt-0.5"
+        />
+      ) : undefined
     },
     {
       key: 'files',

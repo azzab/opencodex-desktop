@@ -9,8 +9,12 @@ import type { ApprovalGate } from '../../ports/approval-gate.js'
 import type { UserInputGate } from '../../ports/user-input-gate.js'
 import type { WorkspaceInspector } from '../../ports/workspace-inspector.js'
 import type { ToolHost, ToolProviderPolicy } from '../../ports/tool-host.js'
+import type { GoalEvaluator } from '../../ports/goal-evaluator.js'
+import type { LoopStore } from '../../ports/loop-store.js'
+import type { LoopScheduler } from '../../services/loop-scheduler-service.js'
 import type { RuntimeEventRecorder } from '../../services/runtime-event-recorder.js'
 import type { RuntimeInfoResponse } from '../../contracts/runtime-info.js'
+import type { AutomationSettings } from '../../contracts/automations.js'
 import type { McpServerDiagnostic } from '../../adapters/tool/mcp-tool-provider.js'
 import type { McpSearchRuntimeDiagnostic } from '../../adapters/tool/mcp-tool-search.js'
 import type { WebProviderDiagnostic } from '../../adapters/tool/web-tool-provider.js'
@@ -58,6 +62,10 @@ export type ServerRuntime = {
   evidenceStore?: AutomationEvidenceStore
   /** Optional hook gate for lifecycle hooks (PreToolUse, PostToolUse, etc.). */
   hookGate?: HookGate
+  goalEvaluator?: GoalEvaluator
+  loopScheduler?: LoopScheduler
+  loopStore?: LoopStore
+  automationSettings?: AutomationSettings
   runTurn(threadId: string, turnId: string): Promise<'completed' | 'failed' | 'aborted'> | void
   runReview?(input: {
     threadId: string

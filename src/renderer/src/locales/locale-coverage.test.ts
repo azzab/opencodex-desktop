@@ -67,7 +67,7 @@ const PROPER_NOUN_KEY_PATTERNS = [
   /^clawHelpCommand/,
   /^toolBuiltinBash$/,
   /^pluginCustom/,
-  /^scheduleStatus_/,
+  /^loopDialogScheduleKind_cron$/,
   // Proper noun product/tech names as leaf values
   /^missionMcpSummary$/,
   /^surfaceDiagnosticsMcp$/,

@@ -5,6 +5,7 @@ import {
   Gauge,
   PanelRightClose,
   Paperclip,
+  RefreshCw,
   Search,
   ServerCog,
   ShieldCheck,
@@ -22,6 +23,8 @@ import {
 } from '../../hooks/use-thread-usage'
 import type { Phase7DiagnosticsResult } from '@shared/phase7-diagnostics'
 import { TerminalPanel } from '../terminal/TerminalPanel'
+import { LoopsManager } from '../LoopsManager'
+import type { LoopRecord } from '../../../../../kun/src/contracts/automations.js'
 
 export type WorkbenchSurfaceMode =
   | 'files'
@@ -45,6 +48,13 @@ export type WorkbenchSurfacePanelProps = {
   phase7Diagnostics?: Phase7DiagnosticsResult | null
   className?: string
   onClose: () => void
+  /** Loop records for the LoopsManager widget. */
+  loops?: LoopRecord[]
+  onLoopCreate?: () => void
+  onLoopPause?: (id: string) => void
+  onLoopResume?: (id: string) => void
+  onLoopCancel?: (id: string) => void
+  onLoopDelete?: (id: string) => void
 }
 
 function fileNameFromPath(path: string): string {
@@ -130,7 +140,13 @@ export function WorkbenchSurfacePanelView({
   usage,
   phase7Diagnostics,
   className,
-  onClose
+  onClose,
+  loops,
+  onLoopCreate,
+  onLoopPause,
+  onLoopResume,
+  onLoopCancel,
+  onLoopDelete
 }: WorkbenchSurfacePanelProps): ReactElement {
   const { t, i18n } = useTranslation('common')
   const toolCount = runtimeInfo?.capabilities.mcp.toolCount ?? 0
@@ -373,6 +389,19 @@ export function WorkbenchSurfacePanelView({
               : t('surfacePermissionsHostPolicy')}
           </p>
         </div>
+      </SurfaceSection>
+      <SurfaceSection
+        icon={<RefreshCw className="h-3.5 w-3.5" strokeWidth={1.8} />}
+        title={t('automationLoopTitle')}
+      >
+        <LoopsManager
+          loops={loops ?? []}
+          onCreate={onLoopCreate}
+          onPause={onLoopPause}
+          onResume={onLoopResume}
+          onCancel={onLoopCancel}
+          onDelete={onLoopDelete}
+        />
       </SurfaceSection>
       {phase7Ok ? (
         <SurfaceSection

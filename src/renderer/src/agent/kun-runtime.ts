@@ -12,6 +12,7 @@ import { getKunRuntimeSettings } from '@shared/app-settings'
 import {
   KUN_ATTACHMENT_DIAGNOSTICS_PATH,
   KUN_ATTACHMENTS_PATH,
+  KUN_LOOPS_PATH,
   KUN_MEMORY_DIAGNOSTICS_PATH,
   KUN_MEMORY_PATH,
   KUN_RUNTIME_INFO_PATH,
@@ -22,6 +23,7 @@ import {
   kunThreadEventsPath,
   kunThreadForkPath,
   kunThreadGoalPath,
+  kunThreadGoalEvalPath,
   kunThreadReviewPath,
   kunThreadPlanPath,
   kunThreadPlanApprovePath,
@@ -31,6 +33,10 @@ import {
   kunThreadSteerPath,
   kunThreadTurnsPath,
   kunAttachmentContentPath,
+  kunLoopPath,
+  kunLoopPausePath,
+  kunLoopResumePath,
+  kunLoopCancelPath,
   kunUserInputPath,
   kunMemoryRecordPath,
   kunSessionResumePath,
@@ -560,6 +566,79 @@ export class KunRuntimeProvider implements AgentProvider {
     if (!response.ok) {
       throw runtimeErrorToError(readRuntimeError(response.body, 'request_user_input cancel failed'))
     }
+  }
+
+  // ── Loop scheduler ──
+
+  async listLoops(options?: { projectId?: string; status?: string[] }): Promise<import('../../../../kun/src/contracts/automations.js').ListLoopsResponse> {
+    const params = new URLSearchParams()
+    if (options?.projectId) params.set('projectId', options.projectId)
+    if (options?.status?.length) params.set('status', options.status.join(','))
+    const qs = params.toString()
+    const path = qs ? `${KUN_LOOPS_PATH}?${qs}` : KUN_LOOPS_PATH
+    const response = await rendererRuntimeClient.runtimeRequest(path, 'GET')
+    if (!response.ok) {
+      throw runtimeErrorToError(readRuntimeError(response.body, 'failed to list loops'))
+    }
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').ListLoopsResponse>(
+      response.body, 'runtime returned an invalid loops list response'
+    )
+  }
+
+  async createLoop(input: {
+    projectId: string; threadTemplateId: string; prompt: string; model: string
+    schedule: import('../../../../kun/src/contracts/automations.js').LoopRecord['schedule']
+    catchUpPolicy?: import('../../../../kun/src/contracts/automations.js').LoopRecord['catchUpPolicy']
+    queuePolicy?: import('../../../../kun/src/contracts/automations.js').LoopRecord['queuePolicy']
+    expiryRuns?: number; expiryDate?: string; maxRuns?: number
+  }): Promise<import('../../../../kun/src/contracts/automations.js').LoopResponse> {
+    const response = await rendererRuntimeClient.runtimeRequest(KUN_LOOPS_PATH, 'POST', JSON.stringify(input))
+    if (!response.ok) {
+      throw runtimeErrorToError(readRuntimeError(response.body, 'failed to create loop'))
+    }
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').LoopResponse>(
+      response.body, 'runtime returned an invalid loop create response'
+    )
+  }
+
+  async getLoop(id: string): Promise<import('../../../../kun/src/contracts/automations.js').LoopResponse> {
+    const response = await rendererRuntimeClient.runtimeRequest(kunLoopPath(id), 'GET')
+    if (!response.ok) throw runtimeErrorToError(readRuntimeError(response.body, 'failed to get loop'))
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').LoopResponse>(
+      response.body, 'runtime returned an invalid loop response'
+    )
+  }
+
+  async pauseLoop(id: string): Promise<import('../../../../kun/src/contracts/automations.js').LoopPauseResponse> {
+    const response = await rendererRuntimeClient.runtimeRequest(kunLoopPausePath(id), 'POST')
+    if (!response.ok) throw runtimeErrorToError(readRuntimeError(response.body, 'failed to pause loop'))
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').LoopPauseResponse>(
+      response.body, 'runtime returned an invalid loop pause response'
+    )
+  }
+
+  async resumeLoop(id: string): Promise<import('../../../../kun/src/contracts/automations.js').LoopResumeResponse> {
+    const response = await rendererRuntimeClient.runtimeRequest(kunLoopResumePath(id), 'POST')
+    if (!response.ok) throw runtimeErrorToError(readRuntimeError(response.body, 'failed to resume loop'))
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').LoopResumeResponse>(
+      response.body, 'runtime returned an invalid loop resume response'
+    )
+  }
+
+  async cancelLoop(id: string): Promise<import('../../../../kun/src/contracts/automations.js').LoopCancelResponse> {
+    const response = await rendererRuntimeClient.runtimeRequest(kunLoopCancelPath(id), 'POST')
+    if (!response.ok) throw runtimeErrorToError(readRuntimeError(response.body, 'failed to cancel loop'))
+    return readRuntimeJson<import('../../../../kun/src/contracts/automations.js').LoopCancelResponse>(
+      response.body, 'runtime returned an invalid loop cancel response'
+    )
+  }
+
+  async deleteLoop(id: string): Promise<{ id: string; deleted: boolean }> {
+    const response = await rendererRuntimeClient.runtimeRequest(kunLoopPath(id), 'DELETE')
+    if (!response.ok) throw runtimeErrorToError(readRuntimeError(response.body, 'failed to delete loop'))
+    return readRuntimeJson<{ id: string; deleted: boolean }>(
+      response.body, 'runtime returned an invalid loop delete response'
+    )
   }
 
   async getRuntimeInfo(): Promise<CoreRuntimeInfoJson> {

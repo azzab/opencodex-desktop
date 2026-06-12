@@ -88,6 +88,11 @@ export function kunThreadPlanApprovePath(threadId: string): string {
   return `${kunThreadPath(threadId)}/plan/approve`
 }
 
+export const KUN_THREAD_GOAL_EVAL_TEMPLATE = '/v1/threads/{id}/goal/eval'
+export function kunThreadGoalEvalPath(threadId: string): string {
+  return `${kunThreadGoalPath(threadId)}/eval`
+}
+
 export const KUN_THREAD_TURNS_TEMPLATE = '/v1/threads/{id}/turns'
 export function kunThreadTurnsPath(threadId: string): string {
   return `${kunThreadPath(threadId)}/turns`
@@ -152,6 +157,25 @@ export function kunThreadEvidencePath(threadId: string): string {
 export const KUN_THREAD_EVIDENCE_ENTRY_TEMPLATE = '/v1/threads/{id}/evidence/{evidenceId}'
 export function kunThreadEvidenceEntryPath(threadId: string, evidenceId: string): string {
   return `${kunThreadEvidencePath(threadId)}/${encodeURIComponent(evidenceId)}`
+}
+
+export const KUN_LOOPS_PATH = '/v1/loops'
+export const KUN_LOOPS_TEMPLATE = '/v1/loops'
+export const KUN_LOOP_TEMPLATE = '/v1/loops/{id}'
+export const KUN_LOOP_PAUSE_TEMPLATE = '/v1/loops/{id}/pause'
+export const KUN_LOOP_RESUME_TEMPLATE = '/v1/loops/{id}/resume'
+export const KUN_LOOP_CANCEL_TEMPLATE = '/v1/loops/{id}/cancel'
+export function kunLoopPath(loopId: string): string {
+  return `/v1/loops/${encodeURIComponent(loopId)}`
+}
+export function kunLoopPausePath(loopId: string): string {
+  return `${kunLoopPath(loopId)}/pause`
+}
+export function kunLoopResumePath(loopId: string): string {
+  return `${kunLoopPath(loopId)}/resume`
+}
+export function kunLoopCancelPath(loopId: string): string {
+  return `${kunLoopPath(loopId)}/cancel`
 }
 
 /** Thread mode shared with the Kun contract. */

@@ -2394,6 +2394,225 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                 </SettingsCard>
               </div>
 
+              <div className="mt-6">
+                <SettingsCard title={tCommon('automationSettings')}>
+                  {/* ── Goal evaluation ── */}
+                  <div className="mb-4">
+                    <h4 className="text-[13px] font-semibold text-ds-ink">{tCommon('automationGoalTitle')}</h4>
+                    <p className="mt-1 text-[12px] text-ds-muted">{tCommon('automationGoalDescription')}</p>
+                  </div>
+                  <SettingRow
+                    title={tCommon('automationGoalEnabled')}
+                    control={
+                      <Toggle
+                        checked={kun.automations?.goal?.enabled ?? true}
+                        onChange={(enabled) => updateKun({ automations: { goal: { enabled } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationGoalModel')}
+                    description={t('kunModelDesc')}
+                    control={
+                      <input
+                        type="text"
+                        className="w-56 rounded-xl border border-ds-border bg-ds-card px-3 py-2 font-mono text-[13px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.goal?.model ?? 'deepseek-v4-flash'}
+                        disabled={!kun.automations?.goal?.enabled}
+                        onChange={(e) => updateKun({ automations: { goal: { model: e.target.value } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationGoalMaxContinuation')}
+                    control={
+                      <input
+                        type="number"
+                        min={1}
+                        max={500}
+                        className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.goal?.maxContinuationTurns ?? 50}
+                        disabled={!kun.automations?.goal?.enabled}
+                        onChange={(e) => updateKun({ automations: { goal: { maxContinuationTurns: Number(e.target.value) } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationGoalBlockedRetry')}
+                    control={
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.goal?.blockedRetryAfterTurns ?? 3}
+                        disabled={!kun.automations?.goal?.enabled}
+                        onChange={(e) => updateKun({ automations: { goal: { blockedRetryAfterTurns: Number(e.target.value) } } })}
+                      />
+                    }
+                  />
+                  <div className="px-3 py-4">
+                    <AdvancedSettingsDisclosure
+                      title={tCommon('automationGoalBudget')}
+                      description={t('kunCompactionThresholdsDesc')}
+                    >
+                      <div className="divide-y divide-ds-border-muted">
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetMaxIter')}
+                          control={
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.maxIterations ?? 20}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { maxIterations: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetMaxTokensEval')}
+                          control={
+                            <input
+                              type="number"
+                              min={1}
+                              max={65536}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.maxTokensPerEval ?? 512}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { maxTokensPerEval: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetMaxCostEval')}
+                          control={
+                            <input
+                              type="number"
+                              min={0.001}
+                              max={10}
+                              step={0.001}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.maxCostUsdPerEval ?? 0.01}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { maxCostUsdPerEval: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetTotalIter')}
+                          control={
+                            <input
+                              type="number"
+                              min={1}
+                              max={10000}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.totalMaxIterations ?? 200}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { totalMaxIterations: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetTotalTokens')}
+                          control={
+                            <input
+                              type="number"
+                              min={1}
+                              max={10000000}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.totalMaxTokens ?? 25000}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { totalMaxTokens: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={tCommon('automationGoalBudgetTotalCost')}
+                          control={
+                            <input
+                              type="number"
+                              min={0.001}
+                              max={100}
+                              step={0.001}
+                              className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                              value={kun.automations?.goal?.budget?.totalMaxCostUsd ?? 0.5}
+                              disabled={!kun.automations?.goal?.enabled}
+                              onChange={(e) => updateKun({ automations: { goal: { budget: { totalMaxCostUsd: Number(e.target.value) } } } })}
+                            />
+                          }
+                        />
+                      </div>
+                    </AdvancedSettingsDisclosure>
+                  </div>
+                  {/* ── Loop scheduler ── */}
+                  <div className="mb-4">
+                    <h4 className="text-[13px] font-semibold text-ds-ink">{tCommon('automationLoopTitle')}</h4>
+                    <p className="mt-1 text-[12px] text-ds-muted">{tCommon('automationLoopDescription')}</p>
+                  </div>
+                  <SettingRow
+                    title={tCommon('automationLoopEnabled')}
+                    control={
+                      <Toggle
+                        checked={kun.automations?.loop?.enabled ?? true}
+                        onChange={(enabled) => updateKun({ automations: { loop: { enabled } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationLoopDefaultModel')}
+                    description={t('kunModelDesc')}
+                    control={
+                      <input
+                        type="text"
+                        className="w-56 rounded-xl border border-ds-border bg-ds-card px-3 py-2 font-mono text-[13px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.loop?.defaultModel ?? 'deepseek-v4-pro'}
+                        disabled={!kun.automations?.loop?.enabled}
+                        onChange={(e) => updateKun({ automations: { loop: { defaultModel: e.target.value } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationLoopMaxConcurrent')}
+                    control={
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.loop?.maxConcurrentLoops ?? 5}
+                        disabled={!kun.automations?.loop?.enabled}
+                        onChange={(e) => updateKun({ automations: { loop: { maxConcurrentLoops: Number(e.target.value) } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationLoopMinInterval')}
+                    control={
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        className="w-28 rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                        value={kun.automations?.loop?.minIntervalMinutes ?? 1}
+                        disabled={!kun.automations?.loop?.enabled}
+                        onChange={(e) => updateKun({ automations: { loop: { minIntervalMinutes: Number(e.target.value) } } })}
+                      />
+                    }
+                  />
+                  <SettingRow
+                    title={tCommon('automationLoopRequireProject')}
+                    control={
+                      <Toggle
+                        checked={kun.automations?.loop?.requireProjectId ?? true}
+                        disabled={!kun.automations?.loop?.enabled}
+                        onChange={(requireProjectId) => updateKun({ automations: { loop: { requireProjectId } } })}
+                      />
+                    }
+                  />
+                </SettingsCard>
+              </div>
               {/* Lifecycle Hooks Browser */}
               <div className="mt-6">
                 <SettingsCard title={tCommon('hooksKillSwitch')}>

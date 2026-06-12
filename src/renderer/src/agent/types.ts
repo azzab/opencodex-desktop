@@ -8,6 +8,7 @@ import type {
   CoreRuntimeToolDiagnosticsJson,
   CoreUsageSnapshotJson
 } from './kun-contract'
+import type { LoopRecord, ListLoopsResponse, LoopResponse, LoopPauseResponse, LoopResumeResponse, LoopCancelResponse } from '../../../../kun/src/contracts/automations.js'
 
 export type ToolItemKind = 'tool_call' | 'command_execution' | 'file_change'
 export type RuntimeErrorSeverity = 'info' | 'warning' | 'error'
@@ -519,4 +520,23 @@ export interface AgentProvider {
   /** Runtime HTTP compatibility path for request_user_input responses. */
   submitUserInputResponse?(requestId: string, answers: UserInputAnswer[]): Promise<void>
   cancelUserInput?(requestId: string): Promise<void>
+  /** Loop scheduler endpoints */
+  listLoops?(options?: { projectId?: string; status?: string[] }): Promise<ListLoopsResponse>
+  createLoop?(input: {
+    projectId: string
+    threadTemplateId: string
+    prompt: string
+    model: string
+    schedule: LoopRecord['schedule']
+    catchUpPolicy?: LoopRecord['catchUpPolicy']
+    queuePolicy?: LoopRecord['queuePolicy']
+    expiryRuns?: number
+    expiryDate?: string
+    maxRuns?: number
+  }): Promise<LoopResponse>
+  getLoop?(id: string): Promise<LoopResponse>
+  pauseLoop?(id: string): Promise<LoopPauseResponse>
+  resumeLoop?(id: string): Promise<LoopResumeResponse>
+  cancelLoop?(id: string): Promise<LoopCancelResponse>
+  deleteLoop?(id: string): Promise<{ id: string; deleted: boolean }>
 }
