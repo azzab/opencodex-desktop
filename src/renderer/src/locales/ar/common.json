@@ -1001,7 +1001,6 @@
   "noSessionSelected": "لم تختر جلسة",
   "sessionHeaderHint": "ابدأ جلسة من اليسار، أو أعد اتصال وقت التشغيل لمتابعة العمل.",
   "sessionUsageTitle": "{{turns}} دورة في هذه الجلسة",
-  "sessionUsageCompact": "{{tokens}} توكن / {{cost}} / ذاكرة {{cache}}",
   "sessionUsageTokens": "{{tokens}} توكن",
   "sessionUsageCost": "{{cost}}",
   "sessionUsageContextSavings": "وفر {{cost}}",

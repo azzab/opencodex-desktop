@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { appendFile, cp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { findNearestGitRoot } from './git-discovery'
 import type {
   GitAuditAction,
   GitAuditEvent,
@@ -125,7 +126,15 @@ async function getGitStatus(cwd: string): Promise<GitWorkingTreeStatus> {
 }
 
 async function getRepositoryRoot(cwd: string): Promise<string> {
-  return (await runGit(cwd, ['rev-parse', '--show-toplevel'])).stdout.trim()
+  // Use pure-Node walk-up first as a defensive layer — the git binary may be
+  // too old to support the sub-commands we rely on (e.g. `branch --format`
+  // requires git 2.28+) or return unrecognised error strings that our
+  // gitFailure() matchers miss. When the walker finds a .git ancestor we
+  // pass that path to git; otherwise we fall back to the original cwd.
+  // See upstream issue #98 and related OpenCodex hardening.
+  const nearest = await findNearestGitRoot(cwd)
+  const gitCwd = nearest ?? cwd
+  return (await runGit(gitCwd, ['rev-parse', '--show-toplevel'])).stdout.trim()
 }
 
 async function getGitCommonDir(repositoryRoot: string): Promise<string> {
