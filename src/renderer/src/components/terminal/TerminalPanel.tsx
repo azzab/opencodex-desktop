@@ -186,12 +186,18 @@ export function TerminalPanel({ workspaceRoot }: TerminalPanelProps): ReactEleme
 
     const cleanup = window.dsGui.onSseEvent((payload) => {
       try {
-        const data = payload.data
-        if (!data || typeof data !== 'object') return
-        const event = data as CoreRuntimeEventJson
-        // Only process events that carry an item with tool data
-        if (!event.item) return
-        void dispatchKunRuntimeEvent(event, sink, async () => undefined)
+        // Accept both batched (events[]) and legacy single-event (data) shapes.
+        const events = Array.isArray(payload.events)
+          ? payload.events
+          : [(payload as unknown as { data?: unknown }).data].filter(Boolean)
+        for (const raw of events) {
+          const data = raw as Record<string, unknown> | null
+          if (!data || typeof data !== 'object') continue
+          const event = data as CoreRuntimeEventJson
+          // Only process events that carry an item with tool data
+          if (!event.item) continue
+          void dispatchKunRuntimeEvent(event, sink, async () => undefined)
+        }
       } catch {
         // Silently ignore malformed SSE events
       }

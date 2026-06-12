@@ -220,7 +220,7 @@ describe('KunRuntimeProvider', () => {
     expect(runtimeRequest).toHaveBeenCalledWith(
       '/v1/threads/thr_1/turns',
       'POST',
-      JSON.stringify({ prompt: 'hello' })
+      JSON.stringify({ prompt: 'hello', approvalPolicy: 'auto', sandboxMode: 'workspace-write' })
     )
     expect(result.userMessageItemId).toBe('item_user_real')
   })
@@ -239,7 +239,7 @@ describe('KunRuntimeProvider', () => {
     expect(runtimeRequest).toHaveBeenCalledWith(
       '/v1/threads/thr_1/turns',
       'POST',
-      JSON.stringify({ prompt: 'describe this', attachmentIds: ['att_1'] })
+      JSON.stringify({ prompt: 'describe this', approvalPolicy: 'auto', sandboxMode: 'workspace-write', attachmentIds: ['att_1'] })
     )
   })
 
@@ -260,7 +260,7 @@ describe('KunRuntimeProvider', () => {
     expect(runtimeRequest).toHaveBeenCalledWith(
       '/v1/threads/thr_1/turns',
       'POST',
-      JSON.stringify({ prompt: 'think harder', model: 'auto', reasoningEffort: 'max' })
+      JSON.stringify({ prompt: 'think harder', model: 'auto', approvalPolicy: 'auto', sandboxMode: 'workspace-write', reasoningEffort: 'max' })
     )
   })
 
@@ -291,6 +291,8 @@ describe('KunRuntimeProvider', () => {
       'POST',
       JSON.stringify({
         prompt: 'refine the plan',
+        approvalPolicy: 'auto',
+        sandboxMode: 'workspace-write',
         displayText: 'Generate implementation plan',
         mode: 'plan',
         guiPlan: {

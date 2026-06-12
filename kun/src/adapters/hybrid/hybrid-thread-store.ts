@@ -1,6 +1,6 @@
-import { mkdir, open, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import type { Database as BetterSqliteDatabase } from 'better-sqlite3'
+import type { Database as BetterSqliteDatabase, Statement } from 'better-sqlite3'
 import type {
   ThreadGoal,
   ThreadMode,

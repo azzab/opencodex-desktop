@@ -74,6 +74,7 @@ import {
   buildQuery,
   chatBlockFromItem,
   dispatchKunRuntimeEvent,
+  dispatchKunRuntimeEvents,
   goalFromCore,
   mergeChatBlocks,
   planFromCore,
@@ -241,7 +242,14 @@ export class KunRuntimeProvider implements AgentProvider {
       attachmentIds?: string[]
     }
   ): Promise<{ turnId: string; threadId: string; userMessageItemId?: string }> {
-    const body: Record<string, unknown> = { prompt: text, model: options?.model }
+    const settings = await rendererRuntimeClient.getSettings()
+    const runtime = getKunRuntimeSettings(settings)
+    const body: Record<string, unknown> = {
+      prompt: text,
+      model: options?.model,
+      approvalPolicy: runtime.approvalPolicy,
+      sandboxMode: runtime.sandboxMode
+    }
     if (options?.reasoningEffort?.trim()) {
       body.reasoningEffort = options.reasoningEffort.trim()
     }
@@ -855,13 +863,32 @@ export class KunRuntimeProvider implements AgentProvider {
         signal.removeEventListener('abort', onAbort)
         void Promise.allSettled([...pendingDispatches]).then(() => resolve())
       }
-      const offData = rendererRuntimeClient.onSseEvent(({ streamId: sid, data }) => {
-        if (sid !== streamId) return
-        const event = data && typeof data === 'object' ? (data as CoreRuntimeEventJson) : {}
-        if (typeof event.seq === 'number') {
-          sink.onSeq(event.seq)
+      const offData = rendererRuntimeClient.onSseEvent((payload) => {
+        if (payload.streamId !== streamId) return
+        // Older main processes (pre-batching) deliver a single event under
+        // `data`; accept both shapes so a stale main/renderer pair during a
+        // dev reload or partial update degrades gracefully instead of
+        // silently dropping the stream.
+        const legacySingle = (payload as { data?: unknown }).data
+        const rawEvents = Array.isArray(payload.events)
+          ? payload.events
+          : legacySingle !== undefined
+            ? [legacySingle]
+            : []
+        const batch = rawEvents.map((entry): CoreRuntimeEventJson =>
+          entry && typeof entry === 'object' ? (entry as CoreRuntimeEventJson) : {}
+        )
+        if (batch.length === 0) return
+        let maxSeq: number | null = null
+        for (const event of batch) {
+          if (typeof event.seq === 'number') {
+            maxSeq = maxSeq === null ? event.seq : Math.max(maxSeq, event.seq)
+          }
         }
-        const task = dispatchKunRuntimeEvent(event, sink, (runtimeEvent, eventSink) =>
+        if (maxSeq !== null) {
+          sink.onSeq(maxSeq)
+        }
+        const task = dispatchKunRuntimeEvents(batch, sink, (runtimeEvent, eventSink) =>
           this.handleApprovalRequest(runtimeEvent, eventSink)
         ).finally(() => {
           pendingDispatches.delete(task)
