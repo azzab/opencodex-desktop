@@ -226,6 +226,36 @@ export type KunAutomationSettingsV1 = {
   auditLog: KunAutomationAuditLogSettingsV1
 }
 
+export type KunGoalEvalBudgetV1 = {
+  maxIterations: number
+  maxTokensPerEval: number
+  maxCostUsdPerEval: number
+  totalMaxIterations: number
+  totalMaxTokens: number
+  totalMaxCostUsd: number
+}
+
+export type KunGoalAutomationSettingsV1 = {
+  enabled: boolean
+  model: string
+  maxContinuationTurns: number
+  blockedRetryAfterTurns: number
+  budget: KunGoalEvalBudgetV1
+}
+
+export type KunLoopAutomationSettingsV1 = {
+  enabled: boolean
+  defaultModel: string
+  maxConcurrentLoops: number
+  minIntervalMinutes: number
+  requireProjectId: boolean
+}
+
+export type KunAutomationsSettingsV1 = {
+  goal: KunGoalAutomationSettingsV1
+  loop: KunLoopAutomationSettingsV1
+}
+
 export type KunTerminalSettingsV1 = {
   enabled: boolean
 }
@@ -273,6 +303,8 @@ export type KunRuntimeSettingsV1 = {
   subagents: KunSubagentSettingsV1
   /** Experimental browser automation and future computer-control gates. */
   automation: KunAutomationSettingsV1
+  /** Goal evaluation and loop scheduling automation settings. */
+  automations: KunAutomationsSettingsV1
   /** Managed PTY terminal panel availability. Default ON for user sessions. */
   terminal: KunTerminalSettingsV1
   /** Checkpoint retention and auto-creation controls. */
@@ -382,6 +414,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     | 'userAgentStack'
     | 'subagents'
     | 'automation'
+    | 'automations'
     | 'terminal'
     | 'checkpoints'
     | 'hooks'
@@ -407,6 +440,12 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     auditLog?: Partial<KunAutomationAuditLogSettingsV1>
   }
   hooks?: KunHookSettingsPatchV1
+  automations?: Partial<
+    Omit<KunAutomationsSettingsV1, 'goal' | 'loop'>
+  > & {
+    goal?: Partial<KunGoalAutomationSettingsV1>
+    loop?: Partial<KunLoopAutomationSettingsV1>
+  }
 }
 
 export type KunSettingsEnvelopePatchV1 = {

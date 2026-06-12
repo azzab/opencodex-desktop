@@ -24,6 +24,10 @@ import {
   type KunAutomationPermissionModeV1,
   type KunAutomationPermissionsV1,
   type KunAutomationSettingsV1,
+  type KunAutomationsSettingsV1,
+  type KunGoalAutomationSettingsV1,
+  type KunGoalEvalBudgetV1,
+  type KunLoopAutomationSettingsV1,
   type KunTerminalSettingsV1,
   type KunStorageSettingsV1,
   type KunSubagentSettingsV1,
@@ -141,6 +145,7 @@ export function defaultKunRuntimeSettings(
     userAgentStack: defaultUserAgentStackProfile(),
     subagents: defaultKunSubagentSettings(),
     automation: defaultKunAutomationSettings(),
+    automations: defaultKunAutomationsSettings(),
     terminal: defaultKunTerminalSettings(),
     checkpoints: defaultKunCheckpointSettings(),
     hooks: defaultKunHookSettings()
@@ -178,6 +183,44 @@ export function defaultKunAutomationSettings(): KunAutomationSettingsV1 {
       enabled: true,
       maxEntries: 500
     }
+  }
+}
+
+export function defaultKunGoalEvalBudget(): KunGoalEvalBudgetV1 {
+  return {
+    maxIterations: 20,
+    maxTokensPerEval: 512,
+    maxCostUsdPerEval: 0.01,
+    totalMaxIterations: 200,
+    totalMaxTokens: 25_000,
+    totalMaxCostUsd: 0.5
+  }
+}
+
+export function defaultKunGoalAutomationSettings(): KunGoalAutomationSettingsV1 {
+  return {
+    enabled: true,
+    model: 'deepseek-v4-flash',
+    maxContinuationTurns: 50,
+    blockedRetryAfterTurns: 3,
+    budget: defaultKunGoalEvalBudget()
+  }
+}
+
+export function defaultKunLoopAutomationSettings(): KunLoopAutomationSettingsV1 {
+  return {
+    enabled: true,
+    defaultModel: 'deepseek-v4-pro',
+    maxConcurrentLoops: 5,
+    minIntervalMinutes: 1,
+    requireProjectId: true
+  }
+}
+
+export function defaultKunAutomationsSettings(): KunAutomationsSettingsV1 {
+  return {
+    goal: defaultKunGoalAutomationSettings(),
+    loop: defaultKunLoopAutomationSettings()
   }
 }
 
@@ -427,6 +470,17 @@ export function mergeKunRuntimeSettings(
       ...(patch?.automation?.auditLog ?? {})
     }
   })
+  const currentAutomations = normalizeKunAutomationsSettings(current.automations)
+  const nextAutomations = normalizeKunAutomationsSettings({
+    goal: {
+      ...currentAutomations.goal,
+      ...(patch?.automations?.goal ?? {})
+    },
+    loop: {
+      ...currentAutomations.loop,
+      ...(patch?.automations?.loop ?? {})
+    }
+  })
   const nextTerminal = normalizeKunTerminalSettings({
     ...current.terminal,
     ...(patch?.terminal ?? {})
@@ -466,6 +520,7 @@ export function mergeKunRuntimeSettings(
     userAgentStack: nextUserAgentStack,
     subagents: nextSubagents,
     automation: nextAutomation,
+    automations: nextAutomations,
     terminal: nextTerminal,
     checkpoints: nextCheckpoints,
     hooks: nextHooks
@@ -517,6 +572,56 @@ function normalizeKunAutomationSettings(
     allowedHosts: normalizeAutomationAllowedHosts(input?.allowedHosts),
     permissions: normalizeAutomationPermissions(input?.permissions),
     auditLog: normalizeAutomationAuditLogSettings(input?.auditLog)
+  }
+}
+
+function normalizeKunAutomationsSettings(
+  input: Partial<KunAutomationsSettingsV1> | undefined
+): KunAutomationsSettingsV1 {
+  const defaults = defaultKunAutomationsSettings()
+  return {
+    goal: normalizeKunGoalAutomationSettings(input?.goal),
+    loop: normalizeKunLoopAutomationSettings(input?.loop)
+  }
+}
+
+function normalizeKunGoalAutomationSettings(
+  input: Partial<KunGoalAutomationSettingsV1> | undefined
+): KunGoalAutomationSettingsV1 {
+  const defaults = defaultKunGoalAutomationSettings()
+  return {
+    enabled: input?.enabled !== false,
+    model: (input?.model ?? defaults.model).trim() || defaults.model,
+    maxContinuationTurns: boundedPositiveInt(input?.maxContinuationTurns, defaults.maxContinuationTurns, 500),
+    blockedRetryAfterTurns: boundedNonNegativeInt(input?.blockedRetryAfterTurns, defaults.blockedRetryAfterTurns, 100),
+    budget: normalizeKunGoalEvalBudget(input?.budget)
+  }
+}
+
+function normalizeKunGoalEvalBudget(
+  input: Partial<KunGoalEvalBudgetV1> | undefined
+): KunGoalEvalBudgetV1 {
+  const defaults = defaultKunGoalEvalBudget()
+  return {
+    maxIterations: boundedPositiveInt(input?.maxIterations, defaults.maxIterations, 100),
+    maxTokensPerEval: boundedPositiveInt(input?.maxTokensPerEval, defaults.maxTokensPerEval, 65536),
+    maxCostUsdPerEval: boundedPositiveFloat(input?.maxCostUsdPerEval, defaults.maxCostUsdPerEval, 10),
+    totalMaxIterations: boundedPositiveInt(input?.totalMaxIterations, defaults.totalMaxIterations, 10000),
+    totalMaxTokens: boundedPositiveInt(input?.totalMaxTokens, defaults.totalMaxTokens, 10_000_000),
+    totalMaxCostUsd: boundedPositiveFloat(input?.totalMaxCostUsd, defaults.totalMaxCostUsd, 100)
+  }
+}
+
+function normalizeKunLoopAutomationSettings(
+  input: Partial<KunLoopAutomationSettingsV1> | undefined
+): KunLoopAutomationSettingsV1 {
+  const defaults = defaultKunLoopAutomationSettings()
+  return {
+    enabled: input?.enabled !== false,
+    defaultModel: (input?.defaultModel ?? defaults.defaultModel).trim() || defaults.defaultModel,
+    maxConcurrentLoops: boundedPositiveInt(input?.maxConcurrentLoops, defaults.maxConcurrentLoops, 50),
+    minIntervalMinutes: boundedPositiveInt(input?.minIntervalMinutes, defaults.minIntervalMinutes, 1440),
+    requireProjectId: input?.requireProjectId !== false
   }
 }
 
@@ -811,6 +916,16 @@ function boundedPositiveInt(value: unknown, fallback: number, max = Number.MAX_S
 function boundedPositiveIntClampZero(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
   if (value === 0) return 1
   return boundedPositiveInt(value, fallback, max)
+}
+
+function boundedPositiveFloat(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return fallback
+  return Math.min(value, max)
+}
+
+function boundedNonNegativeInt(value: unknown, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value !== Math.floor(value)) return fallback
+  return Math.min(value, max)
 }
 
 function normalizeKunStorageSettings(

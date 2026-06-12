@@ -205,6 +205,7 @@ export class ThreadService {
           : {}),
       tokensUsed: existing?.tokensUsed ?? 0,
       timeUsedSeconds: existing?.timeUsedSeconds ?? 0,
+      evaluationIterations: existing?.evaluationIterations ?? 0,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     }

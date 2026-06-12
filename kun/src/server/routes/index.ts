@@ -58,6 +58,19 @@ import { isAuthorized, bearerToken } from '../auth.js'
 import { ERRORS } from './runtime-error.js'
 import { reloadHookSettings } from './hooks-reload.js'
 import type { ServerRuntime } from './server-runtime.js'
+import type { JsonResponse } from '../response.js'
+import { jsonResponse } from '../response.js'
+import {
+  createLoop,
+  listLoops,
+  getLoop,
+  updateLoop,
+  pauseLoop,
+  resumeLoop,
+  cancelLoop,
+  deleteLoop
+} from './loop-scheduler.js'
+import { evaluateGoal } from './goal-evaluator.js'
 
 /**
  * Build the full router used by the HTTP server. The router exposes:
@@ -306,6 +319,85 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('GET', '/v1/threads/:id/checkpoints', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return listCheckpoints(runtime, ctx.params.id)
+  })
+  // ── Goal evaluator ──
+  router.add('POST', '/v1/threads/:id/goal/eval', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.goalEvaluator) return ERRORS.unavailable('goal evaluator is not available')
+    // Extract recent transcript from query or body
+    const rawBody: unknown = await request.json().catch(() => ({}))
+    const body = (rawBody && typeof rawBody === 'object' ? rawBody : {}) as Record<string, unknown>
+    const recentTranscript = typeof body.recentTranscript === 'string' ? body.recentTranscript : ''
+    const hadToolCalls = typeof body.hadToolCalls === 'boolean' ? body.hadToolCalls : true
+    const evaluated = await evaluateGoal({
+      threadId: ctx.params.id,
+      threadService: runtime.threadService,
+      evaluator: runtime.goalEvaluator,
+      events: runtime.events,
+      config: {
+        enabled: true,
+        model: runtime.automationSettings?.goal.model ?? 'deepseek-v4-flash',
+        maxContinuationTurns: runtime.automationSettings?.goal.maxContinuationTurns ?? 50,
+        blockedRetryAfterTurns: runtime.automationSettings?.goal.blockedRetryAfterTurns ?? 3,
+        toolFree: true,
+        budget: runtime.automationSettings?.goal.budget ?? {
+          maxIterations: 5,
+          maxTokensPerEval: 512,
+          maxCostUsdPerEval: 0.01,
+          totalMaxIterations: 20,
+          totalMaxTokens: 5000,
+          totalMaxCostUsd: 0.5
+        }
+      },
+      nowIso: runtime.nowIso,
+      recentTranscript,
+      hadToolCalls
+    })
+    if ('error' in evaluated) {
+      return jsonResponse({ error: evaluated.error }, evaluated.status)
+    }
+    return jsonResponse(evaluated)
+  })
+  // ── Loop scheduler ──
+  router.add('POST', '/v1/loops', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return createLoop(runtime.loopScheduler, request)
+  })
+  router.add('GET', '/v1/loops', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return listLoops(runtime.loopScheduler, request)
+  })
+  router.add('GET', '/v1/loops/:id', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return getLoop(runtime.loopScheduler, ctx.params.id)
+  })
+  router.add('PATCH', '/v1/loops/:id', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return updateLoop(runtime.loopScheduler, ctx.params.id, request)
+  })
+  router.add('POST', '/v1/loops/:id/pause', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return pauseLoop(runtime.loopScheduler, ctx.params.id)
+  })
+  router.add('POST', '/v1/loops/:id/resume', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return resumeLoop(runtime.loopScheduler, ctx.params.id)
+  })
+  router.add('POST', '/v1/loops/:id/cancel', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return cancelLoop(runtime.loopScheduler, ctx.params.id)
+  })
+  router.add('DELETE', '/v1/loops/:id', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    if (!runtime.loopScheduler) return ERRORS.unavailable('loop scheduler is not available')
+    return deleteLoop(runtime.loopScheduler, ctx.params.id)
   })
   router.add('GET', '/v1/usage', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()

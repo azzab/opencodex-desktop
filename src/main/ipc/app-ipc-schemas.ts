@@ -10,6 +10,11 @@ import {
   KUN_CHECKPOINT_RESTORE_TEMPLATE,
   KUN_CHECKPOINT_TEMPLATE,
   KUN_HEALTH_TEMPLATE,
+  KUN_LOOPS_TEMPLATE,
+  KUN_LOOP_TEMPLATE,
+  KUN_LOOP_PAUSE_TEMPLATE,
+  KUN_LOOP_RESUME_TEMPLATE,
+  KUN_LOOP_CANCEL_TEMPLATE,
   KUN_MEMORY_DIAGNOSTICS_TEMPLATE,
   KUN_MEMORY_RECORD_TEMPLATE,
   KUN_MEMORY_TEMPLATE,
@@ -23,6 +28,7 @@ import {
   KUN_THREAD_COMPACT_TEMPLATE,
   KUN_THREAD_FORK_TEMPLATE,
   KUN_THREAD_GOAL_TEMPLATE,
+  KUN_THREAD_GOAL_EVAL_TEMPLATE,
   KUN_THREAD_REVIEW_TEMPLATE,
   KUN_THREAD_TODOS_TEMPLATE,
   KUN_THREAD_INTERRUPT_TEMPLATE,
@@ -119,6 +125,7 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_THREAD_TEMPLATE, ['GET', 'PATCH', 'DELETE']),
   compileEndpoint(KUN_THREAD_FORK_TEMPLATE, ['POST']),
   compileEndpoint(KUN_THREAD_GOAL_TEMPLATE, ['GET', 'POST', 'DELETE']),
+  compileEndpoint(KUN_THREAD_GOAL_EVAL_TEMPLATE, ['POST']),
   compileEndpoint(KUN_THREAD_TODOS_TEMPLATE, ['GET', 'POST', 'DELETE']),
   compileEndpoint(KUN_THREAD_COMPACT_TEMPLATE, ['POST']),
   compileEndpoint(KUN_THREAD_REVIEW_TEMPLATE, ['POST']),
@@ -135,7 +142,12 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_CHECKPOINT_TEMPLATE, ['GET', 'DELETE']),
   compileEndpoint(KUN_CHECKPOINT_RESTORE_TEMPLATE, ['POST']),
   compileEndpoint(KUN_CHECKPOINT_FORK_TEMPLATE, ['POST']),
-  compileEndpoint(KUN_THREAD_CHECKPOINTS_TEMPLATE, ['GET'])
+  compileEndpoint(KUN_THREAD_CHECKPOINTS_TEMPLATE, ['GET']),
+  compileEndpoint(KUN_LOOPS_TEMPLATE, ['GET', 'POST']),
+  compileEndpoint(KUN_LOOP_TEMPLATE, ['GET', 'PATCH', 'DELETE']),
+  compileEndpoint(KUN_LOOP_PAUSE_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_LOOP_RESUME_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_LOOP_CANCEL_TEMPLATE, ['POST'])
 ]
 
 function isAllowedRuntimeRequest(value: { path: string; method?: string }): boolean {
@@ -331,6 +343,29 @@ const kunRuntimePatchSchema = z.object({
     auditLog: z.object({
       enabled: z.boolean().optional(),
       maxEntries: z.number().int().positive().max(10_000).optional()
+    }).strict().optional()
+  }).strict().optional(),
+  automations: z.object({
+    goal: z.object({
+      enabled: z.boolean().optional(),
+      model: z.string().trim().min(1).max(128).optional(),
+      maxContinuationTurns: z.number().int().positive().max(500).optional(),
+      blockedRetryAfterTurns: z.number().int().nonnegative().max(100).optional(),
+      budget: z.object({
+        maxIterations: z.number().int().positive().max(100).optional(),
+        maxTokensPerEval: z.number().int().positive().max(65536).optional(),
+        maxCostUsdPerEval: z.number().positive().max(10).optional(),
+        totalMaxIterations: z.number().int().positive().max(10000).optional(),
+        totalMaxTokens: z.number().int().positive().max(10_000_000).optional(),
+        totalMaxCostUsd: z.number().positive().max(100).optional()
+      }).strict().optional()
+    }).strict().optional(),
+    loop: z.object({
+      enabled: z.boolean().optional(),
+      defaultModel: z.string().trim().min(1).max(128).optional(),
+      maxConcurrentLoops: z.number().int().positive().max(50).optional(),
+      minIntervalMinutes: z.number().int().positive().max(1440).optional(),
+      requireProjectId: z.boolean().optional()
     }).strict().optional()
   }).strict().optional(),
   userAgentStack: z.object({

@@ -16,6 +16,8 @@ import type { Phase7DiagnosticsResult } from '@shared/phase7-diagnostics'
 import type { ClipboardImageReadResult } from '@shared/workspace-file'
 import type { AttachmentReference, ChatBlock } from '../agent/types'
 import type { CoreRuntimeInfoJson, CoreRuntimeSkillJson } from '../agent/kun-contract'
+import type { LoopRecord } from '../../../../kun/src/contracts/automations.js'
+import { LoopCreateDialog, draftToCreateRequest, type LoopCreateDraft } from './LoopCreateDialog'
 import { getProvider } from '../agent/registry'
 import { useChatStore } from '../store/chat-store'
 import { isClawThread } from '../store/chat-store-helpers'
@@ -379,6 +381,9 @@ export function Workbench(): ReactElement {
   const [runtimeInfo, setRuntimeInfo] = useState<CoreRuntimeInfoJson | null>(null)
   const [runtimeSkills, setRuntimeSkills] = useState<CoreRuntimeSkillJson[]>([])
   const [phase7Diagnostics, setPhase7Diagnostics] = useState<Phase7DiagnosticsResult | null>(null)
+  const [loops, setLoops] = useState<LoopRecord[]>([])
+  const [loopsLoading, setLoopsLoading] = useState(false)
+  const [loopDialogOpen, setLoopDialogOpen] = useState(false)
   const [composerAttachments, setComposerAttachments] = useState<AttachmentReference[]>([])
   const [composerFileReferences, setComposerFileReferences] = useState<ComposerFileReference[]>([])
   const [attachmentUploadBusy, setAttachmentUploadBusy] = useState(false)
@@ -754,6 +759,86 @@ export function Workbench(): ReactElement {
       cancelled = true
     }
   }, [activeThread?.workspace, rightPanelMode, workspaceRoot])
+
+  // Fetch loop records when permissions panel is open and runtime is ready.
+  useEffect(() => {
+    if (rightPanelMode !== 'permissions' || runtimeConnection !== 'ready') return
+    const provider = getProvider()
+    if (typeof provider.listLoops !== 'function') return
+    let cancelled = false
+    setLoopsLoading(true)
+    void provider.listLoops()
+      .then((result) => {
+        if (cancelled) return
+        setLoops(result.loops ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setLoops([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoopsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [rightPanelMode, runtimeConnection])
+
+  const handleLoopCreateOpen = (): void => {
+    setLoopDialogOpen(true)
+  }
+
+  const handleLoopCreateSubmit = (draft: LoopCreateDraft): void => {
+    const provider = getProvider()
+    if (typeof provider.createLoop !== 'function') return
+    const request = draftToCreateRequest(draft)
+    void provider
+      .createLoop(request)
+      .then((result) => {
+        setLoops((prev) => [...prev, result.loop])
+        setLoopDialogOpen(false)
+      })
+      .catch(() => undefined)
+  }
+
+  const handleLoopPause = (id: string): void => {
+    const provider = getProvider()
+    if (typeof provider.pauseLoop !== 'function') return
+    void provider.pauseLoop(id).catch(() => undefined)
+    setLoops((prev) =>
+      prev.map((loop) =>
+        loop.id === id ? { ...loop, status: 'paused' as const } : loop
+      )
+    )
+  }
+
+  const handleLoopResume = (id: string): void => {
+    const provider = getProvider()
+    if (typeof provider.resumeLoop !== 'function') return
+    void provider.resumeLoop(id).catch(() => undefined)
+    setLoops((prev) =>
+      prev.map((loop) =>
+        loop.id === id ? { ...loop, status: 'active' as const } : loop
+      )
+    )
+  }
+
+  const handleLoopCancel = (id: string): void => {
+    const provider = getProvider()
+    if (typeof provider.cancelLoop !== 'function') return
+    void provider.cancelLoop(id).catch(() => undefined)
+    setLoops((prev) =>
+      prev.map((loop) =>
+        loop.id === id ? { ...loop, status: 'cancelled' as const } : loop
+      )
+    )
+  }
+
+  const handleLoopDelete = (id: string): void => {
+    const provider = getProvider()
+    if (typeof provider.deleteLoop !== 'function') return
+    void provider.deleteLoop(id).catch(() => undefined)
+    setLoops((prev) => prev.filter((loop) => loop.id !== id))
+  }
 
   const attachmentUploadEnabled = isChatAttachmentUploadEnabled({
     runtimeConnection,
@@ -1621,6 +1706,12 @@ export function Workbench(): ReactElement {
                 }))}
                 usage={threadUsage}
                 phase7Diagnostics={phase7Diagnostics}
+                loops={loops}
+                onLoopCreate={runtimeConnection === 'ready' ? handleLoopCreateOpen : undefined}
+                onLoopPause={runtimeConnection === 'ready' ? handleLoopPause : undefined}
+                onLoopResume={runtimeConnection === 'ready' ? handleLoopResume : undefined}
+                onLoopCancel={runtimeConnection === 'ready' ? handleLoopCancel : undefined}
+                onLoopDelete={runtimeConnection === 'ready' ? handleLoopDelete : undefined}
                 className="h-full max-h-full w-full"
                 onClose={closeRightPanel}
               />
@@ -1923,6 +2014,18 @@ export function Workbench(): ReactElement {
           ) : null}
 
           {renderRightPanel()}
+
+          {loopDialogOpen ? (
+            <LoopCreateDialog
+              draftDefaults={{
+                projectId: 'default',
+                threadTemplateId: activeThreadId ?? '',
+                model: composerModel
+              }}
+              onClose={() => setLoopDialogOpen(false)}
+              onSubmit={handleLoopCreateSubmit}
+            />
+          ) : null}
         </div>
 
           </>

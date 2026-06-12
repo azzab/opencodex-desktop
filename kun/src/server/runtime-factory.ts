@@ -7,7 +7,7 @@ import { FileAttachmentStore } from '../attachments/attachment-store.js'
 import { InMemoryApprovalGate } from '../adapters/in-memory-approval-gate.js'
 import { InMemoryUserInputGate } from '../adapters/in-memory-user-input-gate.js'
 import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
-import { FileSessionStore, FileThreadStore, FileCheckpointStore } from '../adapters/file/index.js'
+import { FileSessionStore, FileThreadStore, FileCheckpointStore, FileLoopStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
 import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
 import type { ModelEndpointFormat } from '../contracts/model-endpoint-format.js'
@@ -47,7 +47,7 @@ import {
 } from '../config/kun-config.js'
 import { InflightTracker } from '../loop/inflight-tracker.js'
 import { SteeringQueue } from '../loop/steering-queue.js'
-import { RandomIdGenerator } from '../ports/id-generator.js'
+import { RandomIdGenerator, SequentialIdGenerator } from '../ports/id-generator.js'
 import type { SessionStore } from '../ports/session-store.js'
 import type { ThreadStore } from '../ports/thread-store.js'
 import { KUN_SYSTEM_PROMPT } from '../prompt/kun-system-prompt.js'
@@ -62,6 +62,17 @@ import type { UsageEvent } from '../contracts/events.js'
 import type { KunHookSettingsV1 } from '../contracts/hooks.js'
 import type { HookGate } from '../ports/hook-gate.js'
 import type { AutomationAuditRecord } from '../automation/automation-sidecar.js'
+import { ToolFreeGoalEvaluator } from '../services/goal-evaluator-service.js'
+import { LoopScheduler } from '../services/loop-scheduler-service.js'
+import {
+  normalizeAutomationSettings,
+  DEFAULT_GOAL_EVAL_MAX_ITERATIONS,
+  DEFAULT_GOAL_EVAL_MAX_TOKENS_PER_EVAL,
+  DEFAULT_GOAL_EVAL_MAX_COST_USD_PER_EVAL,
+  DEFAULT_GOAL_EVAL_TOTAL_MAX_ITERATIONS,
+  DEFAULT_GOAL_EVAL_TOTAL_MAX_TOKENS,
+  DEFAULT_GOAL_EVAL_TOTAL_MAX_COST_USD
+} from '../contracts/automations.js'
 import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
 import { DelegationRuntime, FileDelegationStore } from '../delegation/delegation-runtime.js'
@@ -341,12 +352,44 @@ export async function createKunServeRuntime(
     ...buildDelegationToolProviders(delegationRuntime)
   ])
   const toolHost = new LocalToolHost({ registry, readTracker: true })
+  const startedAt = options.startedAt ?? nowIso()
 
-  // Hook gate for lifecycle hook execution
   const hooksDefault = { enabled: false, trustedHooks: {}, defaultTimeoutMs: 10_000, maxOutputBytes: 64 * 1024, maxAuditEvents: 200, auditLog: [] }
   const hookSettings: KunHookSettingsV1 = options.hookSettings ?? hooksDefault
   const hookGate: HookGate = new HookRunner(hookSettings)
 
+  // ── Automation services ──
+  const automationSettings = normalizeAutomationSettings(
+    (options.capabilities as Record<string, unknown> | undefined)?.automationSettings ?? {}
+  )
+  const loopStore = new FileLoopStore({ dataDir: options.dataDir })
+  // Use a lightweight evaluator with SequentialIdGenerator (not crypto-random) and zero tools
+  const evaluatorIds = new SequentialIdGenerator()
+  const evaluatorModelClient = new DeepseekCompatModelClient({
+    baseUrl: options.baseUrl,
+    apiKey: options.apiKey,
+    model: automationSettings.goal.model,
+    endpointFormat: options.endpointFormat,
+    modelPricingUsdPerMillion: modelPricingForProfiles(modelProfiles)
+  })
+  const goalEvaluator = new ToolFreeGoalEvaluator(
+    evaluatorModelClient,
+    evaluatorIds,
+    nowIso
+  )
+  const loopScheduler = new LoopScheduler({
+    loopStore,
+    ids: new SequentialIdGenerator(),
+    clock: { now: () => new Date(), nowIso, nowMs: () => Date.now() },
+    eventBus,
+    model: evaluatorModelClient,
+    threadStore,
+    turns: turnService,
+    usage: usageService,
+    events,
+    settings: automationSettings.loop,
+    nowIso
+  })
   const loop = new AgentLoop({
     threadStore,
     sessionStore,
@@ -386,9 +429,10 @@ export async function createKunServeRuntime(
         markdown,
         preserveCompleted: true
       })
-    }
+    },
+    goalEvaluator,
+    automationSettings
   })
-  const startedAt = options.startedAt ?? nowIso()
   return {
     threadService,
     turnService,
@@ -403,6 +447,10 @@ export async function createKunServeRuntime(
     hookGate,
     workspaceInspector,
     toolHost,
+    goalEvaluator,
+    loopScheduler,
+    loopStore,
+    automationSettings,
     ...(attachmentStore ? { attachmentStore } : {}),
     ...(memoryStore ? { memoryStore } : {}),
     ...(evidenceStore ? { evidenceStore } : {}),

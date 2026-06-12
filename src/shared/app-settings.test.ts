@@ -263,6 +263,95 @@ describe('kun defaults', () => {
     })
   })
 
+  it('defaults goal/loop automations to safe defaults', () => {
+    expect(defaultKunRuntimeSettings().automations).toMatchObject({
+      goal: {
+        enabled: true,
+        model: 'deepseek-v4-flash',
+        maxContinuationTurns: 50,
+        blockedRetryAfterTurns: 3,
+        budget: {
+          maxIterations: 20,
+          maxTokensPerEval: 512,
+          maxCostUsdPerEval: 0.01,
+          totalMaxIterations: 200,
+          totalMaxTokens: 25_000,
+          totalMaxCostUsd: 0.5
+        }
+      },
+      loop: {
+        enabled: true,
+        defaultModel: 'deepseek-v4-pro',
+        maxConcurrentLoops: 5,
+        minIntervalMinutes: 1,
+        requireProjectId: true
+      }
+    })
+  })
+
+  it('normalizes automations settings with partial overrides', () => {
+    const normalized = applyKunRuntimePatch(settings(), {
+      automations: {
+        goal: {
+          enabled: false,
+          model: '  ',
+          maxContinuationTurns: 500,
+          blockedRetryAfterTurns: -1,
+          budget: {
+            maxIterations: 0,
+            totalMaxCostUsd: 2
+          }
+        },
+        loop: {
+          enabled: false,
+          maxConcurrentLoops: 0,
+          minIntervalMinutes: 2000
+        }
+      }
+    } as any).agents.kun.automations
+
+    expect(normalized.goal.enabled).toBe(false)
+    expect(normalized.goal.model).toBe('deepseek-v4-flash') // empty trimmed falls back to default
+    expect(normalized.goal.maxContinuationTurns).toBe(500) // 500 is within max
+    expect(normalized.goal.blockedRetryAfterTurns).toBe(3) // -1 invalid → default
+    expect(normalized.goal.budget.maxIterations).toBe(20) // 0 invalid → default
+    expect(normalized.goal.budget.totalMaxCostUsd).toBe(2)
+    expect(normalized.loop.enabled).toBe(false)
+    expect(normalized.loop.maxConcurrentLoops).toBe(5) // 0 invalid → default
+    expect(normalized.loop.minIntervalMinutes).toBe(1440) // 2000 exceeds max 1440 → capped
+  })
+
+  it('automations settings survive round-trip through normalization', () => {
+    const patch = {
+      automations: {
+        goal: {
+          enabled: true,
+          model: 'deepseek-v4-pro',
+          maxContinuationTurns: 100,
+          blockedRetryAfterTurns: 5,
+          budget: {
+            maxIterations: 30,
+            maxTokensPerEval: 1024,
+            maxCostUsdPerEval: 0.02,
+            totalMaxIterations: 500,
+            totalMaxTokens: 100_000,
+            totalMaxCostUsd: 5
+          }
+        },
+        loop: {
+          enabled: false,
+          defaultModel: 'deepseek-v4-flash',
+          maxConcurrentLoops: 10,
+          minIntervalMinutes: 5,
+          requireProjectId: false
+        }
+      }
+    }
+    const after = applyKunRuntimePatch(settings(), patch).agents.kun.automations
+    expect(after.goal).toMatchObject(patch.automations.goal)
+    expect(after.loop).toMatchObject(patch.automations.loop)
+  })
+
   it('normalizes subagent settings patch values without losing preset defaults', () => {
     const normalized = applyKunRuntimePatch(settings(), {
       subagents: {

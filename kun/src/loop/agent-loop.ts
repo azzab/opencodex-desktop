@@ -47,6 +47,8 @@ import { touchThread } from '../domain/thread.js'
 import { repairModelHistoryItems } from '../domain/model-history-repair.js'
 import type { TurnItem } from '../contracts/items.js'
 import type { ThreadGoal, ThreadTodoList } from '../contracts/threads.js'
+import type { GoalEvaluator } from '../ports/goal-evaluator.js'
+import type { AutomationSettings } from '../contracts/automations.js'
 import { modelCapabilitiesForModel, type ContextCompactionConfig } from './model-context-profile.js'
 import type { SkillRuntime } from '../skills/skill-runtime.js'
 import type { AttachmentContent, AttachmentStore } from '../attachments/attachment-store.js'
@@ -289,6 +291,10 @@ export type AgentLoopOptions = {
     relativePath: string
     markdown: string
   }) => Promise<void>
+  /** Optional goal evaluator for post-turn goal assessment. */
+  goalEvaluator?: GoalEvaluator
+  /** Automation settings for goal evaluation budget / caps. */
+  automationSettings?: AutomationSettings
 }
 
 /**
@@ -342,6 +348,8 @@ export class AgentLoop {
       await this.recordPipelineStage(threadId, turnId, 'post_start')
       const status = await this.loop(threadId, turnId, signal)
       await this.opts.turns.finishTurn({ threadId, turnId, status })
+      // Post-turn goal evaluation (fire-and-forget; errors must not block turn completion)
+      void this.evaluateGoalAfterTurn(threadId, turnId)
       return status
     } catch (error) {
       const raw = error instanceof Error ? error.message : String(error)
@@ -371,6 +379,171 @@ export class AgentLoop {
       this.autoModelRoutes.delete(autoModelRouteKey(threadId, turnId))
       this.toolStormBreakers.delete(turnId)
     }
+  }
+
+  /**
+   * Run goal evaluation after a turn completes. Only evaluates when there's
+   * an active goal and the evaluator + automation settings are available.
+   * Fire-and-forget: errors are recorded as runtime events but never block
+   * the turn outcome.
+   */
+  private async evaluateGoalAfterTurn(threadId: string, turnId: string): Promise<void> {
+    const evaluator = this.opts.goalEvaluator
+    const settings = this.opts.automationSettings
+    if (!evaluator || !settings?.goal.enabled) return
+
+    try {
+      const thread = await this.opts.threadStore.get(threadId)
+      const goal = thread?.goal
+      if (!goal || goal.status !== 'active') return
+
+      // Gather recent transcript (last few items from the session)
+      const items = await this.opts.sessionStore.loadItems(threadId)
+      const recentItems = items.slice(-40) // Last 40 items for context
+      const recentTranscript = recentItems
+        .map((item) => {
+          if (item.kind === 'user_message') return `[User]: ${item.text}`
+          if (item.kind === 'assistant_text') return `[Assistant]: ${item.text}`
+          if (item.kind === 'tool_call') return `[Tool call: ${item.toolName}]`
+          if (item.kind === 'tool_result') {
+            const outputStr = typeof item.output === 'string' ? item.output : JSON.stringify(item.output)
+            const preview = outputStr.slice(0, 200)
+            return `[Tool result: ${item.toolName}] ${preview}${outputStr.length > 200 ? '…' : ''}`
+          }
+          return ''
+        })
+        .filter(Boolean)
+        .join('\n')
+
+      // Check if the turn had tool calls (heuristic: any tool_call items for this turn)
+      const hadToolCalls = items.some(
+        (item) => item.turnId === turnId && item.kind === 'tool_call'
+      )
+
+      const config = {
+        enabled: true,
+        model: settings.goal.model,
+        maxContinuationTurns: settings.goal.maxContinuationTurns,
+        blockedRetryAfterTurns: settings.goal.blockedRetryAfterTurns,
+        toolFree: true as const,
+        budget: settings.goal.budget
+      }
+
+      // Get real thread cost from usage telemetry
+      const threadUsage = this.opts.usage.forThread(threadId)
+      const costUsedUsd = threadUsage.costUsd ?? 0
+      const iterationCount = (goal.evaluationIterations ?? 0) + 1
+
+      const context = {
+        threadId,
+        objective: goal.objective,
+        recentTranscript,
+        tokensUsed: goal.tokensUsed,
+        tokenBudget: goal.tokenBudget ?? null,
+        costUsedUsd,
+        hadToolCalls,
+        iterationCount,
+        evalTokensUsed: 0,
+        evalCostUsd: 0
+      }
+
+      // Check evaluator budget
+      const budgetCheck = evaluator.checkBudget(context, config)
+      if (budgetCheck.exhausted) {
+        const audit = {
+          threadId,
+          turnId,
+          iteration: context.iterationCount,
+          decision: 'blocked' as const,
+          reason: `Goal evaluator budget exhausted: ${budgetCheck.kind}`,
+          budgetExhausted: true,
+          budgetKind: budgetCheck.kind,
+          tokensUsed: context.evalTokensUsed,
+          costUsd: context.evalCostUsd,
+          timestamp: this.opts.nowIso()
+        }
+        await evaluator.recordAudit(audit)
+        await this.opts.events.record({
+          kind: 'error',
+          threadId,
+          turnId,
+          message: `Goal evaluator budget exhausted: ${budgetCheck.kind}`,
+          code: 'goal_eval_budget_exhausted',
+          severity: 'warning'
+        })
+        // Update goal to blocked
+        await this.updateGoalStatus(threadId, 'blocked', iterationCount)
+        return
+      }
+
+      // Run the evaluator with zero tools
+      const result = await evaluator.evaluate(context, config)
+
+      const audit = {
+        threadId,
+        turnId,
+        iteration: context.iterationCount,
+        decision: result.decision,
+        reason: result.reason,
+        budgetExhausted: false,
+        budgetKind: 'none' as const,
+        tokensUsed: context.evalTokensUsed,
+        costUsd: context.evalCostUsd,
+        timestamp: this.opts.nowIso()
+      }
+      await evaluator.recordAudit(audit)
+
+      // Update goal status based on evaluation
+      const newStatus = result.decision === 'done' ? 'complete'
+        : result.decision === 'blocked' ? 'blocked'
+        : 'active'
+      await this.updateGoalStatus(threadId, newStatus, iterationCount)
+
+      await this.opts.events.record({
+        kind: 'goal_updated',
+        threadId,
+        turnId,
+        goal: {
+          ...goal,
+          status: newStatus,
+          updatedAt: this.opts.nowIso()
+        }
+      })
+    } catch (err) {
+      // Goal evaluation failure is non-fatal; log and continue
+      const message = err instanceof Error ? err.message : String(err)
+      await this.opts.events.record({
+        kind: 'error',
+        threadId,
+        turnId,
+        message: `Goal evaluation failed: ${message}`,
+        code: 'goal_eval_error',
+        severity: 'warning'
+      })
+    }
+  }
+
+  private async updateGoalStatus(
+    threadId: string,
+    status: ThreadGoal['status'],
+    evaluationIterations?: number
+  ): Promise<void> {
+    const current = await this.opts.threadStore.get(threadId)
+    const goal = current?.goal
+    if (!goal) return
+    const updated = touchThread(
+      {
+        ...current,
+        goal: {
+          ...goal,
+          status,
+          updatedAt: this.opts.nowIso(),
+          ...(evaluationIterations !== undefined ? { evaluationIterations } : {})
+        }
+      },
+      this.opts.nowIso()
+    )
+    await this.opts.threadStore.upsert(updated)
   }
 
   private async failTurn(threadId: string, turnId: string, message: string): Promise<void> {

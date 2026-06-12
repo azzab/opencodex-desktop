@@ -54,6 +54,8 @@ export const ThreadGoalSchema = z.object({
   tokenBudget: z.number().int().positive().nullable().optional(),
   tokensUsed: z.number().int().nonnegative(),
   timeUsedSeconds: z.number().int().nonnegative(),
+  /** Number of completed goal-evaluation cycles for this goal. */
+  evaluationIterations: z.number().int().nonnegative().default(0),
   createdAt: z.string(),
   updatedAt: z.string()
 })
