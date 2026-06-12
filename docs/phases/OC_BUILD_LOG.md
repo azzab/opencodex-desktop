@@ -319,4 +319,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   unstaged, or untracked pre-turn state do not produce a worktree matching the
   snapshot; and the dirty-state warning mentions explicit confirmation but
   the restore API has no confirmation override path. A fourth same-tree
-  remediation order is being issued on `oc-h5-checkpoint` with `--max`.
+  remediation order was issued on `oc-h5-checkpoint` with `--max`; the wrapper
+  again warned that no saved pi session file exists, so it started a fresh pi
+  conversation on the current dirty H5 worktree. Worker log:
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h5-checkpoint/run-20260612T141325.log`.
