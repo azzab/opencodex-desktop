@@ -16,9 +16,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | ✅ | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 $0.2463 / in 387,586 out 59,117 cacheRead 7,244,032 cache 94.9% | Merged to `main`; post-merge full gate green (root 932/932, Kun 487/487); H4 stop gates independently reviewed | `0ee4c19` | Plan-mode tool isolation, persistent plan artifacts, approval-only execute transition, renderer approve surface, en/zh/ar keys |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ✅ | $3.2120 total: initial $0.5778 / in 544,726 out 204,438 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cache 96.6%; remediation5 $0.1811 / in 272,671 out 52,697 cache 94.4% | Merged to `main`; post-merge full gate green (root 932/932, Kun 525/525); H5 stop gates independently reviewed | `4bfe95f` | Safe checkpoint restore/fork semantics merged: code/conversation/both restore, full snapshot fork worktree, retention settings, audit events, visible timeline, en/zh/ar keys |
-| 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
-| 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
-| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | ⬜ | — | — | — | |
+| 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | 🔵 | running | Dispatched in `../ocx-h6`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T143245.log` |
+| 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | 🔵 | running | Dispatched in `../ocx-h7`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T143245.log` |
+| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🔵 | running | Dispatched in `../ocx-h8`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T143245.log` |
 | 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ⬜ | — | — | — | |
 | 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | ⬜ | — | — | — | |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ⬜ | — | — | — | 8A → 8C → 8D order |
@@ -352,3 +352,13 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   en/zh/ar locale parity. The UI sends `confirmDirtyOverwrite` after its
   destructive restore confirmation; API callers still get a typed 409 dirty
   block unless they pass the explicit confirmation flag.
+- 2026-06-12: Wave 3 worktrees were created from fresh `main` `5b63f30`:
+  `../ocx-h6` on `phase/h6-browser`, `../ocx-h7` on `phase/h7-hooks`, and
+  `../ocx-h8` on `phase/h8-goal-loop`. Preflight passed for `oc-h6-browser`,
+  `oc-h7-hooks`, and `oc-h8-goal-loop`; H7/H8 noted live pi workers elsewhere
+  but confirmed per-tree isolation and clean target trees. Dispatched H6 and
+  H7 with `--max`, and H8 with `--thinking high`, each using the phase doc
+  Short Launcher Prompt verbatim. Worker logs:
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T143245.log`,
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T143245.log`,
+  and `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T143245.log`.
