@@ -14,8 +14,8 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | 🔵 | initial partial/unmergeable; retry pending | Initial lane left unmergeable in `../ocx-h4`; retry dispatched in `../ocx-h4-r2`; verification pending worker completion | — | Merge before H5 (thread-service overlap); original dirty worktree retained as evidence |
-| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h5`; verification pending worker completion | — | Rebase on H4 before merge |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | ❌ | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8% | Retry full command gate green, but phase stop gates failed: no renderer approve-and-execute surface, no hash/reload/API denial proof; not merged | — | Wave 2 blocked; `../ocx-h4` and `../ocx-h4-r2` retained as evidence |
+| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | $0.5778 / in 544,726 out 204,438 cacheRead 44,947,072 cache 98.8% | Worker READY rejected/held; not rebased on H4, and worker-listed blockers remain | — | Held pending H4; `../ocx-h5` retained for evidence/remediation |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
 | 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | ⬜ | — | — | — | |
@@ -210,3 +210,20 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   the first mutating tool call, no persistent checkpoint store, missing
   settings UI retention controls, and incomplete Phase 6 managed-worktree fork
   registration; those are phase-scope blockers, not accepted gaps.
+- 2026-06-12: H4 retry `oc-h4-planner-r2` reported READY with cost `$0.6559`
+  (in 636,128 / out 210,895 / cacheRead 53,991,168 / cache 98.8%).
+  Orchestrator independently reran the full command gate in `../ocx-h4-r2`:
+  `npm run typecheck`, `npm run lint`, `npm test`, `npm --prefix kun run
+  typecheck`, `npm --prefix kun run test`, `npm run build`, and `git diff
+  --check` all exited 0. The phase is still blocked and not mergeable because
+  the H4 stop gates and visible-surface rule failed: no renderer files were
+  changed and `src/renderer/src/components/plan/PlanPanel.tsx` has no
+  approve-and-execute action wired to `POST /v1/threads/:id/plan/approve`;
+  `kun/tests/plan-mode-isolation.test.ts` only exercises direct tool-host
+  gating and does not prove filesystem hash unchanged after mutation denial,
+  plan artifact survival across a full thread-store reload, or API/server
+  denial of plan->execute transitions without the approval path. The API route
+  exists, but `approvePlan` transitions mode directly in `ThreadService`
+  without a renderer approval surface. Recovery rules are exhausted after the
+  initial unmergeable lane plus fresh retry; Wave 2 is stopped before H4 merge,
+  before H5 rebase/merge, and before any Wave 3 dispatch.
