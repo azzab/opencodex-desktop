@@ -18,7 +18,7 @@ Ledger: [OC_BUILD_LOG.md](./OC_BUILD_LOG.md)
 | 2 | [H2 Telemetry Dashboard](./PHASE_H2_WORKBENCH_TELEMETRY_DASHBOARD.md) | pidev | `--thinking high` | `oc-h2-telemetry` | `../ocx-h2` | 0 | usage pane renders real Kun telemetry incl. unknown-cache state |
 | 3 | [H3 Terminal Panel](./PHASE_H3_TERMINAL_PANEL.md) | pidev | `--max` | `oc-h3-terminal` | `../ocx-h3` | 0 | PTY sessions gated by approvals + audited |
 | **Wave 1.5 — sequential ×1 (security fixpack)** | | | | | | | |
-| 3.5 | [H3.5 Electron 42 Security Fixpack](./PHASE_H3_5_ELECTRON_SECURITY_FIXPACK.md) | pidev | `--max` | `oc-h3-5-electron` | `../ocx-h3-5` | 1–3 merged | full `npm audit` exit 0; dev boot + DMG dry-run + node-pty ABI proof on Electron 42.4.0 |
+| 3.5 | [H3.5 Electron Security Fixpack](./PHASE_H3_5_ELECTRON_SECURITY_FIXPACK.md) | pidev | `--max` | `oc-h3-5-electron` (fallback: `oc-h3-5-electron39`) | `../ocx-h3-5` (fallback: `../ocx-h3-5-39`) | 1–3 merged | full `npm audit` exit 0; dev boot + DMG dry-run + node-pty ABI proof on Electron 42.4.0, or authorized 39.8.10 fallback if the 42.4.0 recovery path is ledger-blocked |
 | **Wave 2 — parallel ×2** | | | | | | | |
 | 4 | [H4 Planner/Executor Split](./PHASE_H4_PLANNER_EXECUTOR_SPLIT.md) | pidev | `--max` | `oc-h4-planner` | `../ocx-h4` | 3.5 merged | plan mode provably read-only; transition requires approval |
 | 5 | [H5 Checkpoint & Rewind](./PHASE_H5_CHECKPOINT_REWIND.md) | pidev | `--max` | `oc-h5-checkpoint` | `../ocx-h5` | 3.5 merged | restore code-only / conversation-only / fork all proven by tests |
