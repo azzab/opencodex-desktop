@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { accessSync, constants, existsSync } = require('node:fs')
+const { accessSync, constants, existsSync, readFileSync } = require('node:fs')
 const { resolve } = require('node:path')
 
 const OPERATOR_GATES = [
@@ -136,6 +136,36 @@ const MAC_ARM64_ARTIFACTS = [
   }
 ]
 
+const V030_LOCAL_GATES = [
+  {
+    id: 'packageVersion',
+    blocker: 'missing_v030_rc_version',
+    expected: '0.3.0-rc'
+  },
+  {
+    id: 'h12ReadinessReport',
+    blocker: 'missing_h12_readiness_report',
+    path: 'docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md'
+  },
+  {
+    id: 'v030OperatorRunbook',
+    blocker: 'missing_v030_operator_runbook',
+    path: 'docs/release/0.3.0-operator-runbook.md'
+  },
+  {
+    id: 'newSurfaceSecurityReview',
+    blocker: 'missing_new_surface_security_review',
+    path: 'docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md',
+    marker: 'Zero unpatched fix-now security findings'
+  },
+  {
+    id: 'arabicParityReverified',
+    blocker: 'missing_arabic_parity_reverification',
+    path: 'docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md',
+    marker: 'src/renderer/src/locales/locale-coverage.test.ts'
+  }
+]
+
 function envValue(env, key) {
   const value = env?.[key]
   return typeof value === 'string' ? value.trim() : ''
@@ -206,6 +236,69 @@ function artifactStatus(root, artifactExists = defaultArtifactExists) {
   })
 }
 
+function defaultReadText(absolutePath) {
+  return readFileSync(absolutePath, 'utf-8')
+}
+
+function packageVersionStatus(root, options = {}) {
+  const readText = options.readText || defaultReadText
+  const packageJsonPath = resolve(root || process.cwd(), 'package.json')
+  try {
+    const parsed = JSON.parse(readText(packageJsonPath))
+    return typeof parsed.version === 'string' ? parsed.version : ''
+  } catch {
+    return ''
+  }
+}
+
+function v030GateStatus(root, options = {}) {
+  const resolvedRoot = root || process.cwd()
+  const readText = options.readText || defaultReadText
+  const evidence = options.v030Evidence || {}
+  const packageVersion = options.packageVersion || packageVersionStatus(resolvedRoot, { readText })
+
+  return V030_LOCAL_GATES.map((gate) => {
+    if (Object.prototype.hasOwnProperty.call(evidence, gate.id)) {
+      const ready = evidence[gate.id] === true
+      return {
+        id: gate.id,
+        ready,
+        expected: gate.expected,
+        path: gate.path,
+        marker: gate.marker,
+        blocker: ready ? undefined : gate.blocker
+      }
+    }
+
+    let ready = false
+    if (gate.id === 'packageVersion') {
+      ready = packageVersion === gate.expected
+    } else if (gate.path) {
+      const absolutePath = resolve(resolvedRoot, gate.path)
+      if (existsSync(absolutePath)) {
+        if (gate.marker) {
+          try {
+            ready = readText(absolutePath).includes(gate.marker)
+          } catch {
+            ready = false
+          }
+        } else {
+          ready = true
+        }
+      }
+    }
+
+    return {
+      id: gate.id,
+      ready,
+      expected: gate.expected,
+      path: gate.path,
+      marker: gate.marker,
+      blocker: ready ? undefined : gate.blocker
+    }
+  })
+}
+
 function allGroupsPresent(groups) {
   return groups.every((group) => group.present)
 }
@@ -223,6 +316,12 @@ function classifyReleaseReadiness(report) {
   for (const artifact of report.checks.artifacts) {
     if (!artifact.present && artifact.blocker) {
       blockers.push(artifact.blocker)
+    }
+  }
+
+  for (const gate of report.checks.v030) {
+    if (!gate.ready && gate.blocker) {
+      blockers.push(gate.blocker)
     }
   }
 
@@ -251,7 +350,7 @@ function createReleaseReadinessReport(options = {}) {
   const root = options.root || process.cwd()
   const report = {
     version: 1,
-    target: 'deepseek-gui-v0.2.8-local-release-authorization',
+    target: 'opencodex-desktop-v0.3.0-rc-release-readiness',
     status: 'blocked',
     generatedAt: options.generatedAt || new Date().toISOString(),
     checks: {
@@ -260,7 +359,8 @@ function createReleaseReadinessReport(options = {}) {
         macSigning: groupPresence(env, MAC_SIGNING_GROUPS),
         r2: groupPresence(env, R2_GROUPS)
       },
-      artifacts: artifactStatus(root, options.artifactExists)
+      artifacts: artifactStatus(root, options.artifactExists),
+      v030: v030GateStatus(root, options)
     },
     blockers: [],
     warnings: []
@@ -301,6 +401,13 @@ function usage() {
 This command is read-only. It reports release gate presence without printing
 credential values, creating tags, uploading artifacts, or promoting channels.
 
+v0.3.0 local evidence gates:
+  package.json version is 0.3.0-rc
+  docs/PHASE_H12_PARITY_RELEASE_V030_REPORT.md exists
+  docs/release/0.3.0-operator-runbook.md exists
+  H12 report records new-surface security review as done
+  H12 report records Arabic parity re-verification evidence
+
 Operator gate environment variables:
   OPENCODEX_RELEASE_OPERATOR_APPROVED=1
   OPENCODEX_RELEASE_MAC_SIGNING_DECISION=signed-notarized|unsigned-local-beta
@@ -337,6 +444,12 @@ function formatTextReport(report) {
   for (const artifact of report.checks.artifacts) {
     lines.push(`  ${artifact.present ? 'ok' : 'missing'} ${artifact.path}`)
   }
+  lines.push('')
+  lines.push('v0.3.0 local evidence:')
+  for (const gate of report.checks.v030) {
+    const detail = gate.path ? ` ${gate.path}` : gate.expected ? ` ${gate.expected}` : ''
+    lines.push(`  ${gate.ready ? 'ok' : 'missing'} ${gate.id}${detail}`)
+  }
   if (report.blockers.length > 0) {
     lines.push('')
     lines.push('Blockers:')
@@ -365,7 +478,10 @@ function runCli(argv = process.argv.slice(2), io = console, processLike = proces
     env: processLike.env || {},
     root: typeof processLike.cwd === 'function' ? processLike.cwd() : process.cwd(),
     artifactExists: options.artifactExists,
-    generatedAt: options.generatedAt
+    generatedAt: options.generatedAt,
+    packageVersion: options.packageVersion,
+    readText: options.readText,
+    v030Evidence: options.v030Evidence
   })
 
   if (flags.json) {
@@ -383,6 +499,7 @@ module.exports = {
   MAC_SIGNING_GROUPS,
   OPERATOR_GATES,
   R2_GROUPS,
+  V030_LOCAL_GATES,
   artifactStatus,
   classifyReleaseReadiness,
   createReleaseReadinessReport,
@@ -390,8 +507,10 @@ module.exports = {
   formatTextReport,
   groupPresence,
   keyPresence,
+  packageVersionStatus,
   parseArgs,
-  runCli
+  runCli,
+  v030GateStatus
 }
 
 if (require.main === module) {

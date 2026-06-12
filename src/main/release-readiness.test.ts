@@ -26,11 +26,28 @@ function readyEnv(): Record<string, string> {
   }
 }
 
+function readyV030Evidence(): Record<string, boolean> {
+  return {
+    packageVersion: true,
+    h12ReadinessReport: true,
+    v030OperatorRunbook: true,
+    newSurfaceSecurityReview: true,
+    arabicParityReverified: true
+  }
+}
+
+function missingV030Evidence(): Record<string, boolean> {
+  return Object.fromEntries(
+    Object.keys(readyV030Evidence()).map((key) => [key, false])
+  )
+}
+
 describe('release readiness report', () => {
   it('reports secret key presence without exposing secret values', () => {
     const report = readiness.createReleaseReadinessReport({
       env: readyEnv(),
-      artifactExists: () => true
+      artifactExists: () => true,
+      v030Evidence: readyV030Evidence()
     })
 
     const serialized = JSON.stringify(report)
@@ -47,7 +64,8 @@ describe('release readiness report', () => {
   it('blocks release authorization when operator-only gates are missing', () => {
     const report = readiness.createReleaseReadinessReport({
       env: {},
-      artifactExists: () => false
+      artifactExists: () => false,
+      v030Evidence: missingV030Evidence()
     })
 
     expect(report.status).toBe('blocked')
@@ -58,7 +76,12 @@ describe('release readiness report', () => {
       'missing_live_provider_smoke',
       'missing_arabic_release_scope_decision',
       'missing_update_rollback_notes',
-      'missing_publish_authorization'
+      'missing_publish_authorization',
+      'missing_v030_rc_version',
+      'missing_h12_readiness_report',
+      'missing_v030_operator_runbook',
+      'missing_new_surface_security_review',
+      'missing_arabic_parity_reverification'
     ]))
     expect(report.blockers.some((blocker: string) => blocker.startsWith('missing_artifact:'))).toBe(true)
   })
@@ -66,7 +89,8 @@ describe('release readiness report', () => {
   it('marks readiness as ready when all local and operator gates are present', () => {
     const report = readiness.createReleaseReadinessReport({
       env: readyEnv(),
-      artifactExists: () => true
+      artifactExists: () => true,
+      v030Evidence: readyV030Evidence()
     })
 
     expect(report.status).toBe('ready')
@@ -78,7 +102,10 @@ describe('release readiness report', () => {
     const error = vi.fn()
     const processLike = { env: {}, cwd: () => '/repo', exitCode: 0 }
 
-    const defaultResult = readiness.runCli([], { log, error }, processLike, { artifactExists: () => false })
+    const defaultResult = readiness.runCli([], { log, error }, processLike, {
+      artifactExists: () => false,
+      v030Evidence: missingV030Evidence()
+    })
     expect(defaultResult.status).toBe('blocked')
     expect(processLike.exitCode).toBe(0)
     expect(error).not.toHaveBeenCalled()
@@ -88,7 +115,7 @@ describe('release readiness report', () => {
       ['--strict'],
       { log, error },
       strictProcess,
-      { artifactExists: () => false }
+      { artifactExists: () => false, v030Evidence: missingV030Evidence() }
     )
 
     expect(strictResult.status).toBe('blocked')
@@ -104,12 +131,38 @@ describe('release readiness report', () => {
       ['--strict', '--json'],
       { log, error },
       processLike,
-      { artifactExists: () => true }
+      { artifactExists: () => true, v030Evidence: readyV030Evidence() }
     )
 
     expect(result.status).toBe('ready')
     expect(processLike.exitCode).toBe(0)
     expect(error).not.toHaveBeenCalled()
     expect(log).toHaveBeenCalledWith(expect.stringContaining('"status": "ready"'))
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('opencodex-desktop-v0.3.0-rc-release-readiness'))
+  })
+
+  it('reports v0.3.0 local evidence gate status without operator secrets', () => {
+    const report = readiness.createReleaseReadinessReport({
+      env: readyEnv(),
+      artifactExists: () => true,
+      v030Evidence: {
+        packageVersion: true,
+        h12ReadinessReport: true,
+        v030OperatorRunbook: true,
+        newSurfaceSecurityReview: false,
+        arabicParityReverified: false
+      }
+    })
+
+    expect(report.status).toBe('blocked')
+    expect(report.blockers).toEqual(expect.arrayContaining([
+      'missing_new_surface_security_review',
+      'missing_arabic_parity_reverification'
+    ]))
+    expect(report.checks.v030).toContainEqual(expect.objectContaining({
+      id: 'packageVersion',
+      ready: true,
+      expected: '0.3.0-rc'
+    }))
   })
 })
