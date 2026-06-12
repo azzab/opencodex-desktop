@@ -15,7 +15,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h4`; verification pending worker completion | — | Merge before H5 (thread-service overlap); dispatch followed H3.5 gate-green merge |
-| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
+| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h5`; verification pending worker completion | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
 | 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | ⬜ | — | — | — | |
@@ -181,3 +181,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   pi worker). Dispatched the H4 Short Launcher Prompt verbatim with `--max`;
   worker pid `61384`, log
   `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner/run-20260612T122052.log`.
+- 2026-06-12: H5 dispatched in parallel Wave 2 lane. Created fresh worktree
+  `../ocx-h5` on `phase/h5-checkpoint` from main `a3a9da1`. `pidev`
+  preflight passed for `oc-h5-checkpoint`; it warned about live H4 worker
+  `61384`, but confirmed per-tree isolation and a clean H5 tree. Dispatched
+  the H5 Short Launcher Prompt verbatim with `--max`; worker pid `70550`, log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h5-checkpoint/run-20260612T122315.log`.
