@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative } from 'node:p
 import { LocalToolHost, type LocalTool } from './local-tool-host.js'
 import { withFileMutationQueue } from './file-mutation-queue.js'
 import type { ToolHostContext } from '../../ports/tool-host.js'
+import { canWritePath } from './sandbox-policy.js'
 import {
   GUI_PLAN_RELATIVE_DIR,
   buildGuiPlanId,
@@ -291,6 +292,16 @@ export async function executeCreatePlanTool(
     ? normalize(join(resolvedWorkspace, resolved.relativePath))
     : normalize(join(planDirectory(resolvedWorkspace), basename(resolved.relativePath)))
   assertWithinWorkspace(absolutePath, resolvedWorkspace)
+  const writePermission = canWritePath(absolutePath, context)
+  if (!writePermission.ok) {
+    return {
+      output: {
+        code: writePermission.block.code,
+        error: writePermission.block.message
+      },
+      isError: true
+    }
+  }
   if (context.abortSignal.aborted) {
     return { output: { error: 'plan write aborted' }, isError: true }
   }

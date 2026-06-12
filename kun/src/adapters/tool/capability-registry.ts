@@ -4,6 +4,7 @@ import type {
   ToolProviderPolicy
 } from '../../ports/tool-host.js'
 import type { LocalTool } from './local-tool-host.js'
+import { isToolAdvertisedInSandbox } from './sandbox-policy.js'
 
 export type CapabilityToolRecord = {
   provider: ToolProviderPolicy
@@ -63,6 +64,7 @@ export class CapabilityRegistry {
     for (const record of this.tools.values()) {
       if (!this.canUseProvider(record.provider, context)) continue
       if (!this.canUseTool(record.tool.name, context)) continue
+      if (!isToolAdvertisedInSandbox(record.tool, context)) continue
       if (record.tool.shouldAdvertise) {
         if (!context || !record.tool.shouldAdvertise(context)) continue
       }

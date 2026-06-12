@@ -96,6 +96,7 @@ export async function getThread(
       sessionStore.highestSeq(threadId),
       sessionStore.loadItems(threadId)
     ])
+    sessionItems = await healSessionItemsForFinishedTurns(thread, sessionItems, sessionStore)
   }
   const hydratedThread = hydrateThreadItemsFromSession(thread, sessionItems)
   return jsonResponse({
@@ -120,6 +121,63 @@ function hydrateThreadItemsFromSession(thread: ThreadRecord, items: TurnItem[]):
     return { ...turn, items: sessionTurnItems }
   })
   return changed ? { ...thread, turns } : thread
+}
+
+type FinishedTurnStatus = Extract<Turn['status'], 'completed' | 'failed' | 'aborted'>
+
+async function healSessionItemsForFinishedTurns(
+  thread: ThreadRecord,
+  items: TurnItem[],
+  sessionStore: SessionStore
+): Promise<TurnItem[]> {
+  if (items.length === 0 || thread.turns.length === 0) return items
+  const finishedByTurnId = new Map<string, { status: FinishedTurnStatus; finishedAt?: string }>()
+  for (const turn of thread.turns) {
+    const status = finishedTurnStatus(turn.status)
+    if (!status) continue
+    finishedByTurnId.set(turn.id, { status, finishedAt: turn.finishedAt })
+  }
+  if (finishedByTurnId.size === 0) return items
+
+  const healedAt = new Date().toISOString()
+  const healedItems: TurnItem[] = []
+  const nextItems = items.map((item) => {
+    const finished = finishedByTurnId.get(item.turnId)
+    if (!finished) return item
+    const next = finalizeOpenSessionItem(item, finished.status, finished.finishedAt ?? healedAt)
+    if (next !== item) healedItems.push(next)
+    return next
+  })
+  if (healedItems.length === 0) return items
+
+  for (const item of healedItems) {
+    try {
+      await sessionStore.updateItem(thread.id, item.id, item)
+    } catch {
+      // Healing is best-effort; the response still uses the repaired view.
+    }
+  }
+  return nextItems
+}
+
+function finishedTurnStatus(status: Turn['status']): FinishedTurnStatus | null {
+  return status === 'completed' || status === 'failed' || status === 'aborted' ? status : null
+}
+
+function finalizeOpenSessionItem(
+  item: TurnItem,
+  status: FinishedTurnStatus,
+  finishedAt: string
+): TurnItem {
+  if (item.status !== 'pending' && item.status !== 'running') return item
+  if (item.kind === 'approval') {
+    return { ...item, status: 'expired', finishedAt }
+  }
+  if (item.kind === 'user_input') {
+    return { ...item, status: 'cancelled', finishedAt }
+  }
+  const itemStatus = status === 'completed' ? 'completed' : status
+  return { ...item, status: itemStatus, finishedAt } as TurnItem
 }
 
 export async function updateThread(

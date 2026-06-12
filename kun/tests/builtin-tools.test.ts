@@ -63,6 +63,7 @@ function buildContext(workspace: string): ToolHostContext {
     turnId: 'turn_1',
     workspace,
     approvalPolicy: 'on-request',
+    sandboxMode: 'danger-full-access',
     abortSignal: new AbortController().signal,
     awaitApproval: async () => 'allow'
   }
