@@ -14,7 +14,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | 🟡 | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 pending | Remediation1 full command gate green, but review found reload/API stop-gate proofs too weak; remediation2 ordered for persistent-store reload + PATCH denial proof | — | Wave 2 blocked pending H4 remediation; `../ocx-h4` and `../ocx-h4-r2` retained as evidence |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | ✅ | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 $0.2463 / in 387,586 out 59,117 cacheRead 7,244,032 cache 94.9% | Merged to `main`; post-merge full gate green (root 932/932, Kun 487/487); H4 stop gates independently reviewed | `0ee4c19` | Plan-mode tool isolation, persistent plan artifacts, approval-only execute transition, renderer approve surface, en/zh/ar keys |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | $0.5778 / in 544,726 out 204,438 cacheRead 44,947,072 cache 98.8% | Worker READY rejected/held; not rebased on H4, and worker-listed blockers remain | — | Held pending H4; `../ocx-h5` retained for evidence/remediation |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
@@ -256,3 +256,16 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   reload proof and explicit unauthorized mode-change API denial proof, then
   rerun the full gate. Worker log
   `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner-r2/run-20260612T132037.log`.
+- 2026-06-12: H4 remediation2 reported READY with cost `$0.2463` (in 387,586
+  / out 59,117 / cacheRead 7,244,032 / cache 94.9%). Orchestrator reran the
+  full gate in `../ocx-h4-r2` and reviewed the corrected stop-gate tests:
+  `kun/tests/thread-service.test.ts` now proves plan artifact persistence by
+  reloading a new `FileThreadStore`/`ThreadService` from the same temp
+  `dataDir`, and `kun/tests/http-server.test.ts` proves `PATCH
+  /v1/threads/:id` with `{ mode: "agent" }` fails validation and leaves a plan
+  thread in `plan` mode until `POST /v1/threads/:id/plan/approve` records
+  `approval_resolved` and transitions to `agent`. H4 lane commit `2c6bea4`
+  was merged to `main` as `0ee4c19`. Post-merge main gate exited 0:
+  `npm run typecheck`, `npm run lint` (7 warnings), root tests 932/932, Kun
+  typecheck, Kun tests 487/487, `npm run build`, and `git diff --check`.
+  H5 is now unblocked for rebase/remediation on top of merged H4.
