@@ -29,7 +29,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | # | Phase | Session id | Model / flag | Status | Cost ($ / tokens / cache %) | Verified | Merge commit | Notes |
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | ✅ | $0.8769 total: initial stalled $0.6039 / in 590,648 out 221,918 cacheRead 42,452,480 cache 98.6%; recovery $0.2730 / in 383,460 out 86,491 cacheRead 8,532,736 cache 95.7% | Merged to `main`; post-merge full gate green (root 150 files/1184 tests, Kun 58 files passed / 1 skipped and 658 tests passed / 4 skipped); full audit 0; corrected Kun SSE smoke green before and after Electron 42; clean-room install gate green; DMG Electron `42.4.0`; PTY/native ABI proof | `11c4ab6` | Lane commit `aa0b660`; report `docs/PHASE_M1_ELECTRON_42_REPORT.md`; first post-merge gate was infrastructure-failed by ENOSPC during Electron extraction/temp repo creation, then generated artifacts were removed, Electron reinstalled, and the full gate reran green |
-| M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ⬜ | — | — | — | Operator-approved 2026-06-12: release notes + mac DMG artifacts after M1; `dist:mac:signed` + `verify:apple` if signing creds present, else unsigned-beta with unquarantine notes; artifact paths reported for operator testing; NO upload/publish without `OPENCODEX_RELEASE_PUBLISH_AUTHORIZED` |
+| M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ✅ | Orchestrator only; no pidev cost | Version bumped to `0.3.1-beta`; release notes written; `npm run dist:mac` green; unsigned x64+arm64 DMG/zip artifacts built; arm64 packaged app proves version `0.3.1-beta` and Electron `42.4.0`; packaged app opened from `dist/mac-arm64/OpenCodex Desktop.app`; VS Code client typecheck/tests/package green and VSIX installed into Cursor (`undefined_publisher.opencodex-vscode@0.1.0`) because Visual Studio Code was not installed | pending local release-prep commit | Artifacts: `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.zip`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.zip`, `dist/latest-mac.yml`; no Apple signing/notary credentials detected, so `dist:mac:signed`, `verify:apple`, upload, publish, tag, and update-channel mutation were not run |
 | M2 | Provider Auth & Model Discovery | `oc-m2-providers` | dsv4-pro max | 🔵 | initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation pending | Initial worker READY rejected by orchestrator security/source review; remediation running; verification pending | — | Worktree `../ocx-m2`; initial log `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`; OAuth PKCE + safeStorage; Kilo-Code-style connect UX |
 | M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
 | M4a | Mobile Pairing Host | `oc-m4a-pairing` | dsv4-pro max | ⬜ | — | — | — | Opt-in TLS LAN listener, QR pairing, device scopes |
@@ -1124,3 +1124,22 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `--max --allow-dirty`; the wrapper warned no existing session file was
   available, so the recovery starts a fresh underlying pi run under the same
   orchestrator id.
+- 2026-06-12: M1 merged to `main` as `11c4ab6` and was ledgered in
+  `4778908`. Orchestrator verification reran the full post-merge gate after
+  resolving a host ENOSPC incident by deleting generated artifacts only and
+  reinstalling Electron from the lockfile. Root gate then passed:
+  `typecheck`, `lint` (7 warnings), root tests 150 files / 1184 tests, Kun
+  typecheck/tests (58 files passed / 1 skipped; 658 tests passed / 4 skipped),
+  build, and `git diff --check`.
+- 2026-06-12: M1.5 local beta packaging completed on `main` after version bump
+  to `0.3.1-beta` and release notes at `docs/release/NOTES-0.3.1-beta.md`.
+  `npm run dist:mac` built unsigned x64 and arm64 DMG/zip artifacts plus
+  `latest-mac.yml`; no Apple signing/notary environment variables were present,
+  so the signed/notarized path and `verify:apple` were not run. The packaged
+  arm64 app reports app version `0.3.1-beta` and Electron framework
+  `42.4.0`, and it was opened from
+  `dist/mac-arm64/OpenCodex Desktop.app`. The VS Code client typecheck/tests
+  and `vsce package` passed; Visual Studio Code was not installed and the
+  `code` CLI was absent, so the VSIX was installed into the available
+  VS Code-compatible Cursor host as `undefined_publisher.opencodex-vscode@0.1.0`
+  and the `clients/vscode` workspace was opened there.

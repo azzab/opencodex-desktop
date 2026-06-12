@@ -1,7 +1,7 @@
 {
   "name": "opencodex-desktop",
   "productName": "OpenCodex Desktop",
-  "version": "0.3.0-rc",
+  "version": "0.3.1-beta",
   "description": "Independent open agent workbench for the Kun runtime (HTTP/SSE)",
   "main": "./out/main/index.js",
   "type": "module",
