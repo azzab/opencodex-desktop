@@ -18,7 +18,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ✅ | $3.2120 total: initial $0.5778 / in 544,726 out 204,438 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cache 96.6%; remediation5 $0.1811 / in 272,671 out 52,697 cache 94.4% | Merged to `main`; post-merge full gate green (root 932/932, Kun 525/525); H5 stop gates independently reviewed | `4bfe95f` | Safe checkpoint restore/fork semantics merged: code/conversation/both restore, full snapshot fork worktree, retention settings, audit events, visible timeline, en/zh/ar keys |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | 🔵 | running | Dispatched in `../ocx-h6`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T143245.log` |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | 🔵 | running | Dispatched in `../ocx-h7`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T143245.log` |
-| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🔵 | running | Dispatched in `../ocx-h8`; verification pending | — | Wave 3 dispatch log `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T143245.log` |
+| 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | 🟡 | initial READY rejected; remediation ordered | Initial worker self-report only; orchestrator review rejected before merge because phase-scope integrations were missing | — | Missing router/runtime wiring, file-backed loop persistence, settings UI integration, and AgentLoop post-turn goal continuation |
 | 9 | H9 CLI Binary & IDE Extension | `oc-h9-clients` | dsv4-pro high | ⬜ | — | — | — | |
 | 10 | H10 SSH Remote Runner | `oc-h10-ssh` | dsv4-pro max | ⬜ | — | — | — | |
 | 11 | H11 Upstream Wave-8 Ports | `oc-h11-upstream` | dsv4-pro high | ⬜ | — | — | — | 8A → 8C → 8D order |
@@ -362,3 +362,14 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `/Users/mohamedazab/.pidev-orchestrator/oc-h6-browser/run-20260612T143245.log`,
   `/Users/mohamedazab/.pidev-orchestrator/oc-h7-hooks/run-20260612T143245.log`,
   and `/Users/mohamedazab/.pidev-orchestrator/oc-h8-goal-loop/run-20260612T143245.log`.
+- 2026-06-12: H8 initial worker `oc-h8-goal-loop` reported
+  READY_FOR_ORCHESTRATOR_REVIEW, but its own gaps are phase-scope blockers:
+  goal evaluator and loop scheduler routes were implemented but not wired into
+  `buildRouter()`/runtime, no file-backed loop store exists despite the scope
+  requiring persistence across restart, settings under `agents.kun.automations`
+  were schema-only and not integrated into settings UI, and the goal evaluator
+  is not called from `AgentLoop.runTurn()` after turns complete, so `/goal`
+  cannot actually drive condition-based continuation. This violates the H8
+  goal of proven `/goal` and `/loop` features and the foundation rule that a
+  service/contract without visible surface is a failed phase. Same-lane
+  remediation is being ordered on `oc-h8-goal-loop`; H6/H7 continue in parallel.
