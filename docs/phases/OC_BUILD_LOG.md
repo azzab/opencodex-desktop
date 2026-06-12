@@ -14,7 +14,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h4`; verification pending worker completion | — | Merge before H5 (thread-service overlap); dispatch followed H3.5 gate-green merge |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | 🔵 | initial partial/unmergeable; retry pending | Initial lane left unmergeable in `../ocx-h4`; retry dispatched in `../ocx-h4-r2`; verification pending worker completion | — | Merge before H5 (thread-service overlap); original dirty worktree retained as evidence |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | pending | Dispatched in `../ocx-h5`; verification pending worker completion | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
@@ -187,3 +187,26 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `61384`, but confirmed per-tree isolation and a clean H5 tree. Dispatched
   the H5 Short Launcher Prompt verbatim with `--max`; worker pid `70550`, log
   `/Users/mohamedazab/.pidev-orchestrator/oc-h5-checkpoint/run-20260612T122315.log`.
+- 2026-06-12: H4 initial lane `oc-h4-planner` was stopped as unmergeable
+  during verification. The worker entered repeated `npm --prefix kun run test`
+  hangs in `../ocx-h4`; orchestrator terminated only the stuck verification
+  subprocesses first, then the original worker after same-session steering was
+  unavailable because no pidev session file had been saved and an attempted
+  `order` incorrectly created root-scope metadata. Orchestrator spot-review
+  also found the partial H4 output did not satisfy stop gates: the API test
+  allowed direct plan→execute mode changes without approval, the plan artifact
+  persistence test was structural rather than proving reload survival, and no
+  changed renderer files carried the required H4 visible surface. The dirty
+  `../ocx-h4` worktree is retained for evidence. Fresh retry
+  `oc-h4-planner-r2` was created in `../ocx-h4-r2` on
+  `phase/h4-planner-r2` from main `d5cb9a0`; preflight passed and the H4
+  Short Launcher Prompt was dispatched verbatim with `--max`, worker pid
+  `25320`, log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner-r2/run-20260612T124035.log`.
+- 2026-06-12: H5 initial worker `oc-h5-checkpoint` reported READY with cost
+  `$0.5778` (in 544,726 / out 204,438 / cacheRead 44,947,072 / cache 98.8%)
+  but is held unmergeable pending H4 merge/rebase and same-lane remediation.
+  The worker-listed gaps include missing automatic checkpoint creation before
+  the first mutating tool call, no persistent checkpoint store, missing
+  settings UI retention controls, and incomplete Phase 6 managed-worktree fork
+  registration; those are phase-scope blockers, not accepted gaps.
