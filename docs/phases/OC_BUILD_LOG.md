@@ -15,7 +15,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | ✅ | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 $0.2463 / in 387,586 out 59,117 cacheRead 7,244,032 cache 94.9% | Merged to `main`; post-merge full gate green (root 932/932, Kun 487/487); H4 stop gates independently reviewed | `0ee4c19` | Plan-mode tool isolation, persistent plan artifacts, approval-only execute transition, renderer approve surface, en/zh/ar keys |
-| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🟡 | $0.5778 / in 544,726 out 204,438 cacheRead 44,947,072 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cacheRead 109,058,048 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cacheRead 19,365,760 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cacheRead 24,880,128 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cacheRead 20,716,800 cache 96.6%; remediation5 ordered | Full command gate green in `../ocx-h5` before remediation4; stop gates rejected after remediation3; same-tree recovery ordered after remediation4 runaway log | — | Current target: finish safe restore/fork snapshot semantics, preserve `.chkpts` artifacts during restore, rerun full gate |
+| 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ✅ | $3.2120 total: initial $0.5778 / in 544,726 out 204,438 cache 98.8%; remediation1 $1.0920 / in 1,059,997 out 270,774 cache 99.0%; remediation2 $0.3947 / in 512,758 out 116,583 cache 97.4%; remediation3 $0.4313 / in 392,276 out 195,973 cache 98.4%; remediation4 stopped $0.5351 / in 724,009 out 166,688 cache 96.6%; remediation5 $0.1811 / in 272,671 out 52,697 cache 94.4% | Merged to `main`; post-merge full gate green (root 932/932, Kun 525/525); H5 stop gates independently reviewed | `4bfe95f` | Safe checkpoint restore/fork semantics merged: code/conversation/both restore, full snapshot fork worktree, retention settings, audit events, visible timeline, en/zh/ar keys |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
 | 8 | H8 Goal & Loop Scheduler | `oc-h8-goal-loop` | dsv4-pro high | ⬜ | — | — | — | |
@@ -335,3 +335,20 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   specific bug without expanding scope; the wrapper again warned that no saved
   pi session file exists, so it started a fresh pi conversation. Worker log:
   `/Users/mohamedazab/.pidev-orchestrator/oc-h5-checkpoint/run-20260612T142407.log`.
+- 2026-06-12: H5 remediation5 reported no new tree edits but summarized the
+  final `.chkpts` artifact-preservation fix from the existing dirty H5 tree.
+  Cost: `$0.1811` (in 272,671 / out 52,697 / cacheRead 4,579,840 / cache
+  94.4%). Orchestrator treated the report as suspect because it lacked the
+  required READY sentinel and the wrapper warned `NO_TREE_CHANGES`; independent
+  review and verification were therefore rerun from the actual worktree.
+  The H5 lane commit `7d81947` was merged to `main` as `4bfe95f`. Post-merge
+  main gate exited 0: `npm run typecheck`, `npm run lint` (7 warnings), root
+  tests 932/932, Kun typecheck, Kun tests 525/525, `npm run build`, and
+  `git diff --check`. Stop-gate review accepted the new tests for staged/index
+  restore state, post-checkpoint untracked cleanup plus checkpoint untracked
+  restoration, no stash/reset-hard restore proof, full dirty-snapshot fork
+  worktree content/status with Phase 6 metadata/audit, code/conversation/both
+  restore semantics, retention cleanup, visible timeline/settings surface, and
+  en/zh/ar locale parity. The UI sends `confirmDirtyOverwrite` after its
+  destructive restore confirmation; API callers still get a typed 409 dirty
+  block unless they pass the explicit confirmation flag.
