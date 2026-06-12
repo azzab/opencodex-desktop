@@ -379,6 +379,11 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   The lane is rejected until the lockfile is updated and clean install proof
   passes. Remediation12 was ordered on `oc-h10-ssh-r11` against the dirty
   `../ocx-h10` tree.
+- 2026-06-12: The first remediation12 order attempt on `oc-h10-ssh-r11`
+  again reported no existing session and began a fresh context from the main
+  tree. Orchestrator interrupted it before implementation work; main remained
+  clean. Remediation12 must use a fresh explicit session id bound to
+  `../ocx-h10`.
 - 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
   worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
   preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
