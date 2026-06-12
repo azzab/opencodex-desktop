@@ -331,5 +331,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   the worker was mid-fix and had identified a concrete restore bug: checkpoint
   data under `.chkpts/` was being treated as post-checkpoint untracked data and
   deleted before extraction. The dirty H5 worktree is retained, and a fifth
-  same-tree recovery order is being issued to continue and finish from that
-  specific bug without expanding scope.
+  same-tree recovery order was issued to continue and finish from that
+  specific bug without expanding scope; the wrapper again warned that no saved
+  pi session file exists, so it started a fresh pi conversation. Worker log:
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h5-checkpoint/run-20260612T142407.log`.
