@@ -141,6 +141,19 @@ function createAutomationTools(options: {
       ...options
     }),
     createAutomationTool({
+      name: 'browser_snapshot',
+      description: 'Read the current DOM as sanitized text (title, URL, visible text, input values) through the automation sidecar. Returns page metadata, headings, interactive elements, links, and a text dump of visible content. Use this to inspect page state before clicking or typing.',
+      action: 'browser.snapshot',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: false
+      },
+      target: () => ({}),
+      ...options
+    }),
+    createAutomationTool({
       name: 'local_file_access',
       description: 'Request automation-sidecar local file access for browser evidence only.',
       action: 'local_file.access',

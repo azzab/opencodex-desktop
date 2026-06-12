@@ -121,4 +121,47 @@ describe('automation permission decisions', () => {
       reason: 'app/computer control is not implemented in this phase'
     })
   })
+
+  it('allows browser.snapshot through the browserNavigation gate when enabled', () => {
+    const decision = decideAutomationPermission(baseConfig, request({
+      action: 'browser.snapshot',
+      target: {}
+    }))
+
+    expect(decision).toMatchObject({
+      decision: 'allow',
+      permission: 'browserNavigation'
+    })
+  })
+
+  it('denies browser.snapshot when URL is on a disallowed host', () => {
+    const decision = decideAutomationPermission(baseConfig, request({
+      action: 'browser.snapshot',
+      target: { url: 'https://example.com' }
+    }))
+
+    expect(decision).toMatchObject({
+      decision: 'deny',
+      permission: 'browserNavigation',
+      reason: 'browser navigation is limited to local/dev hosts'
+    })
+  })
+
+  it('denies browser.snapshot when browserNavigation is deny', () => {
+    const decision = decideAutomationPermission(
+      {
+        ...baseConfig,
+        permissions: {
+          ...baseConfig.permissions,
+          browserNavigation: 'deny'
+        }
+      },
+      request({ action: 'browser.snapshot', target: {} })
+    )
+
+    expect(decision).toMatchObject({
+      decision: 'deny',
+      permission: 'browserNavigation'
+    })
+  })
 })

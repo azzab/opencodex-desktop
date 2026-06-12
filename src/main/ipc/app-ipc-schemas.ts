@@ -28,6 +28,8 @@ import {
   KUN_THREAD_STEER_TEMPLATE,
   KUN_THREAD_TURNS_TEMPLATE,
   KUN_THREAD_TEMPLATE,
+  KUN_THREAD_EVIDENCE_TEMPLATE,
+  KUN_THREAD_EVIDENCE_ENTRY_TEMPLATE,
   KUN_USER_INPUT_TEMPLATE,
   KUN_USAGE_TEMPLATE
 } from '../../shared/kun-endpoints'
@@ -122,6 +124,8 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_THREAD_STEER_TEMPLATE, ['POST']),
   compileEndpoint(KUN_THREAD_INTERRUPT_TEMPLATE, ['POST']),
   compileEndpoint(KUN_APPROVAL_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_THREAD_EVIDENCE_TEMPLATE, ['GET']),
+  compileEndpoint(KUN_THREAD_EVIDENCE_ENTRY_TEMPLATE, ['GET']),
   compileEndpoint(KUN_USER_INPUT_TEMPLATE, ['POST']),
   compileEndpoint(KUN_SESSION_RESUME_TEMPLATE, ['POST']),
   compileEndpoint(KUN_USAGE_TEMPLATE, ['GET']),

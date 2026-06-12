@@ -1517,5 +1517,21 @@
   "checkpointSettingsMaxPerThread": "Max per thread",
   "checkpointSettingsMaxTotal": "Max total",
   "checkpointSettingsAuto": "Auto create before mutation",
-  "checkpointDirtyBlocked": "Restore blocked — workspace is dirty"
+  "checkpointDirtyBlocked": "Restore blocked — workspace is dirty",
+  "evidencePanelTitle": "Evidence",
+  "evidenceEmptyTitle": "No evidence captured yet",
+  "evidenceEmptyDescription": "Browser automation evidence (screenshots, console logs, network) will appear here after the agent runs a browser action.",
+  "evidenceScreenshots": "Screenshots",
+  "evidenceConsole": "Console",
+  "evidenceNetwork": "Network",
+  "evidenceScreenshotAlt": "Browser screenshot",
+  "evidenceUntitled": "Untitled",
+  "evidenceConsoleEmpty": "No console entries captured",
+  "evidenceConsoleType": "Type",
+  "evidenceConsoleText": "Message",
+  "evidenceConsoleLocation": "Location",
+  "evidenceNetworkEmpty": "No network requests captured",
+  "evidenceNetworkMethod": "Method",
+  "evidenceNetworkUrl": "URL",
+  "evidenceNetworkStatus": "Status"
 }

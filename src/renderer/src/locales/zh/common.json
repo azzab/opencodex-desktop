@@ -1517,5 +1517,21 @@
   "checkpointSettingsMaxPerThread": "每会话上限",
   "checkpointSettingsMaxTotal": "总计上限",
   "checkpointSettingsAuto": "变更前自动创建",
-  "checkpointDirtyBlocked": "恢复被阻止 — 工作区有未保存的更改"
+  "checkpointDirtyBlocked": "恢复被阻止 — 工作区有未保存的更改",
+  "evidencePanelTitle": "证据",
+  "evidenceEmptyTitle": "尚未捕获证据",
+  "evidenceEmptyDescription": "浏览器自动化证据（截图、控制台日志、网络）将在代理执行浏览器操作后显示在此处。",
+  "evidenceScreenshots": "截图",
+  "evidenceConsole": "控制台",
+  "evidenceNetwork": "网络",
+  "evidenceScreenshotAlt": "浏览器截图",
+  "evidenceUntitled": "无标题",
+  "evidenceConsoleEmpty": "未捕获控制台条目",
+  "evidenceConsoleType": "类型",
+  "evidenceConsoleText": "消息",
+  "evidenceConsoleLocation": "位置",
+  "evidenceNetworkEmpty": "未捕获网络请求",
+  "evidenceNetworkMethod": "方法",
+  "evidenceNetworkUrl": "URL",
+  "evidenceNetworkStatus": "状态"
 }

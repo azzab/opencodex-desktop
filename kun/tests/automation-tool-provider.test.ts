@@ -138,6 +138,67 @@ describe('automation tool provider', () => {
     })
   })
 
+  it('browser_snapshot tool routes through the sidecar with browserNavigation permission', async () => {
+    const auditLog = new InMemoryAutomationAuditLog()
+    const sidecar = new MockAutomationSidecar({
+      status: 'ok',
+      evidence: {
+        title: 'Local dev app',
+        url: 'http://localhost:3000',
+        headings: [{ level: 1, text: 'Welcome' }],
+        visibleText: 'Hello world',
+        interactiveCount: 2,
+        interactives: [],
+        linkCount: 1,
+        links: [],
+        visibleTextLength: 11
+      }
+    })
+    const built = buildAutomationToolProviders(
+      normalizeAutomationCapabilityConfig({
+        enabled: true,
+        permissions: {
+          browserNavigation: 'allow',
+          browserInteraction: 'deny',
+          screenshots: 'deny',
+          localFileAccess: 'deny',
+          appControl: 'deny'
+        }
+      }),
+      { auditLog, sidecar, nowIso: () => '2026-06-09T00:00:00.000Z' }
+    )
+    const registry = new CapabilityRegistry(built.providers)
+    const host = new LocalToolHost({ registry })
+    const result = await host.execute(
+      {
+        callId: 'call_snap',
+        toolName: 'browser_snapshot',
+        arguments: {}
+      },
+      {
+        threadId: 'thr_1',
+        turnId: 'turn_1',
+        workspace: '/tmp/workspace',
+        approvalPolicy: 'auto',
+        abortSignal: new AbortController().signal,
+        awaitApproval: async () => 'allow'
+      }
+    )
+
+    if (result.item.kind !== 'tool_result') {
+      throw new Error(`expected tool_result, got ${result.item.kind}`)
+    }
+    expect(result.item.output).toMatchObject({ status: 'ok' })
+    const ev = result.item.output as Record<string, unknown>
+    expect(ev.evidence).toBeDefined()
+    expect(sidecar.requests.map((entry) => entry.action)).toEqual(['browser.snapshot'])
+    expect(auditLog.events.map((entry) => entry.status)).toEqual([
+      'requested',
+      'allowed',
+      'completed'
+    ])
+  })
+
   it('caps the in-memory audit log used by mock sidecars', () => {
     const auditLog = new InMemoryAutomationAuditLog(2)
 
