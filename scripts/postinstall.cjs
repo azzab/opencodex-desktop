@@ -1,9 +1,10 @@
 const { spawnSync } = require('node:child_process')
 
-function run(command, args) {
+function run(command, args, options = {}) {
   return spawnSync(command, args, {
     stdio: 'inherit',
-    shell: process.platform === 'win32'
+    shell: process.platform === 'win32',
+    ...options
   })
 }
 

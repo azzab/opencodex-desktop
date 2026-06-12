@@ -66,6 +66,16 @@ type ThreadIndexRecord = {
   preview: string
 }
 
+/** Minimal row shape for backfill usage-event serialization. */
+type UsageRow = {
+  thread_id: string
+  seq: number
+  timestamp: string
+  turn_id: string | null
+  model: string | null
+  usage_json: string
+}
+
 /**
  * Hybrid store inspired by Codex: JSONL files are canonical and SQLite
  * is a rebuildable index. SQLite writes always happen after metadata
@@ -77,7 +87,20 @@ export class HybridThreadStore implements ThreadStore {
   private readonly nowIso: () => string
   private readonly readyPromise: Promise<void>
   private readonly metadataQueues = new Map<string, Promise<void>>()
+  private backfillPromise: Promise<void> | null = null
   private db: BetterSqliteDatabase | null = null
+  // Prepared-statement cache for the per-event hot paths; better-sqlite3
+  // re-compiles the SQL on every prepare() call otherwise.
+  private readonly statementCache = new Map<string, Statement>()
+  // Reconstructed thread records keyed by the file signatures they were built
+  // from. Thread detail requests re-read multi-megabyte JSONL files otherwise.
+  private readonly threadRecordCache = new Map<
+    string,
+    { metadataSig: string; itemsSig: string; record: ThreadRecord }
+  >()
+  // Per-thread floor that keeps metadata compaction from re-running on every
+  // append when a single snapshot is already larger than the threshold.
+  private readonly metadataCompactFloor = new Map<string, number>()
 
   constructor(options: { dataDir: string; sqlitePath?: string; nowIso?: () => string }) {
     this.dataDir = resolve(options.dataDir, 'threads')
@@ -88,6 +111,7 @@ export class HybridThreadStore implements ThreadStore {
 
   async ready(): Promise<void> {
     await this.readyPromise
+    await this.backfillPromise
   }
 
   close(): void {
@@ -154,6 +178,8 @@ export class HybridThreadStore implements ThreadStore {
     }
     await rm(dir, { recursive: true, force: true })
     this.deleteIndexRow(threadId)
+    this.threadRecordCache.delete(threadId)
+    this.metadataCompactFloor.delete(threadId)
     return true
   }
 
@@ -161,16 +187,14 @@ export class HybridThreadStore implements ThreadStore {
     await this.ready()
     if (!this.db) return
     try {
-      this.db
-        .prepare(`
-          UPDATE threads
-          SET event_seq_high_water = CASE
-            WHEN event_seq_high_water > @seq THEN event_seq_high_water
-            ELSE @seq
-          END
-          WHERE id = @id
-        `)
-        .run({ id: threadId, seq })
+      this.cachedStatement(`
+        UPDATE threads
+        SET event_seq_high_water = CASE
+          WHEN event_seq_high_water > @seq THEN event_seq_high_water
+          ELSE @seq
+        END
+        WHERE id = @id
+      `).run({ id: threadId, seq })
     } catch (error) {
       warnSqlite('note event seq', error)
     }
@@ -186,7 +210,7 @@ export class HybridThreadStore implements ThreadStore {
       this.db.pragma('journal_mode = WAL')
       this.db.pragma('foreign_keys = ON')
       this.migrate()
-      await this.backfill()
+      this.startBackfill()
     } catch (error) {
       warnSqlite('initialize', error)
       try {
@@ -241,30 +265,157 @@ export class HybridThreadStore implements ThreadStore {
         ON threads(status, updated_at_ms DESC, id DESC);
       CREATE INDEX IF NOT EXISTS threads_relation_updated_idx
         ON threads(relation, updated_at_ms DESC, id DESC);
+      CREATE TABLE IF NOT EXISTS usage_events (
+        thread_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        turn_id TEXT,
+        model TEXT,
+        usage_json TEXT NOT NULL,
+        PRIMARY KEY(thread_id, seq)
+      );
+      CREATE INDEX IF NOT EXISTS usage_events_thread_seq_idx
+        ON usage_events(thread_id, seq);
+      CREATE INDEX IF NOT EXISTS usage_events_timestamp_idx
+        ON usage_events(timestamp);
     `)
     addColumnIfMissing(this.db, 'threads', 'todos_json TEXT')
+    addColumnIfMissing(this.db, 'threads', 'usage_backfilled INTEGER NOT NULL DEFAULT 0')
+  }
+
+  private cachedStatement(sql: string): Statement {
+    if (!this.db) throw new Error('sqlite unavailable')
+    let statement = this.statementCache.get(sql)
+    if (!statement) {
+      statement = this.db.prepare(sql)
+      this.statementCache.set(sql, statement)
+    }
+    return statement
+  }
+
+  private startBackfill(): void {
+    if (this.backfillPromise) return
+    this.backfillPromise = this.backfill().catch((error) => {
+      warnSqlite('background backfill', error)
+    })
   }
 
   private async backfill(): Promise<void> {
     if (!this.db) return
-    const discovered = new Set<string>()
+    const rows = this.db
+      .prepare('SELECT id, usage_backfilled FROM threads')
+      .all() as Array<{ id: string; usage_backfilled?: number }>
+    const indexed = new Map(rows.map((row) => [row.id, row.usage_backfilled === 1]))
     for (const threadId of await this.threadIdsFromFilesystem()) {
-      const thread = await this.readThreadFromDisk(threadId)
-      if (!thread) continue
-      discovered.add(thread.id)
-      this.upsertIndexBestEffort(await this.indexRecordForThread(thread))
+      const usageBackfilled = indexed.get(threadId)
+      // Threads marked as backfilled never need their events.jsonl re-read;
+      // without the marker every startup re-scanned the full event history
+      // of threads that simply have no usage events.
+      if (usageBackfilled === true) continue
+      if (usageBackfilled === undefined) {
+        const thread = await this.readThreadFromDisk(threadId)
+        if (!thread) continue
+        const scan = await this.scanEventsForBackfill(threadId)
+        this.upsertIndexBestEffort({
+          ...(await this.indexRecordForThread(thread)),
+          eventSeqHighWater: scan.highWater
+        })
+        await this.insertUsageEventsChunked(threadId, scan.usage)
+      } else {
+        const scan = await this.scanEventsForBackfill(threadId)
+        this.noteEventSeqHighWaterSync(threadId, scan.highWater)
+        await this.insertUsageEventsChunked(threadId, scan.usage)
+      }
+      this.markUsageBackfilled(threadId)
+      await yieldToEventLoop()
     }
 
     try {
-      const rows = this.db.prepare('SELECT id FROM threads').all() as Array<{ id: string }>
-      for (const row of rows) {
-        if (discovered.has(row.id)) continue
+      const allRows = this.db.prepare('SELECT id FROM threads').all() as Array<{ id: string }>
+      for (const row of allRows) {
         if (!(await pathExists(this.threadDir(row.id)))) {
           this.deleteIndexRow(row.id)
         }
       }
     } catch (error) {
       warnSqlite('backfill cleanup', error)
+    }
+  }
+
+  /** Single pass over events.jsonl: high-water mark plus usage events. */
+  private async scanEventsForBackfill(
+    threadId: string
+  ): Promise<{ highWater: number; usage: Array<RuntimeEvent & { kind: 'usage' }> }> {
+    let highWater = 0
+    const usage: Array<RuntimeEvent & { kind: 'usage' }> = []
+    try {
+      for (const event of await readJsonl<RuntimeEvent>(this.eventsPath(threadId))) {
+        if (event.seq > highWater) highWater = event.seq
+        if (event.kind === 'usage') usage.push(event)
+      }
+    } catch (error) {
+      warnSqlite(`scan events for ${threadId}`, error)
+    }
+    return { highWater, usage }
+  }
+
+  /**
+   * Inserts usage rows in small transactions, yielding between chunks.
+   * better-sqlite3 is synchronous: unchunked backfill of a large history
+   * starved the event loop long enough that the HTTP server never reported
+   * ready within the GUI's startup timeout.
+   */
+  private async insertUsageEventsChunked(
+    threadId: string,
+    events: Array<RuntimeEvent & { kind: 'usage' }>
+  ): Promise<void> {
+    if (!this.db || events.length === 0) return
+    const insert = this.cachedStatement(`
+      INSERT OR REPLACE INTO usage_events (
+        thread_id, seq, timestamp, turn_id, model, usage_json
+      )
+      VALUES (
+        @thread_id, @seq, @timestamp, @turn_id, @model, @usage_json
+      )
+    `)
+    const insertChunk = this.db.transaction((chunk: UsageRow[]) => {
+      for (const row of chunk) insert.run(row)
+    })
+    const chunkSize = 200
+    for (let start = 0; start < events.length; start += chunkSize) {
+      const chunk = events.slice(start, start + chunkSize).map(usageRowFromEvent)
+      try {
+        insertChunk(chunk)
+      } catch (error) {
+        warnSqlite(`backfill usage events for ${threadId}`, error)
+        return
+      }
+      await yieldToEventLoop()
+    }
+  }
+
+  private markUsageBackfilled(threadId: string): void {
+    if (!this.db) return
+    try {
+      this.db.prepare('UPDATE threads SET usage_backfilled = 1 WHERE id = ?').run(threadId)
+    } catch (error) {
+      warnSqlite('mark usage backfilled', error)
+    }
+  }
+
+  private noteEventSeqHighWaterSync(threadId: string, seq: number): void {
+    if (!this.db) return
+    try {
+      this.cachedStatement(`
+        UPDATE threads
+        SET event_seq_high_water = CASE
+          WHEN event_seq_high_water > @seq THEN event_seq_high_water
+          ELSE @seq
+        END
+        WHERE id = @id
+      `).run({ id: threadId, seq })
+    } catch (error) {
+      warnSqlite('note event seq', error)
     }
   }
 
@@ -317,60 +468,58 @@ export class HybridThreadStore implements ThreadStore {
         messagesPath: this.messagesPath(record.thread.id),
         eventsPath: this.eventsPath(record.thread.id)
       })
-      this.db
-        .prepare(`
-          INSERT INTO threads (
-            id, title, workspace, model, mode, status, approval_policy, sandbox_mode,
-            cost_budget_usd, cost_budget_warning_sent, relation, parent_thread_id,
-            forked_from_thread_id, forked_from_title, forked_at, forked_from_message_count,
-            forked_from_turn_count, goal_json, todos_json, created_at, updated_at, created_at_ms,
-            updated_at_ms, preview, message_count, event_seq_high_water, metadata_path,
-            messages_path, events_path, search_text
-          )
-          VALUES (
-            @id, @title, @workspace, @model, @mode, @status, @approval_policy, @sandbox_mode,
-            @cost_budget_usd, @cost_budget_warning_sent, @relation, @parent_thread_id,
-            @forked_from_thread_id, @forked_from_title, @forked_at, @forked_from_message_count,
-            @forked_from_turn_count, @goal_json, @todos_json, @created_at, @updated_at, @created_at_ms,
-            @updated_at_ms, @preview, @message_count, @event_seq_high_water, @metadata_path,
-            @messages_path, @events_path, @search_text
-          )
-          ON CONFLICT(id) DO UPDATE SET
-            title = excluded.title,
-            workspace = excluded.workspace,
-            model = excluded.model,
-            mode = excluded.mode,
-            status = excluded.status,
-            approval_policy = excluded.approval_policy,
-            sandbox_mode = excluded.sandbox_mode,
-            cost_budget_usd = excluded.cost_budget_usd,
-            cost_budget_warning_sent = excluded.cost_budget_warning_sent,
-            relation = excluded.relation,
-            parent_thread_id = excluded.parent_thread_id,
-            forked_from_thread_id = excluded.forked_from_thread_id,
-            forked_from_title = excluded.forked_from_title,
-            forked_at = excluded.forked_at,
-            forked_from_message_count = excluded.forked_from_message_count,
-            forked_from_turn_count = excluded.forked_from_turn_count,
-            goal_json = excluded.goal_json,
-            todos_json = excluded.todos_json,
-            created_at = excluded.created_at,
-            updated_at = excluded.updated_at,
-            created_at_ms = excluded.created_at_ms,
-            updated_at_ms = excluded.updated_at_ms,
-            preview = excluded.preview,
-            message_count = excluded.message_count,
-            event_seq_high_water = CASE
-              WHEN threads.event_seq_high_water > excluded.event_seq_high_water
-                THEN threads.event_seq_high_water
-              ELSE excluded.event_seq_high_water
-            END,
-            metadata_path = excluded.metadata_path,
-            messages_path = excluded.messages_path,
-            events_path = excluded.events_path,
-            search_text = excluded.search_text
-        `)
-        .run(row)
+      this.cachedStatement(`
+        INSERT INTO threads (
+          id, title, workspace, model, mode, status, approval_policy, sandbox_mode,
+          cost_budget_usd, cost_budget_warning_sent, relation, parent_thread_id,
+          forked_from_thread_id, forked_from_title, forked_at, forked_from_message_count,
+          forked_from_turn_count, goal_json, todos_json, created_at, updated_at, created_at_ms,
+          updated_at_ms, preview, message_count, event_seq_high_water, metadata_path,
+          messages_path, events_path, search_text
+        )
+        VALUES (
+          @id, @title, @workspace, @model, @mode, @status, @approval_policy, @sandbox_mode,
+          @cost_budget_usd, @cost_budget_warning_sent, @relation, @parent_thread_id,
+          @forked_from_thread_id, @forked_from_title, @forked_at, @forked_from_message_count,
+          @forked_from_turn_count, @goal_json, @todos_json, @created_at, @updated_at, @created_at_ms,
+          @updated_at_ms, @preview, @message_count, @event_seq_high_water, @metadata_path,
+          @messages_path, @events_path, @search_text
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          workspace = excluded.workspace,
+          model = excluded.model,
+          mode = excluded.mode,
+          status = excluded.status,
+          approval_policy = excluded.approval_policy,
+          sandbox_mode = excluded.sandbox_mode,
+          cost_budget_usd = excluded.cost_budget_usd,
+          cost_budget_warning_sent = excluded.cost_budget_warning_sent,
+          relation = excluded.relation,
+          parent_thread_id = excluded.parent_thread_id,
+          forked_from_thread_id = excluded.forked_from_thread_id,
+          forked_from_title = excluded.forked_from_title,
+          forked_at = excluded.forked_at,
+          forked_from_message_count = excluded.forked_from_message_count,
+          forked_from_turn_count = excluded.forked_from_turn_count,
+          goal_json = excluded.goal_json,
+          todos_json = excluded.todos_json,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at,
+          created_at_ms = excluded.created_at_ms,
+          updated_at_ms = excluded.updated_at_ms,
+          preview = excluded.preview,
+          message_count = excluded.message_count,
+          event_seq_high_water = CASE
+            WHEN threads.event_seq_high_water > excluded.event_seq_high_water
+              THEN threads.event_seq_high_water
+            ELSE excluded.event_seq_high_water
+          END,
+          metadata_path = excluded.metadata_path,
+          messages_path = excluded.messages_path,
+          events_path = excluded.events_path,
+          search_text = excluded.search_text
+      `).run(row)
     } catch (error) {
       warnSqlite('upsert index', error)
     }
@@ -380,6 +529,7 @@ export class HybridThreadStore implements ThreadStore {
     if (!this.db) return
     try {
       this.db.prepare('DELETE FROM threads WHERE id = ?').run(threadId)
+      this.db.prepare('DELETE FROM usage_events WHERE thread_id = ?').run(threadId)
     } catch (error) {
       warnSqlite('delete index row', error)
     }
@@ -396,6 +546,7 @@ export class HybridThreadStore implements ThreadStore {
         thread: stripThreadItemBodies(thread)
       }
       await appendJsonlLine(this.metadataPath(thread.id), line)
+      await this.maybeCompactMetadata(thread.id)
     })
     const guard = run.then(() => undefined, () => undefined)
     this.metadataQueues.set(thread.id, guard)
@@ -405,6 +556,52 @@ export class HybridThreadStore implements ThreadStore {
       if (this.metadataQueues.get(thread.id) === guard) {
         this.metadataQueues.delete(thread.id)
       }
+    }
+  }
+
+  /**
+   * Every upsert appends a full thread snapshot, so metadata.jsonl grows
+   * quadratically with turn activity (observed: 4.2MB for an 8-turn thread
+   * whose latest snapshot is 6KB). Once the file passes the threshold it is
+   * rewritten as a single normalized snapshot. Runs inside the per-thread
+   * metadata queue, so no append can interleave with the rewrite.
+   */
+  private async maybeCompactMetadata(threadId: string): Promise<void> {
+    const path = this.metadataPath(threadId)
+    const tmpPath = `${path}.compact.tmp`
+    try {
+      const stats = await stat(path)
+      const floor = this.metadataCompactFloor.get(threadId) ?? METADATA_COMPACT_MIN_BYTES
+      if (stats.size < floor) return
+      const record = await this.readLatestMetadata(threadId)
+      if (!record) return
+      const line: ThreadMetadataLine = {
+        kind: 'thread_metadata',
+        version: 1,
+        timestamp: this.nowIso(),
+        thread: stripThreadItemBodies(record)
+      }
+      const handle = await open(tmpPath, 'w')
+      try {
+        await handle.writeFile(`${JSON.stringify(line)}\n`, 'utf-8')
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await rename(tmpPath, path)
+      const compacted = await stat(path)
+      this.metadataCompactFloor.set(
+        threadId,
+        Math.max(METADATA_COMPACT_MIN_BYTES, compacted.size * 4)
+      )
+    } catch (error) {
+      // On Windows the atomic rename can fail with EPERM while another
+      // handle has the file open; the next append over the threshold simply
+      // retries. Drop the temp file so failures do not accumulate litter.
+      await rm(tmpPath, { force: true }).catch(() => undefined)
+      console.warn(
+        `[kun] metadata compaction skipped for ${threadId}: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -421,14 +618,34 @@ export class HybridThreadStore implements ThreadStore {
   }
 
   private async readThreadFromDisk(threadId: string): Promise<ThreadRecord | null> {
+    const [metadataSig, itemsSig] = await Promise.all([
+      fileSignature(this.metadataPath(threadId)),
+      fileSignature(this.messagesPath(threadId))
+    ])
+    const cached = this.threadRecordCache.get(threadId)
+    if (cached && cached.metadataSig === metadataSig && cached.itemsSig === itemsSig) {
+      // Refresh LRU position.
+      this.threadRecordCache.delete(threadId)
+      this.threadRecordCache.set(threadId, cached)
+      return cached.record
+    }
     const metadata = await this.readLatestMetadata(threadId)
     const legacy = metadata ? null : await this.readLegacyThread(threadId)
     const source = metadata ?? legacy
     if (!source) return null
     const items = await this.loadItems(threadId)
-    return hydrateThreadItems(source, items, {
+    // Records are treated as immutable by all callers (updates flow through
+    // upsert with fresh objects), so caching the reference is safe.
+    const record = hydrateThreadItems(source, items, {
       preserveExistingItemsWhenNoFileItems: Boolean(legacy)
     })
+    this.threadRecordCache.set(threadId, { metadataSig, itemsSig, record })
+    while (this.threadRecordCache.size > THREAD_RECORD_CACHE_LIMIT) {
+      const oldest = this.threadRecordCache.keys().next().value
+      if (!oldest) break
+      this.threadRecordCache.delete(oldest)
+    }
+    return record
   }
 
   private async readLatestMetadata(threadId: string): Promise<ThreadRecord | null> {
@@ -832,6 +1049,17 @@ function previewFromItems(items: TurnItem[]): string {
   return ''
 }
 
+function usageRowFromEvent(event: RuntimeEvent & { kind: 'usage' }): UsageRow {
+  return {
+    thread_id: event.threadId,
+    seq: event.seq,
+    timestamp: event.timestamp,
+    turn_id: event.turnId ?? null,
+    model: event.model ?? null,
+    usage_json: JSON.stringify(event.usage)
+  }
+}
+
 function isoToMillis(value: string): number {
   const millis = Date.parse(value)
   return Number.isFinite(millis) ? millis : 0
@@ -853,6 +1081,18 @@ function addColumnIfMissing(db: BetterSqliteDatabase, table: string, columnSql: 
   }
 }
 
+const THREAD_RECORD_CACHE_LIMIT = 8
+const METADATA_COMPACT_MIN_BYTES = 1_000_000
+
+async function fileSignature(path: string): Promise<string> {
+  try {
+    const stats = await stat(path)
+    return `${stats.size}:${stats.mtimeMs}`
+  } catch {
+    return 'missing'
+  }
+}
+
 async function appendJsonlLine(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const handle = await open(path, 'a')
@@ -871,6 +1111,10 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function yieldToEventLoop(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
 }
 
 function warnSqlite(action: string, error: unknown): void {
