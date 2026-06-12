@@ -7,7 +7,7 @@ import { FileAttachmentStore } from '../attachments/attachment-store.js'
 import { InMemoryApprovalGate } from '../adapters/in-memory-approval-gate.js'
 import { InMemoryUserInputGate } from '../adapters/in-memory-user-input-gate.js'
 import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
-import { FileSessionStore, FileThreadStore } from '../adapters/file/index.js'
+import { FileSessionStore, FileThreadStore, FileCheckpointStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
 import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
 import type { ModelEndpointFormat } from '../contracts/model-endpoint-format.js'
@@ -55,6 +55,7 @@ import { RuntimeEventRecorder } from '../services/runtime-event-recorder.js'
 import { ThreadService } from '../services/thread-service.js'
 import { TurnService } from '../services/turn-service.js'
 import { ReviewService } from '../services/review-service.js'
+import { CheckpointService } from '../services/checkpoint-service.js'
 import { UsageService } from '../services/usage-service.js'
 import type { UsageEvent } from '../contracts/events.js'
 import type { AutomationAuditRecord } from '../automation/automation-sidecar.js'
@@ -141,6 +142,18 @@ export async function createKunServeRuntime(
     nowIso
   })
   const threadService = new ThreadService({ threadStore, sessionStore, events, ids, nowIso })
+  const checkpointStore = new FileCheckpointStore({ dataDir: options.dataDir })
+  const checkpointService = new CheckpointService({
+    checkpointStore,
+    threadStore,
+    sessionStore,
+    events,
+    ids,
+    nowIso,
+    dataDir: options.dataDir,
+    maxPerThread: options.capabilities?.checkpoints?.maxPerThread ?? 20,
+    maxTotal: options.capabilities?.checkpoints?.maxTotal ?? 200
+  })
   await seedUsageCarryover({ threadStore, sessionStore, usageService })
   const modelProfiles = modelContextProfilesFromConfig({
     contextCompaction: options.contextCompaction,
@@ -313,6 +326,7 @@ export async function createKunServeRuntime(
     usage: usageService,
     events,
     turns: turnService,
+    checkpointService,
     inflight,
     steering,
     compactor,
@@ -347,6 +361,7 @@ export async function createKunServeRuntime(
     threadService,
     turnService,
     reviewService,
+    checkpointService,
     usageService,
     eventBus,
     sessionStore,

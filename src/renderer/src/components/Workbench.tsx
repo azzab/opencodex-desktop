@@ -78,6 +78,9 @@ import { collectComposerChangeSummary } from '../lib/composer-change-summary'
 const ChangeInspector = lazy(() =>
   import('./ChangeInspector').then((module) => ({ default: module.ChangeInspector }))
 )
+const CheckpointTimeline = lazy(() =>
+  import('./CheckpointTimelinePanel').then((module) => ({ default: module.CheckpointTimelinePanel }))
+)
 const DevBrowserPanel = lazy(() =>
   import('./DevBrowserPanel').then((module) => ({ default: module.DevBrowserPanel }))
 )
@@ -1557,6 +1560,13 @@ export function Workbench(): ReactElement {
             ) : rightPanelMode === 'changes' ? (
               <ChangeInspector
                 blocks={blocks}
+                workspaceRoot={activeThread?.workspace || workspaceRoot}
+                className="h-full max-h-full w-full flex-col"
+                onCollapse={closeRightPanel}
+              />
+            ) : rightPanelMode === 'checkpoints' ? (
+              <CheckpointTimeline
+                threadId={activeThreadId ?? ''}
                 workspaceRoot={activeThread?.workspace || workspaceRoot}
                 className="h-full max-h-full w-full flex-col"
                 onCollapse={closeRightPanel}

@@ -9,6 +9,10 @@ import {
   SandboxModeSchema
 } from '../contracts/policy.js'
 import {
+  DEFAULT_CHECKPOINT_RETENTION,
+  CheckpointRetentionConfig
+} from '../contracts/checkpoints.js'
+import {
   DEFAULT_KUN_CAPABILITIES_CONFIG,
   KunCapabilitiesConfig,
   ModelInputModality,
@@ -201,13 +205,24 @@ export const KunServeConfigSchema = z
   })
   .strict()
 
+export const CheckpointsConfigSchema = z
+  .object({
+    maxPerThread: z.number().int().min(0).max(1000).default(20),
+    maxTotal: z.number().int().min(0).max(10000).default(200),
+    autoBeforeMutation: z.boolean().default(true)
+  })
+  .strict()
+
+export type CheckpointsConfig = z.infer<typeof CheckpointsConfigSchema>
+
 export const KunConfigSchema = z
   .object({
     serve: KunServeConfigSchema.optional(),
     models: ModelConfigSchema.optional(),
     contextCompaction: ContextCompactionConfigSchema.optional(),
     runtime: RuntimeTuningConfigSchema.optional(),
-    capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG)
+    capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG),
+    checkpoints: CheckpointsConfigSchema.default(DEFAULT_CHECKPOINT_RETENTION).optional()
   })
   .strict()
 

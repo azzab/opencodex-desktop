@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CheckpointRetentionConfig } from './checkpoints.js'
 
 export const RUNTIME_CAPABILITY_CONTRACT_VERSION = 1
 
@@ -361,7 +362,8 @@ export const KunCapabilitiesConfig = z
     skills: SkillsCapabilityConfig.default(() => SkillsCapabilityConfig.parse({})),
     subagents: SubagentsCapabilityConfig.default(() => SubagentsCapabilityConfig.parse({})),
     attachments: AttachmentsCapabilityConfig.default(() => AttachmentsCapabilityConfig.parse({})),
-    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({}))
+    memory: MemoryCapabilityConfig.default(() => MemoryCapabilityConfig.parse({})),
+    checkpoints: CheckpointRetentionConfig.default(() => ({ maxPerThread: 20, maxTotal: 200, autoBeforeMutation: true }))
   })
   .strict()
 export type KunCapabilitiesConfig = z.infer<typeof KunCapabilitiesConfig>

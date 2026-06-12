@@ -120,6 +120,25 @@ export function kunSessionResumePath(sessionId: string): string {
   return `/v1/sessions/${encodeURIComponent(sessionId)}/resume-thread`
 }
 
+export const KUN_CHECKPOINTS_PATH = '/v1/checkpoints'
+export const KUN_CHECKPOINTS_TEMPLATE = '/v1/checkpoints'
+export const KUN_CHECKPOINT_TEMPLATE = '/v1/checkpoints/{id}'
+export function kunCheckpointPath(checkpointId: string): string {
+  return `/v1/checkpoints/${encodeURIComponent(checkpointId)}`
+}
+export const KUN_CHECKPOINT_RESTORE_TEMPLATE = '/v1/checkpoints/{id}/restore'
+export function kunCheckpointRestorePath(checkpointId: string): string {
+  return `${kunCheckpointPath(checkpointId)}/restore`
+}
+export const KUN_CHECKPOINT_FORK_TEMPLATE = '/v1/checkpoints/{id}/fork'
+export function kunCheckpointForkPath(checkpointId: string): string {
+  return `${kunCheckpointPath(checkpointId)}/fork`
+}
+export const KUN_THREAD_CHECKPOINTS_TEMPLATE = '/v1/threads/{id}/checkpoints'
+export function kunThreadCheckpointsPath(threadId: string): string {
+  return `${kunThreadPath(threadId)}/checkpoints`
+}
+
 export const KUN_USAGE_PATH = '/v1/usage'
 export const KUN_USAGE_TEMPLATE = '/v1/usage'
 

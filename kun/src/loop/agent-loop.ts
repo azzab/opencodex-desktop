@@ -16,6 +16,7 @@ import type { UserInputGate, UserInputResolution } from '../ports/user-input-gat
 import type { UsageService } from '../services/usage-service.js'
 import type { TurnService } from '../services/turn-service.js'
 import type { RuntimeEventRecorder } from '../services/runtime-event-recorder.js'
+import type { CheckpointService } from '../services/checkpoint-service.js'
 import type { PipelineStage } from '../contracts/events.js'
 import type { IdGenerator } from '../ports/id-generator.js'
 import type { ImmutablePrefix } from '../cache/immutable-prefix.js'
@@ -81,6 +82,9 @@ const MAX_PARALLEL_TOOL_CALLS = 3
 const DEFAULT_COMPACTION_SUMMARY_TIMEOUT_MS = 15_000
 const DEFAULT_COMPACTION_SUMMARY_MAX_TOKENS = 1_200
 const DEFAULT_COMPACTION_SUMMARY_INPUT_MAX_BYTES = 96 * 1024
+
+/** Tool kinds that mutate the workspace and should trigger a checkpoint. */
+const MUTATING_TOOL_KINDS: ReadonlySet<string> = new Set(['file_change', 'command_execution'] as const)
 
 const PIPELINE_STAGE_LABELS: Record<PipelineStage, string> = {
   setup: 'Setup',
@@ -237,6 +241,8 @@ export type AgentLoopOptions = {
   usage: UsageService
   events: RuntimeEventRecorder
   turns: TurnService
+  /** Optional checkpoint service for pre-mutation snapshots. */
+  checkpointService?: CheckpointService
   inflight: InflightTracker
   steering: SteeringQueue
   compactor: ContextCompactor
@@ -255,6 +261,12 @@ export type AgentLoopOptions = {
   toolArgumentRepair?: {
     maxStringBytes?: number
   }
+  /**
+   * Maximum model-step iterations per turn. Prevents unbounded loops
+   * when a model repeatedly emits tool calls without converging.
+   * Defaults to 50. Set to 0 to disable the limit.
+   */
+  maxSteps?: number
   /**
    * Optional fallback GUI plan context for embedders that run the loop
    * without persisted turn metadata. Normal serve mode reads GUI plan
@@ -294,6 +306,7 @@ export class AgentLoop {
   private readonly promptTokenPressure = new Map<string, { model: string; promptTokens: number }>()
   private readonly toolStormBreakers = new Map<string, ToolStormBreaker>()
   private readonly toolCatalogSnapshots = new Map<string, ToolCatalogSnapshot>()
+  private readonly checkpointedTurnIds = new Set<string>()
 
   constructor(opts: AgentLoopOptions) {
     this.opts = opts
@@ -431,7 +444,8 @@ export class AgentLoop {
     turnId: string,
     signal: AbortSignal
   ): Promise<'completed' | 'failed' | 'aborted'> {
-    for (let step = 0; ; step += 1) {
+    const maxSteps = this.opts.maxSteps ?? 50
+    for (let step = 0; maxSteps === 0 || step < maxSteps; step += 1) {
       if (signal.aborted) return 'aborted'
       await this.drainSteering(threadId, turnId, signal)
       const stepResult = await this.modelStep(threadId, turnId, signal, step)
@@ -439,6 +453,17 @@ export class AgentLoop {
       if (stepResult === 'failed') return 'failed'
       if (stepResult === 'aborted') return 'aborted'
     }
+    // Hard step limit exceeded — fail the turn rather than looping forever
+    const message = `Turn exceeded maximum step limit of ${maxSteps}.`
+    await this.opts.events.record({
+      kind: 'error',
+      threadId,
+      turnId,
+      message,
+      code: 'max_steps_exceeded',
+      severity: 'warning'
+    })
+    return 'failed'
   }
 
   private async modelStep(
@@ -947,6 +972,11 @@ export class AgentLoop {
     approvalPolicy: ToolHostContext['approvalPolicy']
     signal: AbortSignal
   }): Promise<'continue' | 'aborted'> {
+    // Create a pre-mutation checkpoint before the first mutating tool call
+    // of this execute-mode turn. Plan-mode turns and read-only-only turns
+    // are never checkpointed.
+    await this.ensurePreMutationCheckpoint(input)
+
     const context = this.createToolContext(input)
     let index = 0
 
@@ -1029,6 +1059,64 @@ export class AgentLoop {
     }
 
     return 'continue'
+  }
+
+  /**
+   * Create a checkpoint before the first mutating tool call of an
+   * execute-mode turn. Plan-mode turns and read-only-only turns are
+   * never checkpointed.
+   */
+  private async ensurePreMutationCheckpoint(input: {
+    calls: ToolCallLike[]
+    threadId: string
+    turnId: string
+    workspace: string
+    threadMode?: 'agent' | 'plan'
+  }): Promise<void> {
+    // Only checkpoint execute-mode (agent) turns
+    if (input.threadMode === 'plan') return
+    if (!this.opts.checkpointService) return
+
+    // Already checkpointed this turn
+    if (this.checkpointedTurnIds.has(input.turnId)) return
+
+    // Check if any call has a mutating tool kind
+    const hasMutation = input.calls.some((call) => {
+      if (call.toolKind && MUTATING_TOOL_KINDS.has(call.toolKind)) return true
+      // Fallback: check by tool name for well-known mutating tools
+      if (call.toolName === 'bash' || call.toolName === 'edit' || call.toolName === 'write') return true
+      return false
+    })
+    if (!hasMutation) return
+
+    // Count items and turns for the checkpoint
+    const items = await this.opts.sessionStore.loadItems(input.threadId)
+    const thread = await this.opts.threadStore.get(input.threadId)
+    const turnCount = thread?.turns.length ?? 0
+
+    try {
+      await this.opts.checkpointService.create({
+        threadId: input.threadId,
+        turnId: input.turnId,
+        trigger: 'pre_mutation',
+        eventSeq: items.length,
+        itemCount: items.length,
+        turnCount,
+        workspaceRoot: input.workspace
+      })
+      this.checkpointedTurnIds.add(input.turnId)
+    } catch (error) {
+      // Checkpoint failure is non-fatal; log and continue
+      const message = error instanceof Error ? error.message : String(error)
+      await this.opts.events.record({
+        kind: 'error',
+        threadId: input.threadId,
+        turnId: input.turnId,
+        message: `Pre-mutation checkpoint failed: ${message}`,
+        code: 'checkpoint_failed',
+        severity: 'warning'
+      })
+    }
   }
 
   private isParallelSafeToolCall(

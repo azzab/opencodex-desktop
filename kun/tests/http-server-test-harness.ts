@@ -9,6 +9,8 @@ import { LocalToolHost, defaultLocalTools } from '../src/adapters/tool/local-too
 import { LocalWorkspaceInspector } from '../src/adapters/workspace/local-workspace-inspector.js'
 import { TurnService } from '../src/services/turn-service.js'
 import { ThreadService } from '../src/services/thread-service.js'
+import { CheckpointService } from '../src/services/checkpoint-service.js'
+import { InMemoryCheckpointStore } from '../src/adapters/in-memory-checkpoint-store.js'
 import { UsageService } from '../src/services/usage-service.js'
 import { RuntimeEventRecorder } from '../src/services/runtime-event-recorder.js'
 import { InflightTracker } from '../src/loop/inflight-tracker.js'
@@ -131,9 +133,19 @@ export function buildHarness(): Harness {
   const capabilities = buildRuntimeCapabilityManifest({
     model: modelCapabilitiesForModel(modelId)
   })
+  const checkpointStore = new InMemoryCheckpointStore()
+  const checkpointService = new CheckpointService({
+    checkpointStore,
+    threadStore,
+    sessionStore,
+    events,
+    ids,
+    nowIso
+  })
   const runtime: ServerRuntime = {
     threadService,
     turnService,
+    checkpointService,
     usageService: usage,
     eventBus: bus,
     sessionStore,
