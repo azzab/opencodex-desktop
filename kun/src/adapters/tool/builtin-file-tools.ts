@@ -32,6 +32,7 @@ export function createWriteLocalTool(_options: WriteLocalToolOptions = {}): Loca
     },
     policy: 'on-request',
     toolKind: 'file_change',
+    planModeAllowed: false,
     execute: async (args, context) => withToolBoundary(async () => {
       const rawPath = typeof args.path === 'string' ? args.path : ''
       const content = typeof args.content === 'string' ? args.content : null
@@ -87,6 +88,7 @@ export function createEditLocalTool(_options: EditLocalToolOptions = {}): LocalT
     },
     policy: 'on-request',
     toolKind: 'file_change',
+    planModeAllowed: false,
     execute: async (args, context) => withToolBoundary(async () => {
       const rawPath = typeof args.path === 'string' ? args.path : ''
       const edits = parseEditInstructions(args)

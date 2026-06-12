@@ -1121,6 +1121,22 @@ export class AgentLoop {
       finishedAt: this.opts.nowIso()
     } as Partial<TurnItem>)
     await this.opts.turns.applyItem(threadId, result.item)
+    // Emit plan_mode_violation audit event when a tool is kernel-denied in plan mode.
+    if (result.item.kind === 'tool_result' && result.item.isError) {
+      const output = result.item.output as Record<string, unknown> | undefined
+      if (output?.code === 'plan_mode_violation') {
+        const message = typeof output.error === 'string' ? output.error : `Tool '${call.toolName}' denied in plan mode.`
+        await this.opts.events.record({
+          kind: 'plan_mode_violation',
+          threadId,
+          turnId,
+          itemId: result.item.id,
+          toolName: call.toolName,
+          callId: call.callId,
+          message
+        })
+      }
+    }
     await this.afterToolResultPersisted(threadId, turnId, call, result)
   }
 

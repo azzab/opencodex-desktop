@@ -31,6 +31,7 @@ function createGetGoalTool(threadService: ThreadService): LocalTool {
     },
     policy: 'auto',
     toolKind: 'tool_call',
+    planModeAllowed: true,
     execute: async (_args, context) => {
       const goal = await threadService.getGoal(context.threadId)
       return { output: goalResponse(goal) }
@@ -64,6 +65,7 @@ function createCreateGoalTool(threadService: ThreadService): LocalTool {
     },
     policy: 'auto',
     toolKind: 'tool_call',
+    planModeAllowed: false,
     execute: async (args, context) => {
       const objective = typeof args.objective === 'string' ? args.objective.trim() : ''
       const tokenBudget = normalizeTokenBudget(args.token_budget)
@@ -118,6 +120,7 @@ function createUpdateGoalTool(threadService: ThreadService): LocalTool {
     },
     policy: 'auto',
     toolKind: 'tool_call',
+    planModeAllowed: false,
     execute: async (args, context) => {
       const status = args.status
       if (status !== 'complete' && status !== 'blocked') {

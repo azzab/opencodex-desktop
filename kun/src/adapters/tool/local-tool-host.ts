@@ -42,6 +42,15 @@ export type LocalTool = {
    */
   policy: 'auto' | 'on-request' | 'suggest' | 'never' | 'untrusted'
   /**
+   * Whether this tool is allowed during Plan-mode turns.
+   * Read-only tools (read, grep, find, ls, get_goal, todo_list, web_fetch,
+   * web_search, create_plan) are allowed. Mutating tools (edit, write,
+   * bash, update_goal, todo_write, delegate_task, browser_*, memory_*)
+   * are denied at the kernel level with an audit event.
+   * Defaults to true (allowed in plan mode) when omitted.
+   */
+  planModeAllowed?: boolean
+  /**
    * Optional gating predicate. When present, the tool is only listed
    * and only executed when `shouldAdvertise` returns true for the
    * active turn context. Use this for mode/plan-only tools such as
@@ -142,6 +151,16 @@ export class LocalToolHost implements ToolHost {
     if (!readValidation.ok) {
       return {
         item: this.errorToolResult(context, activeCall, tool, readValidation.message, 'read_before_edit_required'),
+        approved: false
+      }
+    }
+    // Plan-mode tool isolation: kernel-enforced denial of mutating tools.
+    // This is NOT prompt-level guidance — the kernel itself rejects the call
+    // and emits an audit event before the tool ever runs.
+    if (context.threadMode === 'plan' && tool.planModeAllowed === false) {
+      const message = `Tool '${activeCall.toolName}' is not allowed in Plan mode (kernel-enforced plan-mode isolation).`
+      return {
+        item: this.errorToolResult(context, activeCall, tool, message, 'plan_mode_violation'),
         approved: false
       }
     }
@@ -311,6 +330,7 @@ export class LocalToolHost implements ToolHost {
       inputSchema: tool.inputSchema,
       toolKind: tool.toolKind ?? 'tool_call',
       execute: tool.execute,
+      planModeAllowed: tool.planModeAllowed,
       ...(tool.shouldAdvertise ? { shouldAdvertise: tool.shouldAdvertise } : {})
     }
   }
@@ -341,6 +361,7 @@ export const echoTool: LocalTool = LocalToolHost.defineTool({
   name: 'echo',
   description: 'Echo the input argument back to the model.',
   toolKind: 'tool_call',
+  planModeAllowed: true,
   inputSchema: {
     type: 'object',
     properties: { text: { type: 'string' } },
@@ -392,6 +413,7 @@ function createUserInputTool(name: string): LocalTool {
       required: []
     },
     policy: 'auto',
+    planModeAllowed: true,
   execute: async (args, context) => {
       if (!context.awaitUserInput) {
         return {

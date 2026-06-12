@@ -20,6 +20,21 @@ export type ThreadMode = z.infer<typeof ThreadMode>
 export const ThreadRelation = z.enum(['primary', 'fork', 'side'])
 export type ThreadRelation = z.infer<typeof ThreadRelation>
 
+export const ThreadPlanStatus = z.enum(['drafting', 'ready', 'approved', 'executing', 'completed'])
+export type ThreadPlanStatus = z.infer<typeof ThreadPlanStatus>
+
+export const ThreadPlanSchema = z.object({
+  planId: z.string().min(1),
+  relativePath: z.string().min(1),
+  title: z.string().optional(),
+  workspaceRoot: z.string().optional(),
+  sourceRequest: z.string().optional(),
+  status: ThreadPlanStatus,
+  createdAt: z.string(),
+  updatedAt: z.string()
+})
+export type ThreadPlan = z.infer<typeof ThreadPlanSchema>
+
 export const ThreadGoalStatus = z.enum([
   'active',
   'paused',
@@ -105,6 +120,7 @@ export const ThreadSchema = z.object({
   forkedFromTurnCount: z.number().int().nonnegative().optional(),
   goal: ThreadGoalSchema.optional(),
   todos: ThreadTodoListSchema.optional(),
+  plan: ThreadPlanSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   turns: z.array(TurnSchema).default([])

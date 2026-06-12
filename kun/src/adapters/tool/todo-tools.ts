@@ -79,6 +79,7 @@ function createTodoWriteTool(threadService: ThreadService): LocalTool {
     },
     policy: 'auto',
     toolKind: 'tool_call',
+    planModeAllowed: false,
     execute: async (args, context) => {
       if (!Array.isArray(args.todos)) {
         return { output: { error: 'todos must be an array' }, isError: true }

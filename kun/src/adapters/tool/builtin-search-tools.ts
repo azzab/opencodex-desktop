@@ -40,6 +40,7 @@ export function createLsLocalTool(options: LsLocalToolOptions = {}): LocalTool {
       additionalProperties: false
     },
     policy: 'auto',
+    planModeAllowed: true,
     execute: async (args, context) => withToolBoundary(async () => {
       const rawPath = typeof args.path === 'string' && args.path.trim() ? args.path : '.'
       const limit = normalizePositiveInteger(args.limit, options.defaultLimit ?? DEFAULT_LIST_LIMIT)
@@ -197,6 +198,7 @@ export function createGrepLocalTool(options: GrepLocalToolOptions = {}): LocalTo
       additionalProperties: false
     },
     policy: 'auto',
+    planModeAllowed: true,
     execute: async (args, context) => withToolBoundary(async () => {
       const pattern = typeof args.pattern === 'string' ? args.pattern : ''
       if (!pattern.trim()) return { output: { error: 'pattern is required' }, isError: true }

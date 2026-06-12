@@ -23,6 +23,8 @@ import {
   kunThreadForkPath,
   kunThreadGoalPath,
   kunThreadReviewPath,
+  kunThreadPlanPath,
+  kunThreadPlanApprovePath,
   kunThreadTodosPath,
   kunThreadInterruptPath,
   kunThreadPath,
@@ -57,6 +59,8 @@ import type {
   CoreStartTurnResponseJson,
   CoreThreadGoalResponseJson,
   CoreThreadJson,
+  CoreThreadPlanResponseJson,
+  CoreApprovePlanResponseJson,
   CoreThreadSummaryJson,
   CoreThreadTodosResponseJson
 } from './kun-contract'
@@ -66,6 +70,7 @@ import {
   dispatchKunRuntimeEvent,
   goalFromCore,
   mergeChatBlocks,
+  planFromCore,
   todosFromCore,
   threadFromCore
 } from './kun-mapper'
@@ -489,6 +494,36 @@ export class KunRuntimeProvider implements AgentProvider {
       response.body,
       'runtime returned an invalid clear thread todos response'
     ).cleared
+  }
+
+  async getThreadPlan(threadId: string): Promise<NonNullable<NormalizedThread['plan']> | null> {
+    const response = await rendererRuntimeClient.runtimeRequest(
+      kunThreadPlanPath(threadId),
+      'GET'
+    )
+    if (!response.ok) {
+      throw runtimeErrorToError(readRuntimeError(response.body, 'failed to load thread plan'))
+    }
+    const body = readRuntimeJson<CoreThreadPlanResponseJson>(
+      response.body,
+      'runtime returned an invalid thread plan response'
+    )
+    return body.plan ? planFromCore(body.plan) : null
+  }
+
+  async approveThreadPlan(threadId: string): Promise<{ plan: NonNullable<NormalizedThread['plan']>; mode: string }> {
+    const response = await rendererRuntimeClient.runtimeRequest(
+      kunThreadPlanApprovePath(threadId),
+      'POST'
+    )
+    if (!response.ok) {
+      throw runtimeErrorToError(readRuntimeError(response.body, 'failed to approve thread plan'))
+    }
+    const body = readRuntimeJson<CoreApprovePlanResponseJson>(
+      response.body,
+      'runtime returned an invalid approve plan response'
+    )
+    return { plan: planFromCore(body.plan), mode: body.mode }
   }
 
   async submitApprovalDecision(

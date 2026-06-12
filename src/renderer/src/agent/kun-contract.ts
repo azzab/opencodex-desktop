@@ -29,6 +29,7 @@ export type CoreThreadSummaryJson = {
   forkedFromTurnCount?: number
   goal?: CoreThreadGoalJson | null
   todos?: CoreThreadTodoListJson | null
+  plan?: CoreThreadPlanJson | null
   createdAt: string
   updatedAt: string
 }
@@ -83,6 +84,33 @@ export type CoreMemoryRecordJson = {
   updatedAt: string
   disabledAt?: string
   deletedAt?: string
+}
+
+export type CoreThreadPlanStatusJson =
+  | 'drafting'
+  | 'ready'
+  | 'approved'
+  | 'executing'
+  | 'completed'
+
+export type CoreThreadPlanJson = {
+  planId: string
+  relativePath: string
+  title?: string
+  workspaceRoot?: string
+  sourceRequest?: string
+  status: CoreThreadPlanStatusJson
+  createdAt: string
+  updatedAt: string
+}
+
+export type CoreThreadPlanResponseJson = {
+  plan: CoreThreadPlanJson | null
+}
+
+export type CoreApprovePlanResponseJson = {
+  plan: CoreThreadPlanJson
+  mode: string
 }
 
 export type CoreThreadGoalStatusJson =
@@ -557,6 +585,8 @@ export type CoreRuntimeEventJson = {
   usage?: CoreUsageSnapshotJson
   goal?: CoreThreadGoalJson | null
   todos?: CoreThreadTodoListJson | null
+  plan?: CoreThreadPlanJson | null
+  mode?: string
   cleared?: boolean
   message?: string
   code?: string

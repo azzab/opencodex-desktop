@@ -219,6 +219,7 @@ export function createCreatePlanTool(options: CreatePlanAdapterOptions = {}): Lo
     toolKind: 'file_change',
     inputSchema: CREATE_PLAN_INPUT_SCHEMA,
     policy: 'auto',
+    planModeAllowed: true,
     shouldAdvertise: (context) => isPlanToolContextActive(context),
     execute: async (args, context) =>
       executeCreatePlanTool(args, context, options)

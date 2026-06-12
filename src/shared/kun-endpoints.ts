@@ -75,6 +75,16 @@ export function kunThreadReviewPath(threadId: string): string {
   return `${kunThreadPath(threadId)}/review`
 }
 
+export const KUN_THREAD_PLAN_TEMPLATE = '/v1/threads/{id}/plan'
+export function kunThreadPlanPath(threadId: string): string {
+  return `${kunThreadPath(threadId)}/plan`
+}
+
+export const KUN_THREAD_PLAN_APPROVE_TEMPLATE = '/v1/threads/{id}/plan/approve'
+export function kunThreadPlanApprovePath(threadId: string): string {
+  return `${kunThreadPath(threadId)}/plan/approve`
+}
+
 export const KUN_THREAD_TURNS_TEMPLATE = '/v1/threads/{id}/turns'
 export function kunThreadTurnsPath(threadId: string): string {
   return `${kunThreadPath(threadId)}/turns`

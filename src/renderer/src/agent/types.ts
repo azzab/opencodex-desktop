@@ -90,6 +90,20 @@ export type NormalizedThread = {
   forkedFromTurnCount?: number
   goal?: ThreadGoal | null
   todos?: ThreadTodoList | null
+  plan?: ThreadPlan | null
+}
+
+export type ThreadPlanStatus = 'drafting' | 'ready' | 'approved' | 'executing' | 'completed'
+
+export type ThreadPlan = {
+  planId: string
+  relativePath: string
+  title?: string
+  workspaceRoot?: string
+  sourceRequest?: string
+  status: ThreadPlanStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export type ThreadGoalStatus =
@@ -379,6 +393,8 @@ export type ThreadEventSink = {
   onRuntimeError?(ev: RuntimeErrorEventPayload): void
   onGoal(ev: { threadId: string; goal: ThreadGoal | null; cleared?: boolean; createdAt?: string }): void
   onTodos?(ev: { threadId: string; todos: ThreadTodoList | null; cleared?: boolean; createdAt?: string }): void
+  onThreadPlan?(ev: { threadId: string; plan: ThreadPlan | null; createdAt?: string }): void
+  onThreadMode?(ev: { threadId: string; mode: string; createdAt?: string }): void
   onTurnComplete(): void
   onError(err: Error): void
   /** Optional: cumulative usage update for the thread. */
@@ -478,6 +494,8 @@ export interface AgentProvider {
     }>
   ): Promise<ThreadTodoList>
   clearThreadTodos?(threadId: string): Promise<boolean>
+  getThreadPlan?(threadId: string): Promise<ThreadPlan | null>
+  approveThreadPlan?(threadId: string): Promise<{ plan: ThreadPlan; mode: string }>
   forkThread?(
     threadId: string,
     options?: { relation?: 'primary' | 'fork' | 'side'; title?: string }

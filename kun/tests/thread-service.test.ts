@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { InMemorySessionStore } from '../src/adapters/in-memory-session-store.js'
 import { InMemoryEventBus } from '../src/adapters/in-memory-event-bus.js'
 import { InMemoryThreadStore } from '../src/adapters/in-memory-thread-store.js'
+import { FileThreadStore } from '../src/adapters/file/file-thread-store.js'
 import { SequentialIdGenerator } from '../src/ports/id-generator.js'
 import { ThreadService } from '../src/services/thread-service.js'
 import { RuntimeEventRecorder } from '../src/services/runtime-event-recorder.js'
@@ -401,6 +402,195 @@ describe('ThreadService todos', () => {
     } finally {
       await rm(workspace, { recursive: true, force: true })
     }
+  })
+})
+
+describe('ThreadService plan persistence and approval', () => {
+  it('sets and retrieves a plan artifact', async () => {
+    const { service } = buildService()
+    await service.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_plan', title: 'Plan thread' }
+    )
+
+    const plan = await service.setPlan('thr_plan', {
+      planId: 'plan_1',
+      relativePath: '.kunsdd/plan/feature.md',
+      title: 'Feature plan',
+      workspaceRoot: '/tmp/p',
+      sourceRequest: 'Build feature X'
+    })
+
+    expect(plan.planId).toBe('plan_1')
+    expect(plan.relativePath).toBe('.kunsdd/plan/feature.md')
+    expect(plan.title).toBe('Feature plan')
+    expect(plan.status).toBe('ready')
+    expect(plan.createdAt).toBeTruthy()
+    expect(plan.updatedAt).toBeTruthy()
+
+    const retrieved = await service.getPlan('thr_plan')
+    expect(retrieved).not.toBeNull()
+    expect(retrieved!.planId).toBe('plan_1')
+    expect(retrieved!.status).toBe('ready')
+  })
+
+  it('plan status defaults to existing status when not provided', async () => {
+    const { service } = buildService()
+    await service.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_plan2', title: 'Plan thread 2' }
+    )
+
+    await service.setPlan('thr_plan2', {
+      planId: 'plan_2',
+      relativePath: '.kunsdd/plan/feature2.md',
+      status: 'drafting'
+    })
+
+    // Second set without status should preserve drafting
+    const updated = await service.setPlan('thr_plan2', {
+      planId: 'plan_2',
+      relativePath: '.kunsdd/plan/feature2.md',
+      title: 'Updated title'
+    })
+    expect(updated.status).toBe('drafting')
+    expect(updated.title).toBe('Updated title')
+  })
+
+  it('structured plan artifact survives a full thread-store reload with persistent FileThreadStore', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'kun-plan-persist-'))
+    try {
+      // Build first service with a persistent FileThreadStore
+      const threadStore1 = new FileThreadStore({ dataDir })
+      const sessionStore1 = new InMemorySessionStore()
+      const bus1 = new InMemoryEventBus()
+      const ids1 = new SequentialIdGenerator()
+      let now = 1_700_000_000_000
+      const nowIso1 = () => new Date((now += 1000)).toISOString()
+      const events1 = new RuntimeEventRecorder({
+        eventBus: bus1,
+        sessionStore: sessionStore1,
+        allocateSeq: (threadId) => bus1.allocateSeq(threadId),
+        nowIso: nowIso1
+      })
+      const service1 = new ThreadService({
+        threadStore: threadStore1,
+        sessionStore: sessionStore1,
+        events: events1,
+        ids: ids1,
+        nowIso: nowIso1
+      })
+
+      await service1.create(
+        { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+        { id: 'thr_persist', title: 'Persist test' }
+      )
+
+      await service1.setPlan('thr_persist', {
+        planId: 'plan_persist',
+        relativePath: '.kunsdd/plan/persist.md',
+        title: 'Persist plan',
+        workspaceRoot: '/tmp/p',
+        sourceRequest: 'Test persistence across reload',
+        status: 'ready'
+      })
+
+      // Simulate full restart: create new stores from the same dataDir
+      const threadStore2 = new FileThreadStore({ dataDir })
+      const sessionStore2 = new InMemorySessionStore()
+      const bus2 = new InMemoryEventBus()
+      const ids2 = new SequentialIdGenerator()
+      const nowIso2 = () => new Date().toISOString()
+      const events2 = new RuntimeEventRecorder({
+        eventBus: bus2,
+        sessionStore: sessionStore2,
+        allocateSeq: (threadId) => bus2.allocateSeq(threadId),
+        nowIso: nowIso2
+      })
+      const service2 = new ThreadService({
+        threadStore: threadStore2,
+        sessionStore: sessionStore2,
+        events: events2,
+        ids: ids2,
+        nowIso: nowIso2
+      })
+
+      // After reload, getPlan must return the same plan fields
+      const plan = await service2.getPlan('thr_persist')
+      expect(plan).not.toBeNull()
+      expect(plan!.planId).toBe('plan_persist')
+      expect(plan!.status).toBe('ready')
+      expect(plan!.title).toBe('Persist plan')
+      expect(plan!.relativePath).toBe('.kunsdd/plan/persist.md')
+      expect(plan!.workspaceRoot).toBe('/tmp/p')
+      expect(plan!.sourceRequest).toBe('Test persistence across reload')
+      expect(plan!.createdAt).toBeTruthy()
+      expect(plan!.updatedAt).toBeTruthy()
+
+      // Also verify the reloaded thread is intact
+      const thread = await service2.get('thr_persist')
+      expect(thread).not.toBeNull()
+      expect(thread!.mode).toBe('plan')
+      expect(thread!.title).toBe('Persist test')
+    } finally {
+      await rm(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('approvePlan transitions thread to agent mode and records approval event', async () => {
+    const { service, sessionStore } = buildService()
+    await service.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_approve', title: 'Approve test' }
+    )
+
+    await service.setPlan('thr_approve', {
+      planId: 'plan_approve',
+      relativePath: '.kunsdd/plan/approve.md',
+      title: 'Approve me',
+      status: 'ready'
+    })
+
+    const approved = await service.approvePlan('thr_approve')
+    expect(approved.status).toBe('approved')
+
+    // Verify thread mode changed
+    const thread = await service.get('thr_approve')
+    expect(thread).not.toBeNull()
+    expect(thread!.mode).toBe('agent')
+    expect(thread!.plan?.status).toBe('approved')
+
+    // Verify approval event was recorded
+    const events = await sessionStore.loadEventsSince('thr_approve', 0)
+    const approvalEvents = events.filter((e) => e.kind === 'approval_resolved' && e.toolName === 'plan_approve')
+    expect(approvalEvents.length).toBe(1)
+    expect((approvalEvents[0] as any).status).toBe('allowed')
+
+    // Verify thread_updated event includes mode
+    const threadUpdatedEvents = events.filter((e) => e.kind === 'thread_updated')
+    const modeEvent = threadUpdatedEvents.find((e) => (e as any).mode === 'agent')
+    expect(modeEvent).toBeDefined()
+  })
+
+  it('approvePlan throws when no plan exists', async () => {
+    const { service } = buildService()
+    await service.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_no_plan', title: 'No plan thread' }
+    )
+
+    await expect(service.approvePlan('thr_no_plan')).rejects.toThrow(/no plan to approve/)
+  })
+
+  it('getPlan returns null when no plan exists', async () => {
+    const { service } = buildService()
+    await service.create(
+      { workspace: '/tmp/p', model: 'deepseek-chat', mode: 'plan' },
+      { id: 'thr_empty_plan', title: 'Empty plan' }
+    )
+
+    const plan = await service.getPlan('thr_empty_plan')
+    expect(plan).toBeNull()
   })
 })
 

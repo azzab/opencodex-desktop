@@ -1,11 +1,13 @@
-import { useEffect, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import {
+  CheckCircle,
   ClipboardList,
   ExternalLink,
   Hammer,
   Loader2,
   PanelRightClose,
-  Save
+  Save,
+  ShieldCheck
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useShallow } from 'zustand/react/shallow'
@@ -18,6 +20,8 @@ import {
   useGuiPlanStore
 } from '../../plan/plan-store'
 import { openWorkspacePathInEditor } from '../../lib/open-workspace-path'
+import { getProvider } from '../../agent/registry'
+import type { ThreadPlan } from '../../agent/types'
 
 type Props = {
   workspaceRoot: string
@@ -41,6 +45,28 @@ function statusLabelKey(saveStatus: string, operationStatus: string): string {
   if (saveStatus === 'saving') return 'planStatusSaving'
   if (saveStatus === 'dirty') return 'planStatusDirty'
   return 'planStatusSaved'
+}
+
+function threadPlanStatusLabel(status: string): string {
+  switch (status) {
+    case 'drafting': return 'planThreadStatusDrafting'
+    case 'ready': return 'planThreadStatusReady'
+    case 'approved': return 'planThreadStatusApproved'
+    case 'executing': return 'planThreadStatusExecuting'
+    case 'completed': return 'planThreadStatusCompleted'
+    default: return 'planThreadStatusEmpty'
+  }
+}
+
+function threadPlanStatusColor(status: string): string {
+  switch (status) {
+    case 'drafting': return 'text-amber-600 dark:text-amber-400'
+    case 'ready': return 'text-blue-600 dark:text-blue-400'
+    case 'approved': return 'text-green-600 dark:text-green-400'
+    case 'executing': return 'text-purple-600 dark:text-purple-400'
+    case 'completed': return 'text-emerald-600 dark:text-emerald-400'
+    default: return 'text-ds-muted'
+  }
 }
 
 export function PlanPanel({
@@ -97,6 +123,59 @@ export function PlanPanel({
       recordRecentEdits: s.recordRecentEdits
     }))
   )
+
+  // Thread-level plan state (backend ThreadPlan)
+  const [threadPlan, setThreadPlan] = useState<ThreadPlan | null>(null)
+  const [approving, setApproving] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+  const threadPlanRef = useRef<string | null>(null)
+
+  // Fetch the backend thread plan when activeThreadId or runtimeReady changes
+  const fetchThreadPlan = useCallback(async () => {
+    if (!runtimeReady || !activeThreadId) {
+      setThreadPlan(null)
+      return
+    }
+    try {
+      const provider = getProvider()
+      if (!provider?.getThreadPlan) return
+      const plan = await provider.getThreadPlan(activeThreadId)
+      setThreadPlan(plan)
+    } catch {
+      // Plan not available or fetch failed — no plan to show
+      setThreadPlan(null)
+    }
+  }, [runtimeReady, activeThreadId])
+
+  useEffect(() => {
+    if (activeThreadId !== threadPlanRef.current) {
+      threadPlanRef.current = activeThreadId
+      void fetchThreadPlan()
+    }
+  }, [activeThreadId, fetchThreadPlan])
+
+  // Re-fetch when runtime becomes ready
+  useEffect(() => {
+    if (runtimeReady && activeThreadId) {
+      void fetchThreadPlan()
+    }
+  }, [runtimeReady, activeThreadId, fetchThreadPlan])
+
+  const handleApproveAndExecute = useCallback(async () => {
+    if (!runtimeReady || !activeThreadId || !threadPlan) return
+    setApproving(true)
+    setApprovalError(null)
+    try {
+      const provider = getProvider()
+      if (!provider?.approveThreadPlan) throw new Error('Approve not supported')
+      const result = await provider.approveThreadPlan(activeThreadId)
+      setThreadPlan(result.plan)
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setApproving(false)
+    }
+  }, [runtimeReady, activeThreadId, threadPlan])
 
   useEffect(() => {
     void loadWriteSettings()
@@ -192,6 +271,12 @@ export function PlanPanel({
   const canUseAgent = runtimeReady && !busy && hasPlan && !readOnly
   const statusKey = statusLabelKey(saveStatus, operationStatus)
 
+  // Thread plan approval state
+  const threadPlanStatus = threadPlan?.status ?? null
+  const canApprove = threadPlanStatus === 'drafting' || threadPlanStatus === 'ready'
+  const isApproved = threadPlanStatus === 'approved'
+  const canBuild = runtimeReady && !busy && hasPlan && !readOnly
+
   const openPlanFile = (): void => {
     if (!activePlan) return
     void openWorkspacePathInEditor(
@@ -203,6 +288,7 @@ export function PlanPanel({
   return (
     <aside
       className={`ds-no-drag flex min-h-0 flex-col border-l border-ds-border-muted bg-white dark:bg-ds-canvas ${className}`}
+      dir={document.documentElement.lang === 'ar' ? 'rtl' : 'ltr'}
     >
       <div className="shrink-0 border-b border-ds-border-muted bg-white/92 dark:bg-ds-card">
         <div className="flex h-12 min-w-0 items-center gap-2 px-4">
@@ -232,6 +318,66 @@ export function PlanPanel({
             <ExternalLink className="h-4 w-4" strokeWidth={1.9} />
           </button>
         </div>
+
+        {/* Thread plan status bar */}
+        {threadPlan ? (
+          <div className="px-4 pb-2">
+            <div
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] font-medium
+                ${isApproved
+                  ? 'border-green-400/60 bg-green-50 dark:border-green-800/50 dark:bg-green-950/40'
+                  : canApprove
+                    ? 'border-blue-400/60 bg-blue-50 dark:border-blue-800/50 dark:bg-blue-950/40'
+                    : 'border-ds-border-muted bg-ds-surface-subtle dark:bg-white/6'
+                }`}
+            >
+              <span className={`shrink-0 ${threadPlanStatusColor(threadPlanStatus ?? '')}`}>
+                {isApproved ? (
+                  <CheckCircle className="h-3.5 w-3.5" strokeWidth={1.9} />
+                ) : (
+                  <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.8} />
+                )}
+              </span>
+              <span className={`min-w-0 flex-1 ${threadPlanStatusColor(threadPlanStatus ?? '')}`}>
+                {t(threadPlanStatusLabel(threadPlanStatus ?? ''))}
+              </span>
+              {threadPlan.title ? (
+                <span className="truncate text-ds-muted" title={threadPlan.title}>
+                  {threadPlan.title}
+                </span>
+              ) : null}
+            </div>
+
+            {/* Approve-and-execute button */}
+            {canApprove ? (
+              <div className="mt-2">
+                {approvalError ? (
+                  <div className="mb-2 rounded-md border border-red-300/70 bg-red-500/10 px-2.5 py-1.5 text-[11px] leading-4 text-red-700 dark:border-red-800/60 dark:text-red-300">
+                    {approvalError}
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={approving || !runtimeReady || busy}
+                  onClick={handleApproveAndExecute}
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-3 text-[13px] font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {approving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.2} />
+                  ) : (
+                    <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.9} />
+                  )}
+                  {approving ? t('planApproving') : t('planApproveAndExecute')}
+                </button>
+              </div>
+            ) : isApproved ? (
+              <div className="mt-2 text-center text-[11px] font-medium text-green-600 dark:text-green-400">
+                {t('planApproved')}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex min-w-0 flex-wrap items-center gap-2 px-4 pb-3">
           <div className="min-w-0 flex-1 truncate rounded-full border border-ds-border-muted bg-ds-surface-subtle px-3 py-1.5 text-[11.5px] font-medium text-ds-muted dark:bg-white/6">
             {activePlan?.relativePath ?? t('planNoActiveFile')}
@@ -309,7 +455,7 @@ export function PlanPanel({
           <p className="mb-2 text-[12px] leading-5 text-ds-muted">{t('planRefineHint')}</p>
           <button
             type="button"
-            disabled={!canUseAgent}
+            disabled={!canBuild}
             onClick={onBuildPlan}
             className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 text-[13px] font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >

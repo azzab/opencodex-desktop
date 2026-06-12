@@ -32,6 +32,7 @@ export function createReadLocalTool(options: ReadLocalToolOptions = {}): LocalTo
       additionalProperties: false
     },
     policy: 'auto',
+    planModeAllowed: true,
     execute: async (args, context) => withToolBoundary(async () => {
       const rawPath = typeof args.path === 'string' ? args.path : ''
       if (!rawPath.trim()) return { output: { error: 'path is required' }, isError: true }
