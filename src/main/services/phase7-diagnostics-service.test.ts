@@ -50,14 +50,14 @@ describe('phase7-diagnostics-service', () => {
       name: 'Demo Plugin',
       version: '0.1.0',
       description: 'Adds a safe manifest.',
-      apiKey: 'sk-live-secret',
+      apiKey: 'pk-fixture-live-sentinel',
       capabilities: {
         mcp: {
           servers: {
             docs: {
               command: 'docs-mcp',
               env: {
-                DOCS_TOKEN: 'secret-token'
+                DOCS_TOKEN: 'fixture-token'
               }
             }
           }
@@ -66,8 +66,8 @@ describe('phase7-diagnostics-service', () => {
     }, null, 2), 'utf8')
 
     const settings = createSettings()
-    settings.codePromptPrefix = 'Always be concise. token=secret-value'
-    settings.claw.skills.promptPrefix = 'Use security checks. api_key=sk-test'
+    settings.codePromptPrefix = 'Always be concise. token=fixture-value'
+    settings.claw.skills.promptPrefix = 'Use security checks. api_key=pk-fixture-test'
     settings.agents.kun.userAgentStack = {
       ...settings.agents.kun.userAgentStack,
       enabled: true,
@@ -129,8 +129,8 @@ describe('phase7-diagnostics-service', () => {
       executesCode: false,
       redaction: 'secret-values-redacted'
     }))
-    expect(JSON.stringify(diagnostics.plugins)).not.toContain('sk-live-secret')
-    expect(JSON.stringify(diagnostics.plugins)).not.toContain('secret-token')
+    expect(JSON.stringify(diagnostics.plugins)).not.toContain('pk-fixture-live-sentinel')
+    expect(JSON.stringify(diagnostics.plugins)).not.toContain('fixture-token')
     expect(diagnostics.hooks.map((hook) => hook.phase)).toEqual(expect.arrayContaining([
       'PreToolUse',
       'PostToolUse',

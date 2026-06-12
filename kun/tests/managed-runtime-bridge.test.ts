@@ -358,15 +358,15 @@ describe('Managed-runtime hook bridge (config → Kun runtime)', () => {
       await gate.approve(hooks[0]!.id, workspaceRoot)
 
       // Set a secret env
-      process.env.HOOK_TEST_SECRET_KEY = 'super-secret-should-not-leak'
+      process.env.HOOK_TEST_FIXTURE_KEY = 'sensitive-fixture-should-not-leak'
       try {
         const result = await gate.execute('PreToolUse', { workspaceRoot })
         const stdout = result.results[0]?.runResult?.stdout ?? ''
         // Should not contain the secret
-        expect(stdout).not.toContain('super-secret-should-not-leak')
-        expect(stdout).not.toContain('HOOK_TEST_SECRET_KEY')
+        expect(stdout).not.toContain('sensitive-fixture-should-not-leak')
+        expect(stdout).not.toContain('HOOK_TEST_FIXTURE_KEY')
       } finally {
-        delete process.env.HOOK_TEST_SECRET_KEY
+        delete process.env.HOOK_TEST_FIXTURE_KEY
       }
     } finally {
       await runtime.shutdown?.()

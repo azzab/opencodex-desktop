@@ -4,13 +4,15 @@ import {
   DEFAULT_MODEL_PROVIDER_ID,
   DEFAULT_OPENROUTER_BASE_URL,
   OPENROUTER_PROVIDER_ID,
+  STORED_ENCRYPTED_MARKER,
   type AppSettingsV1,
   type KunRuntimeSettingsV1,
   type ModelProviderCatalogModelV1,
   type ModelProviderProfilePatchV1,
   type ModelProviderProfileV1,
   type ModelProviderSettingsPatchV1,
-  type ModelProviderSettingsV1
+  type ModelProviderSettingsV1,
+  type ProviderCredentialStatus
 } from './app-settings-types'
 import { normalizeModelEndpointFormat } from './app-settings-types'
 import { getKunRuntimeSettings } from './app-settings-kun'
@@ -169,17 +171,53 @@ function normalizeModelProviderProfile(
       ? normalizeDeepseekBaseUrl(input.baseUrl)
       : DEFAULT_DEEPSEEK_BASE_URL
   const models = normalizeProviderModels(input?.models)
+  const apiKey = typeof input?.apiKey === 'string' ? input.apiKey.trim() : ''
   return {
     id,
     name,
-    apiKey: typeof input?.apiKey === 'string' ? input.apiKey.trim() : '',
+    apiKey: isStoredEncryptedMarker(apiKey) ? '' : apiKey,
     baseUrl,
     endpointFormat: normalizeModelEndpointFormat(input?.endpointFormat),
     models,
     catalogUpdatedAt: normalizeOptionalString(input?.catalogUpdatedAt, 128),
     catalogError: normalizeOptionalString(input?.catalogError, 512),
-    catalogModels: normalizeCatalogModels(input?.catalogModels, id)
+    catalogModels: normalizeCatalogModels(input?.catalogModels, id),
+    credentialStatus: normalizeCredentialStatus(input?.credentialStatus),
+    credentialLabel: normalizeOptionalString(input?.credentialLabel, 128),
+    credentialMaskedPreview: normalizeOptionalString(input?.credentialMaskedPreview, 64),
+    credentialLimit: typeof input?.credentialLimit === 'number' ? input.credentialLimit : null,
+    credentialUsage: typeof input?.credentialUsage === 'number' ? input.credentialUsage : 0
   }
+}
+
+export function isStoredEncryptedMarker(value: string): boolean {
+  return value === STORED_ENCRYPTED_MARKER
+}
+
+function normalizeCredentialStatus(value: unknown): ProviderCredentialStatus | undefined {
+  if (value === 'connected' || value === 'invalid' || value === 'unvalidated') return value
+  return undefined
+}
+
+export function maskApiKey(key: string): string {
+  if (!key) return ''
+  if (key.length <= 12) return '••••••••'
+  const prefix = key.slice(0, 5)
+  const suffix = key.slice(-4)
+  return `${prefix}…${suffix}`
+}
+
+export function providerProfilesForSettings(
+  profiles: ReadonlyArray<ModelProviderProfileV1>,
+  credentialMaskedPreviews?: Map<string, string>
+): ModelProviderProfileV1[] {
+  return profiles.map((p) => ({
+    ...p,
+    apiKey: p.apiKey && !isStoredEncryptedMarker(p.apiKey)
+      ? STORED_ENCRYPTED_MARKER
+      : p.apiKey,
+    credentialMaskedPreview: credentialMaskedPreviews?.get(p.id) ?? p.credentialMaskedPreview
+  }))
 }
 
 function normalizeProviderModels(models: unknown): string[] {

@@ -11,6 +11,18 @@ const api = {
   fetchUpstreamModels: () => ipcRenderer.invoke('upstream:models'),
   refreshModelProviderCatalog: (payload) =>
     ipcRenderer.invoke('model-provider:catalog:refresh', payload),
+  providerOAuthStart: () =>
+    ipcRenderer.invoke('provider:oauth:start'),
+  providerValidateKey: (payload) =>
+    ipcRenderer.invoke('provider:validate-key', payload),
+  providerDiscoverModels: (payload) =>
+    ipcRenderer.invoke('provider:discover-models', payload),
+  providerSaveKey: (providerId, key) =>
+    ipcRenderer.invoke('provider:save-key', providerId, key),
+  providerDeleteKey: (providerId) =>
+    ipcRenderer.invoke('provider:delete-key', providerId),
+  providerGetMaskedKey: (providerId) =>
+    ipcRenderer.invoke('provider:masked-key', providerId),
   getClawStatus: () => ipcRenderer.invoke('claw:status'),
   runClawTask: (taskId) =>
     ipcRenderer.invoke('claw:task:run', taskId),

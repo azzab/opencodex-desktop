@@ -61,7 +61,7 @@ describe('automation tool provider', () => {
       'allowed',
       'completed'
     ])
-    expect(JSON.stringify(auditLog.events)).not.toContain('secret')
+    expect(JSON.stringify(auditLog.events)).not.toContain('sensitive-fixture')
   })
 
   it('records blocked audit events without calling the sidecar', async () => {

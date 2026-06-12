@@ -52,11 +52,12 @@ import {
   ClawSettingsSection,
   GeneralSettingsSection,
   KeyboardShortcutsSettingsSection,
+  ProvidersSettingsSection,
   RemoteRunnersSettingsSection,
   WriteSettingsSection
 } from './settings-sections'
 
-type SettingsCategory = 'general' | 'write' | 'agents' | 'shortcuts' | 'claw' | 'remoteRunners'
+type SettingsCategory = 'general' | 'write' | 'agents' | 'shortcuts' | 'claw' | 'providers' | 'remoteRunners'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type SettingsPatch = AppSettingsPatch
 type SkillRootOption = {
@@ -247,11 +248,12 @@ export function SettingsView(): ReactElement {
     ) {
       return
     }
-    const refs: Record<Exclude<SettingsRouteSection, 'general' | 'write' | 'claw' | 'shortcuts'>, HTMLDivElement | null> = {
+    const refs: Record<Exclude<SettingsRouteSection, 'general' | 'write' | 'claw' | 'shortcuts' | 'providers'>, HTMLDivElement | null> = {
       agents: agentsSectionRef.current,
       skill: skillSectionRef.current,
       mcp: mcpSectionRef.current
     }
+    if (settingsSection === 'providers') return
     const target = refs[settingsSection]
     if (!target) return
     window.requestAnimationFrame(() => {
@@ -950,6 +952,7 @@ export function SettingsView(): ReactElement {
           {category === 'agents' ? <AgentsSettingsSection ctx={settingsSectionContext} /> : null}
           {category === 'shortcuts' ? <KeyboardShortcutsSettingsSection ctx={settingsSectionContext} /> : null}
           {category === 'claw' ? <ClawSettingsSection ctx={settingsSectionContext} /> : null}
+          {category === 'providers' ? <ProvidersSettingsSection ctx={settingsSectionContext} /> : null}
           {category === 'remoteRunners' ? <RemoteRunnersSettingsSection ctx={settingsSectionContext} /> : null}
         </div>
       </div>

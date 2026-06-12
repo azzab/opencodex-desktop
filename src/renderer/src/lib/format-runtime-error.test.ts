@@ -10,7 +10,7 @@ describe('format runtime error', () => {
   it('uses code fields for localized summaries and settings actions', () => {
     const error = new Error(JSON.stringify({
       code: 'missing_api_key',
-      message: 'api-key=sk-test is missing',
+      message: 'api-key=pk-fixture-test is missing',
       details: { Authorization: 'Bearer runtime-token' }
     }))
 
@@ -20,7 +20,7 @@ describe('format runtime error', () => {
     expect(view.code).toBe('missing_api_key')
     expect(view.settingsAction).toBe('agents')
     expect(view.detail).toContain('<redacted>')
-    expect(view.detail).not.toContain('sk-test')
+    expect(view.detail).not.toContain('pk-fixture-test')
     expect(view.detail).not.toContain('runtime-token')
   })
 

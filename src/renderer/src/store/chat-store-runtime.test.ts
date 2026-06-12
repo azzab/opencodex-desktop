@@ -115,15 +115,15 @@ describe('thread event sink runtime errors', () => {
     sink.onRuntimeError?.({
       itemId: 'error-1',
       createdAt: '2026-06-08T00:00:00.000Z',
-      message: 'Authorization: Bearer secret-token failed',
+      message: 'Authorization: Bearer fixture-token failed',
       code: 'provider_unavailable',
-      details: { token: 'secret-token' },
+      details: { token: 'fixture-token' },
       severity: 'error'
     })
     sink.onRuntimeError?.({
       itemId: 'error-1',
       createdAt: '2026-06-08T00:00:00.000Z',
-      message: 'Authorization: Bearer secret-token failed again',
+      message: 'Authorization: Bearer fixture-token failed again',
       code: 'provider_unavailable',
       severity: 'error'
     })
@@ -137,7 +137,7 @@ describe('thread event sink runtime errors', () => {
       severity: 'error'
     })
     expect(systemBlocks[0].text).toContain('<redacted>')
-    expect(systemBlocks[0].detail).not.toContain('secret-token')
+    expect(systemBlocks[0].detail).not.toContain('fixture-token')
   })
 
   it('does not keep an aborted turn busy after interrupt', () => {

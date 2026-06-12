@@ -30,6 +30,8 @@ import {
   type AppSettingsPatch,
   type AppSettingsV1
 } from '../shared/app-settings'
+import { CredentialStore } from './services/credential-store'
+import { STORED_ENCRYPTED_MARKER } from '../shared/app-settings-types'
 import { parseRuntimeErrorBody, runtimeErrorToError, type RuntimeErrorCode } from '../shared/runtime-error'
 import type { GuiUpdateState } from '../shared/gui-update'
 import { isAllowedDevPreviewUrl } from '../shared/dev-preview-url'
@@ -149,8 +151,14 @@ function runtimeFailure(code: string, message: string, status = 0, details?: unk
 
 function resolveConfiguredApiKey(settings: AppSettingsV1): string {
   const fromSettings = getActiveAgentApiKey(settings)
+  // If the key is encrypted, resolve from credential store
+  if (fromSettings === STORED_ENCRYPTED_MARKER || !fromSettings) {
+    const providerId = getKunRuntimeSettings(settings).providerId || 'deepseek'
+    const stored = credentialStore?.getKeySync(providerId)
+    if (stored) return stored
+  }
   const fromEnv = process.env.DEEPSEEK_API_KEY?.trim() ?? ''
-  return fromSettings || fromEnv
+  return fromSettings !== STORED_ENCRYPTED_MARKER ? fromSettings : fromEnv
 }
 
 function runtimeJsonError(code: string, message: string): Error {
@@ -187,6 +195,7 @@ if (!runningClawScheduleMcpServer && process.platform === 'win32') {
 
 let mainWindow: BrowserWindow | null = null
 let store: JsonSettingsStore
+let credentialStore: CredentialStore | null = null
 let logDir = ''
 let clawRuntime: ClawRuntime | null = null
 let scheduleRuntime: ScheduleRuntime | null = null
@@ -668,7 +677,7 @@ async function ensureKunRuntime(settings: AppSettingsV1): Promise<void> {
     throw runtimeJsonError('runtime_port_conflict', reclaim.message)
   }
   try {
-    await adapter.ensureRunning(settings)
+    await adapter.ensureRunning(settings, { credentialStore })
   } catch (e) {
     console.error('[opencodex-desktop] failed to start kun:', e)
     throw e
@@ -824,7 +833,7 @@ async function restartManagedRuntimeForSettingsChange(
   if (!resolveConfiguredApiKey(next) || !runtime.autoStart) return
 
   try {
-    await adapter.ensureRunning(next)
+    await adapter.ensureRunning(next, { credentialStore })
     const healthy = await waitForKunHealth(next, 20_000)
     if (!healthy) {
       console.warn('[opencodex-desktop] Kun restart did not become healthy after settings change')
@@ -845,7 +854,7 @@ async function restartManagedRuntimeForMcpConfigChange(settings: AppSettingsV1):
   if (!resolveConfiguredApiKey(settings) || !runtime.autoStart) return
 
   try {
-    await adapter.ensureRunning(settings)
+    await adapter.ensureRunning(settings, { credentialStore })
     const healthy = await waitForKunHealth(settings, 20_000)
     if (!healthy) {
       console.warn('[opencodex-desktop] Kun restart did not become healthy after MCP config change')
@@ -911,9 +920,50 @@ app.whenReady().then(async () => {
   }
 
   store = new JsonSettingsStore(app.getPath('userData'))
+
+  // Initialize encrypted credential store and migrate plaintext keys
+  credentialStore = new CredentialStore(app.getPath('userData'))
+  await credentialStore.init()
+
   traceStartup('settings load:start')
   const initial = await store.load()
   traceStartup('settings load:done')
+
+  // Migrate any plaintext keys to encrypted storage, scrub from settings.
+  // In ephemeral mode (safeStorage unavailable), keys are ingested into the
+  // in-memory cache for the current session but are NOT persisted and the
+  // settings marker must NOT claim durable encryption.
+  const migrated = await credentialStore.migrateFromSettings(initial.provider.providers)
+  const credentialAvailable = credentialStore.isAvailable()
+  if (migrated) {
+    const scrubbed = {
+      ...initial,
+      provider: {
+        ...initial.provider,
+        providers: initial.provider.providers.map((p) => {
+          const inStore = credentialStore!.hasKey(p.id)
+          if (!inStore) return p
+          if (credentialAvailable) {
+            return { ...p, apiKey: STORED_ENCRYPTED_MARKER }
+          }
+          // Ephemeral: key is only in memory.  Scrub plaintext from disk and
+          // mark as unvalidated so the UI doesn't mislead about durable storage.
+          return {
+            ...p,
+            apiKey: '',
+            credentialStatus: 'unvalidated' as const
+          }
+        })
+      }
+    }
+    await store.save(scrubbed)
+    if (credentialAvailable) {
+      console.info('[opencodex-desktop] Migrated plaintext API keys to encrypted credential store')
+    } else {
+      console.info('[opencodex-desktop] Credential store unavailable — keys loaded for this session only (ephemeral)')
+    }
+  }
+
   appBehavior = initial.appBehavior
   syncLoginItemSettings(initial)
   syncTray(initial)
@@ -956,6 +1006,28 @@ app.whenReady().then(async () => {
   const applySettingsPatch = async (partial: AppSettingsPatch): Promise<AppSettingsV1> => {
     const prev = await store.load()
     const { agents: agentsPatch, provider: providerPatch, ...restPatch } = partial
+
+    // Store any plaintext keys in the credential store before merging.
+    // When safeStorage is available the settings marker signals durable
+    // encryption; when unavailable we scrub the key to empty and mark
+    // the provider as unvalidated so the UI doesn't mislead.
+    const credAvailable = credentialStore?.isAvailable() ?? false
+    if (providerPatch?.providers && credentialStore) {
+      for (const p of providerPatch.providers) {
+        if (p.id && p.apiKey && p.apiKey !== STORED_ENCRYPTED_MARKER) {
+          await credentialStore.setKey(p.id, p.apiKey)
+          p.apiKey = credAvailable ? STORED_ENCRYPTED_MARKER : ''
+          if (!credAvailable) {
+            p.credentialStatus = 'unvalidated' as const
+          }
+        }
+      }
+    }
+    if (providerPatch?.apiKey && providerPatch.apiKey !== STORED_ENCRYPTED_MARKER && credentialStore) {
+      await credentialStore.setKey('deepseek', providerPatch.apiKey)
+      providerPatch.apiKey = credAvailable ? STORED_ENCRYPTED_MARKER : ''
+    }
+
     const next = normalizeAppSettings({
       ...applyKunRuntimePatch(prev, agentsPatch?.kun),
       ...restPatch,
@@ -1078,6 +1150,7 @@ app.whenReady().then(async () => {
 
   registerAppIpcHandlers({
     store,
+    credentialStore,
     getMainWindow: () => mainWindow,
     applySettingsPatch,
     runtimeRequest: async (path, method, body) => {

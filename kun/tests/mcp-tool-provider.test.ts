@@ -457,7 +457,7 @@ describe('MCP tool provider', () => {
           broken: {
             transport: 'streamable-http',
             url: 'https://mcp.example.test/mcp',
-            headers: { Authorization: 'Bearer config-secret' },
+            headers: { Authorization: 'Bearer config-fixture-token' },
             trustScope: 'user'
           }
         }
@@ -465,15 +465,15 @@ describe('MCP tool provider', () => {
     })
     const built = await buildMcpToolProviders(config.mcp, {
       clientFactory: async () => {
-        throw new Error('connect failed: authorization: Bearer runtime-secret token=other-secret')
+        throw new Error('connect failed: authorization: Bearer runtime-fixture-value token=other-fixture-value')
       }
     })
 
     const encoded = JSON.stringify(built.diagnostics)
     expect(encoded).toContain(REDACTED_SECRET)
-    expect(encoded).not.toContain('runtime-secret')
-    expect(encoded).not.toContain('other-secret')
-    expect(encoded).not.toContain('config-secret')
+    expect(encoded).not.toContain('runtime-fixture-value')
+    expect(encoded).not.toContain('other-fixture-value')
+    expect(encoded).not.toContain('config-fixture-token')
   })
 
   it('closes connected MCP clients during shutdown', async () => {

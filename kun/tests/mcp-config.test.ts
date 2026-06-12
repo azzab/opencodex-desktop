@@ -11,7 +11,7 @@ describe('MCP config', () => {
       transport: 'stdio',
       command: 'node',
       args: ['server.js'],
-      env: { API_KEY: 'secret' },
+      env: { API_KEY: 'fixture-key-value' },
       trustScope: 'workspace',
       trustedWorkspaceRoots: ['/tmp/project']
     })
@@ -85,7 +85,7 @@ describe('MCP config', () => {
       },
       env: {
         NORMAL: 'visible',
-        CLIENT_SECRET: 'secret',
+        CLIENT_SECRET: 'fixture-config-value',
         PASSWORD: 'pw'
       }
     })

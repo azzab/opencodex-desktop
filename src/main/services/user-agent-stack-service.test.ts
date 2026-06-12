@@ -53,9 +53,9 @@ describe('user-agent-stack-service', () => {
       mcpServers: {
         github: {
           command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-github', '--token', 'ghp_secret'],
+          args: ['-y', '@modelcontextprotocol/server-github', '--token', 'token_fixture_value'],
           env: {
-            GITHUB_TOKEN: 'ghp_secret'
+            GITHUB_TOKEN: 'token_fixture_value'
           }
         },
         docs: {
@@ -89,10 +89,10 @@ describe('user-agent-stack-service', () => {
   it('redacts secret-like strings before building previews', () => {
     expect(redactUserAgentStackValue({
       safe: 'visible',
-      args: ['--api-key', 'sk-live-secret', '--model', 'fast'],
+      args: ['--api-key', 'pk-fixture-live-sentinel', '--model', 'fast'],
       nested: {
-        url: 'https://example.test?token=secret-value',
-        password: 'plain-secret'
+        url: 'https://example.test?token=fixture-value',
+        password: 'plain-fixture'
       }
     })).toEqual({
       safe: 'visible',

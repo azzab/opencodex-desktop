@@ -41,8 +41,11 @@ export const kunRuntimeAdapter = {
     return resolution.command
   },
 
-  ensureRunning(settings: AppSettingsV1): Promise<void> {
-    return startKunChild(settings)
+  ensureRunning(
+    settings: AppSettingsV1,
+    opts?: { credentialStore?: { getKeySync(providerId: string): string } | null }
+  ): Promise<void> {
+    return startKunChild(settings, opts)
   },
 
   stopAndWait(): Promise<void> {

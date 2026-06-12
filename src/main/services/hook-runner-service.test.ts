@@ -286,21 +286,21 @@ describe('Hook execution', () => {
 describe('Env filtering', () => {
   it('buildHookEnv redacts secret-like env vars', () => {
     // Temporarily set a secret env var
-    const originalKey = process.env.TEST_HOOK_SECRET_KEY
-    process.env.TEST_HOOK_SECRET_KEY = 'super-secret-value'
+    const originalKey = process.env.TEST_HOOK_FIXTURE_KEY
+    process.env.TEST_HOOK_FIXTURE_KEY = 'sensitive-fixture-value'
     try {
       const env = buildHookEnv()
       // Should not contain secret-like keys
-      expect(env.TEST_HOOK_SECRET_KEY).toBeUndefined()
+      expect(env.TEST_HOOK_FIXTURE_KEY).toBeUndefined()
       expect(env.DEEPSEEK_API_KEY).toBeUndefined()
       // Should contain safe keys
       expect(env.HOME).toBeDefined()
       expect(env.PATH).toBeDefined()
     } finally {
       if (originalKey !== undefined) {
-        process.env.TEST_HOOK_SECRET_KEY = originalKey
+        process.env.TEST_HOOK_FIXTURE_KEY = originalKey
       } else {
-        delete process.env.TEST_HOOK_SECRET_KEY
+        delete process.env.TEST_HOOK_FIXTURE_KEY
       }
     }
   })

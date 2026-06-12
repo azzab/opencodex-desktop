@@ -86,6 +86,10 @@ import {
   remoteRunnerExecPayloadSchema
 } from './app-ipc-schemas'
 import {
+  MAX_BODY_BYTES,
+  MAX_URL_LENGTH
+} from './app-ipc-schemas'
+import {
   approveHook,
   autoRevokeChangedHooks,
   discoverAllHooks,
@@ -141,6 +145,15 @@ import { getPhase7Diagnostics } from '../services/phase7-diagnostics-service'
 import { discoverUserAgentStackProfile } from '../services/user-agent-stack-service'
 import { fetchModelProviderCatalog } from '../upstream-models'
 import { TerminalService, type TerminalSessionInfo, type TerminalAuditEvent } from '../services/terminal-service'
+import { STORED_ENCRYPTED_MARKER } from '../../shared/app-settings-types'
+
+function maskApiKeyForRenderer(key: string): string {
+  if (!key || key === STORED_ENCRYPTED_MARKER) return ''
+  if (key.length <= 12) return '••••••••'
+  const prefix = key.slice(0, 5)
+  const suffix = key.slice(-4)
+  return `${prefix}…${suffix}`
+}
 
 type GuiUpdaterModule = typeof import('../gui-updater')
 
@@ -154,6 +167,7 @@ type WorkspaceFileWatchRecord = {
 
 type RegisterAppIpcHandlersOptions = {
   store: JsonSettingsStore
+  credentialStore?: import('../services/credential-store').CredentialStore | null
   getMainWindow: () => BrowserWindow | null
   applySettingsPatch: (partial: AppSettingsPatch) => Promise<AppSettingsV1>
   runtimeRequest: (
@@ -316,6 +330,7 @@ function runDesktopCommand(
 export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): void {
   const {
     store,
+    credentialStore,
     getMainWindow,
     applySettingsPatch,
     runtimeRequest,
@@ -422,7 +437,21 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     }, 90)
   }
 
-  ipcMain.handle('settings:get', async () => store.load())
+  ipcMain.handle('settings:get', async () => {
+    const settings = await store.load()
+    // Mask provider API keys — renderer must never see plaintext keys
+    return {
+      ...settings,
+      provider: {
+        ...settings.provider,
+        apiKey: maskApiKeyForRenderer(settings.provider.apiKey),
+        providers: settings.provider.providers.map((p) => ({
+          ...p,
+          apiKey: maskApiKeyForRenderer(p.apiKey)
+        }))
+      }
+    }
+  })
   ipcMain.handle('settings:set', async (_, partial: unknown) =>
     applySettingsPatch(
       parseIpcPayload('settings:set', settingsPatchSchema, partial) as AppSettingsPatch
@@ -444,7 +473,9 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     const settings = await store.load()
     const providerSettings = getModelProviderSettings(settings)
     const provider = getModelProviderProfile(settings, request.providerId)
-    const result = await fetchModelProviderCatalog({ provider })
+    // Resolve the actual key from credential store (not from settings)
+    const apiKey = credentialStore?.getKeySync(provider.id) ?? provider.apiKey
+    const result = await fetchModelProviderCatalog({ provider: { ...provider, apiKey } })
     if (!result.ok) {
       return { ok: false, message: result.message }
     }
@@ -467,12 +498,137 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
         providers
       }
     })
+    // Sanitize: mask all provider API keys before returning to renderer
     const nextProvider = getModelProviderProfile(nextSettings, provider.id)
     return {
       ok: true,
-      provider: nextProvider,
+      provider: {
+        ...nextProvider,
+        apiKey: maskApiKeyForRenderer(nextProvider.apiKey)
+      },
       catalogModels: nextProvider.catalogModels,
-      settings: nextSettings
+      settings: {
+        ...nextSettings,
+        provider: {
+          ...nextSettings.provider,
+          apiKey: maskApiKeyForRenderer(nextSettings.provider.apiKey),
+          providers: nextSettings.provider.providers.map((p) => ({
+            ...p,
+            apiKey: maskApiKeyForRenderer(p.apiKey)
+          }))
+        }
+      }
+    }
+  })
+
+  // Provider OAuth PKCE (OpenRouter sign-in)
+  // Key is stored in credentialStore inside main; renderer receives only masked metadata.
+  ipcMain.handle('provider:oauth:start', async (): Promise<import('../../shared/ds-gui-api').ProviderOAuthResult> => {
+    if (!credentialStore) {
+      return { ok: false, message: 'Credential store is not available.' }
+    }
+    const { startOAuthFlow } = await import('../services/oauth-pkce-service')
+    const result = await startOAuthFlow(credentialStore)
+    return result
+  })
+
+  // BYOK key validation
+  ipcMain.handle('provider:validate-key', async (_event, payload: unknown): Promise<import('../../shared/ds-gui-api').ProviderKeyValidationResult> => {
+    const request = parseIpcPayload('provider:validate-key', z.object({
+      providerId: z.string().trim().min(1).max(64),
+      key: z.string().trim().min(1).max(MAX_BODY_BYTES),
+      baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
+      endpointFormat: z.string().trim().max(32).optional()
+    }).strict(), payload)
+    const { validateProviderKey } = await import('../services/provider-validation-service')
+    return validateProviderKey(request.providerId, request.key, request.baseUrl ?? 'https://api.deepseek.com', request.endpointFormat as import('../../../kun/src/contracts/model-endpoint-format').ModelEndpointFormat | undefined)
+  })
+
+  // Per-key model catalog discovery
+  ipcMain.handle('provider:discover-models', async (_event, payload: unknown): Promise<import('../../shared/ds-gui-api').ProviderModelDiscoveryResult> => {
+    const request = parseIpcPayload('provider:discover-models', z.object({
+      providerId: z.string().trim().min(1).max(64)
+    }).strict(), payload)
+    const settings = await store.load()
+    const provider = getModelProviderProfile(settings, request.providerId)
+    // Resolve the actual key from credential store
+    const apiKey = credentialStore?.getKeySync(provider.id) ?? provider.apiKey
+    const { discoverModels } = await import('../services/provider-validation-service')
+    const result = await discoverModels({ ...provider, apiKey })
+    if (!result.ok) {
+      return { ok: false, message: result.message }
+    }
+    const catalogModelIds = result.catalogModels.map((model) => model.id)
+    const providerSettings = getModelProviderSettings(settings)
+    const providers = providerSettings.providers.map((profile) =>
+      profile.id === provider.id
+        ? {
+            ...profile,
+            models: mergeProviderModelIds(profile.models, catalogModelIds),
+            catalogUpdatedAt: new Date().toISOString(),
+            catalogError: '',
+            catalogModels: result.catalogModels
+          }
+        : profile
+    )
+    const nextSettings = await applySettingsPatch({
+      provider: { apiKey: providerSettings.apiKey, baseUrl: providerSettings.baseUrl, providers }
+    })
+    const nextProvider = getModelProviderProfile(nextSettings, provider.id)
+    // Sanitize: mask all provider API keys before returning to renderer
+    return {
+      ok: true,
+      catalogModels: result.catalogModels,
+      provider: {
+        ...nextProvider,
+        apiKey: maskApiKeyForRenderer(nextProvider.apiKey)
+      },
+      settings: {
+        ...nextSettings,
+        provider: {
+          ...nextSettings.provider,
+          apiKey: maskApiKeyForRenderer(nextSettings.provider.apiKey),
+          providers: nextSettings.provider.providers.map((p) => ({
+            ...p,
+            apiKey: maskApiKeyForRenderer(p.apiKey)
+          }))
+        }
+      }
+    }
+  })
+
+  // Save an encrypted key
+  ipcMain.handle('provider:save-key', async (_event, providerId: unknown, key: unknown): Promise<import('../../shared/ds-gui-api').ProviderKeySaveResult> => {
+    const id = typeof providerId === 'string' ? providerId.trim() : ''
+    const k = typeof key === 'string' ? key.trim() : ''
+    if (!id) return { ok: false, message: 'Provider ID is required.' }
+    if (!k) return { ok: false, message: 'API key is required.' }
+    if (!credentialStore) return { ok: false, message: 'Credential store is not available.' }
+    const persisted = credentialStore.isAvailable()
+    await credentialStore.setKey(id, k)
+    return { ok: true, providerId: id, maskedPreview: credentialStore.maskKey(id), persisted }
+  })
+
+  // Delete a stored key
+  ipcMain.handle('provider:delete-key', async (_event, providerId: unknown): Promise<import('../../shared/ds-gui-api').ProviderKeyDeleteResult> => {
+    const id = typeof providerId === 'string' ? providerId.trim() : ''
+    if (!id) return { ok: false, message: 'Provider ID is required.' }
+    if (!credentialStore) return { ok: false, message: 'Credential store is not available.' }
+    await credentialStore.deleteKey(id)
+    return { ok: true, providerId: id }
+  })
+
+  // Get masked key preview
+  ipcMain.handle('provider:masked-key', async (_event, providerId: unknown): Promise<import('../../shared/ds-gui-api').ProviderMaskedKeyResult> => {
+    const id = typeof providerId === 'string' ? providerId.trim() : ''
+    if (!id) return { ok: false, message: 'Provider ID is required.' }
+    if (!credentialStore) return { ok: false, message: 'Credential store is not available.' }
+    const hasKey = credentialStore.hasKey(id)
+    return {
+      ok: true,
+      providerId: id,
+      maskedPreview: hasKey ? credentialStore.maskKey(id) : '',
+      hasKey
     }
   })
 

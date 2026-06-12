@@ -304,9 +304,9 @@ describe('create_plan tool mapping', () => {
         status: 'failed',
         createdAt: '2024-01-01T00:00:00.000Z',
         kind: 'error',
-        message: 'Authorization: Bearer secret-token failed',
+        message: 'Authorization: Bearer fixture-token failed',
         code: 'stream_read_error',
-        details: { token: 'secret-token' }
+        details: { token: 'fixture-token' }
       }
     }, sink, async () => undefined)
 
@@ -315,7 +315,7 @@ describe('create_plan tool mapping', () => {
       itemId: 'item_error_1',
       message: 'Authorization=<redacted> failed',
       code: 'stream_read_error',
-      details: { token: 'secret-token' }
+      details: { token: 'fixture-token' }
     })
   })
 

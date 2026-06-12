@@ -32,7 +32,7 @@ function createSettings(patch: Partial<AppSettingsV1['write']['inlineCompletion'
     agents: {
       kun: {
         ...defaultKunRuntimeSettings(),
-        apiKey: 'sk-test'
+        apiKey: 'pk-fixture-test'
       }
     },
     workspaceRoot: '/tmp/workspace',
@@ -137,7 +137,7 @@ describe('requestWriteInlineCompletion', () => {
     expect(url).toBe('https://api.deepseek.com/beta/completions')
     expect(url).not.toContain('/chat/completions')
     expect(init.headers).toMatchObject({
-      Authorization: 'Bearer sk-test'
+      Authorization: 'Bearer pk-fixture-test'
     })
     const body = JSON.parse(String(init.body)) as { prompt: string; suffix: string; max_tokens: number }
     expect(body).toMatchObject({
