@@ -35,6 +35,7 @@ import {
 } from './settings-controls'
 import { formatCompactNumber, formatCost } from '../hooks/use-thread-usage'
 import { parseUsageResponse } from '../hooks/usage-response'
+import { HooksBrowser } from './HooksBrowser'
 
 function statusPill(status: string | undefined): string {
   if (status === 'available') return 'border-emerald-400/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200'
@@ -2388,6 +2389,17 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
                         checked={kun.terminal?.enabled !== false}
                         onChange={(enabled) => updateKun({ terminal: { enabled } })}
                       />
+                    }
+                  />
+                </SettingsCard>
+              </div>
+
+              {/* Lifecycle Hooks Browser */}
+              <div className="mt-6">
+                <SettingsCard title={tCommon('hooksKillSwitch')}>
+                  <HooksBrowser
+                    workspaceRoot={
+                      form?.workspaceRoot || ''
                     }
                   />
                 </SettingsCard>

@@ -17,6 +17,7 @@ import type { UsageService } from '../services/usage-service.js'
 import type { TurnService } from '../services/turn-service.js'
 import type { RuntimeEventRecorder } from '../services/runtime-event-recorder.js'
 import type { CheckpointService } from '../services/checkpoint-service.js'
+import type { HookGate, HookPhaseResult } from '../ports/hook-gate.js'
 import type { PipelineStage } from '../contracts/events.js'
 import type { IdGenerator } from '../ports/id-generator.js'
 import type { ImmutablePrefix } from '../cache/immutable-prefix.js'
@@ -243,6 +244,8 @@ export type AgentLoopOptions = {
   turns: TurnService
   /** Optional checkpoint service for pre-mutation snapshots. */
   checkpointService?: CheckpointService
+  /** Optional hook gate for lifecycle hook execution (PreToolUse, PostToolUse, etc.). */
+  hookGate?: HookGate
   inflight: InflightTracker
   steering: SteeringQueue
   compactor: ContextCompactor
@@ -1178,7 +1181,61 @@ export class AgentLoop {
     call: ToolCallLike
     context: ToolHostContext
   }): Promise<ToolHostResult> {
-    return this.opts.inflight.run(
+    // ── PreToolUse hooks ──────────────────────────────────────────
+    let preHookResult: HookPhaseResult | undefined
+    if (this.opts.hookGate) {
+      preHookResult = await this.opts.hookGate.execute('PreToolUse', {
+        workspaceRoot: input.context.workspace,
+        threadId: input.threadId,
+        turnId: input.turnId,
+        payload: {
+          tool: input.call.toolName,
+          toolKind: input.call.toolKind,
+          callId: input.call.callId,
+          arguments: input.call.arguments
+        }
+      })
+      if (preHookResult.decision === 'deny') {
+        // Record audit for deny decision
+        const denyResults = preHookResult.results.filter((r) => r.trusted && r.auditEvent)
+        for (const r of denyResults) {
+          if (r.auditEvent) {
+            await this.opts.events.record({
+              kind: 'error',
+              threadId: input.threadId,
+              turnId: input.turnId,
+              message: `Pre-tool hook ${r.hook.id} denied tool '${input.call.toolName}': exit ${r.runResult?.exitCode ?? 'null'}`,
+              code: 'hook_denied',
+              severity: 'warning'
+            })
+          }
+        }
+        // Return a synthetic denied result
+        const itemId = `item_tool_${input.turnId}_${input.call.callId}`
+        const deniedResult: ToolHostResult = {
+          approved: false,
+          item: {
+            id: itemId,
+            kind: 'tool_result',
+            role: 'tool' as const,
+            threadId: input.threadId,
+            turnId: input.turnId,
+            callId: input.call.callId,
+            toolName: input.call.toolName,
+            toolKind: input.call.toolKind ?? 'tool_call',
+            output: { error: `Tool '${input.call.toolName}' blocked by pre-tool hook` },
+            isError: true,
+            status: 'failed',
+            createdAt: this.opts.nowIso(),
+            finishedAt: this.opts.nowIso()
+          }
+        }
+        return deniedResult
+      }
+    }
+
+    // ── Execute tool ──────────────────────────────────────────────
+    const result = await this.opts.inflight.run(
       {
         id: `inflight_${input.call.callId}`,
         kind: 'tool',
@@ -1196,6 +1253,24 @@ export class AgentLoop {
         await this.opts.turns.applyItem(input.threadId, item)
       })
     )
+
+    // ── PostToolUse hooks ─────────────────────────────────────────
+    if (this.opts.hookGate) {
+      await this.opts.hookGate.execute('PostToolUse', {
+        workspaceRoot: input.context.workspace,
+        threadId: input.threadId,
+        turnId: input.turnId,
+        payload: {
+          tool: input.call.toolName,
+          toolKind: input.call.toolKind,
+          callId: input.call.callId,
+          arguments: input.call.arguments,
+          isError: result.item.kind === 'tool_result' && result.item.isError === true
+        }
+      })
+    }
+
+    return result
   }
 
   private async persistToolCallResult(

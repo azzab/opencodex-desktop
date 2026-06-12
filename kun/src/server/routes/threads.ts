@@ -17,6 +17,7 @@ import {
 import { jsonResponse, type JsonResponse } from '../response.js'
 import { readJsonBody } from '../read-json-body.js'
 import type { ForkThreadOptions, ListThreadsOptions, ThreadService } from '../../services/thread-service.js'
+import type { HookGate } from '../../ports/hook-gate.js'
 import type { RuntimeError } from './runtime-error.js'
 import type { SessionStore } from '../../ports/session-store.js'
 import type { Turn } from '../../contracts/turns.js'
@@ -148,8 +149,16 @@ export async function updateThread(
 
 export async function deleteThread(
   service: ThreadService,
-  threadId: string
+  threadId: string,
+  hookGate?: HookGate
 ): Promise<JsonResponse> {
+  // Run SessionStop hooks before deleting
+  if (hookGate) {
+    await hookGate.execute('SessionStop', {
+      threadId,
+      payload: { threadId }
+    })
+  }
   const ok = await service.delete(threadId)
   if (!ok) {
     return jsonResponse(

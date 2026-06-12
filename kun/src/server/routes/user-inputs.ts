@@ -3,6 +3,7 @@ import { jsonResponse, type JsonResponse } from '../response.js'
 import { readJsonBody } from '../read-json-body.js'
 import { ERRORS } from './runtime-error.js'
 import type { UserInputGate } from '../../ports/user-input-gate.js'
+import type { HookGate } from '../../ports/hook-gate.js'
 import type { RuntimeEventRecorder } from '../../services/runtime-event-recorder.js'
 
 const UserInputAnswerSchema = z.object({
@@ -21,6 +22,7 @@ export async function resolveUserInput(input: {
   request: Request
   gate: UserInputGate
   events: RuntimeEventRecorder
+  hookGate?: HookGate
 }): Promise<JsonResponse | Response> {
   const body = await readJsonBody(input.request)
   if (!body.ok) return body.response
@@ -32,6 +34,19 @@ export async function resolveUserInput(input: {
   if (!pending) {
     return ERRORS.notFound(`user input not found: ${input.inputId}`)
   }
+
+  // Run UserPromptSubmit hooks before resolving
+  if (input.hookGate && !parsed.data.cancelled) {
+    await input.hookGate.execute('UserPromptSubmit', {
+      threadId: pending.threadId,
+      turnId: pending.turnId,
+      payload: {
+        prompt: pending.prompt,
+        answers: parsed.data.answers ?? []
+      }
+    })
+  }
+
   const resolution = parsed.data.cancelled
     ? { status: 'cancelled' as const }
     : { status: 'submitted' as const, answers: parsed.data.answers ?? [] }

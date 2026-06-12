@@ -23,6 +23,7 @@ import {
   DEFAULT_KUN_CAPABILITIES_CONFIG,
   KunCapabilitiesConfig
 } from '../contracts/capabilities.js'
+import { KunHookSettingsConfigSchema } from '../config/kun-config.js'
 
 export const DEFAULT_SERVE_PORT = 18999
 export const DEFAULT_SERVE_MODEL = DEFAULT_KUN_MODEL
@@ -57,7 +58,8 @@ export const ServeOptionsSchema = z.object({
   models: ModelConfigSchema.optional(),
   contextCompaction: ContextCompactionConfigSchema.optional(),
   runtime: RuntimeTuningConfigSchema.optional(),
-  capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG)
+  capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG),
+  hookSettings: KunHookSettingsConfigSchema.optional()
 })
 export type ServeOptions = z.infer<typeof ServeOptionsSchema>
 

@@ -1533,5 +1533,21 @@
   "evidenceNetworkEmpty": "No network requests captured",
   "evidenceNetworkMethod": "Method",
   "evidenceNetworkUrl": "URL",
-  "evidenceNetworkStatus": "Status"
+  "evidenceNetworkStatus": "Status",
+  "hooksKillSwitch": "Enable hook execution (master kill switch)",
+  "hooksKillSwitchHint": "When disabled, no hooks execute regardless of trust state.",
+  "hooksAuditLog": "Audit log",
+  "hooksDecisionDeny": "DENIED",
+  "hooksNoneFound": "No hooks discovered. Place executable scripts in ~/.opencodex/hooks/ (user) or .opencodex/hooks/ (project).",
+  "hooksStatusDisabled": "Disabled",
+  "hooksStatusTrusted": "Trusted",
+  "hooksStatusRevoked": "Revoked",
+  "hooksStatusChanged": "Changed",
+  "hooksStatusUntrusted": "Untrusted",
+  "hooksReviewSource": "Review source",
+  "hooksRevoke": "Revoke",
+  "hooksApprove": "Approve",
+  "hooksReviewTitle": "Review hook source",
+  "hooksSourceNotFound": "Could not read hook source.",
+  "hooksApproveAndClose": "Approve and close"
 }

@@ -176,6 +176,51 @@ export type TerminalAgentExecObservedPayload = {
   exitCode?: number
 }
 
+export type DiscoveredHookInfo = {
+  id: string
+  scriptPath: string
+  scope: 'user' | 'project'
+  phase: string
+  contentHash: string
+  executable: boolean
+}
+
+export type HookTrustStateInfo = {
+  id: string
+  scriptPath: string
+  scope: 'user' | 'project'
+  phase: string
+  trusted: boolean
+  approvedAt?: string
+  contentHash: string
+  hashMatches: boolean
+}
+
+export type HooksStateResult = {
+  killSwitchEnabled: boolean
+  hooks: HookTrustStateInfo[]
+  auditLog: Array<{
+    hookId: string
+    phase: string
+    startedAt: string
+    durationMs: number
+    exitCode: number | null
+    signal: string | null
+    stdoutBytes: number
+    stderrBytes: number
+    decision?: 'allow' | 'deny'
+    error?: string
+  }>
+}
+
+export type HookApproveResult =
+  | { ok: true; entry: { id: string; trusted: boolean; approvedAt: string } }
+  | { ok: false; message: string }
+
+export type HookSourceResult =
+  | { ok: true; content: string; scriptPath: string }
+  | { ok: false; message: string }
+
 export type DsGuiApi = {
   platform: string
   getSettings: () => Promise<AppSettingsV1>
@@ -207,6 +252,16 @@ export type DsGuiApi = {
   openDeepseekConfigDir: () => Promise<PathOpenResult>
   previewUserAgentStackImport: (payload?: UserAgentStackImportPayload) => Promise<UserAgentStackPreviewResult>
   importUserAgentStack: (payload?: UserAgentStackImportPayload) => Promise<UserAgentStackImportResult>
+  /** Get full hooks state: discovered hooks + trust + audit log. */
+  getHooksState: (workspaceRoot?: string) => Promise<HooksStateResult>
+  /** Approve (trust) a hook by id. Pins the current content hash. */
+  approveHook: (hookId: string, workspaceRoot?: string) => Promise<HookApproveResult>
+  /** Revoke trust for a hook by id. */
+  revokeHook: (hookId: string) => Promise<HookApproveResult>
+  /** Read a hook's source for review. */
+  readHookSource: (hookId: string, workspaceRoot?: string) => Promise<HookSourceResult>
+  /** Set the master kill switch. */
+  setHooksKillSwitch: (enabled: boolean) => Promise<{ ok: boolean }>
   getGitBranches: (workspaceRoot: string) => Promise<GitBranchesResult>
   switchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>
   createAndSwitchGitBranch: (workspaceRoot: string, branch: string) => Promise<GitBranchesResult>

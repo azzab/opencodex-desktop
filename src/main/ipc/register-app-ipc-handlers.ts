@@ -77,8 +77,22 @@ import {
   writeExportPayloadSchema,
   writeRichClipboardPayloadSchema,
   writeInlineCompletionPayloadSchema,
-  workspaceRootSchema
+  workspaceRootSchema,
+  hooksStatePayloadSchema,
+  hookApprovePayloadSchema,
+  hookRevokePayloadSchema,
+  hookSourcePayloadSchema,
+  hooksKillSwitchPayloadSchema
 } from './app-ipc-schemas'
+import {
+  approveHook,
+  autoRevokeChangedHooks,
+  discoverAllHooks,
+  readHookSource,
+  revokeHook,
+  setKillSwitch
+} from '../services/hook-runner-service'
+import { getKunRuntimeSettings, applyKunRuntimePatch, type KunHookSettingsV1 } from '../../shared/app-settings'
 import type { JsonSettingsStore } from '../settings-store'
 import type { ClawRuntime } from '../claw-runtime'
 import type { ScheduleRuntime } from '../schedule-runtime'
@@ -1202,6 +1216,125 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
       threadId: request.threadId,
       detail
     })
+    return { ok: true as const }
+  })
+
+  // -----------------------------------------------------------------------
+  // Hooks IPC handlers
+  // -----------------------------------------------------------------------
+
+  /**
+   * Push current hook settings from the app settings store to the running
+   * Kun runtime via the POST /v1/runtime/hooks/reload endpoint. Best-effort
+   * — silently ignores errors when Kun is not running.
+   */
+  async function pushHookSettingsToKun(): Promise<void> {
+    try {
+      const settings = await store.load()
+      const hooksSettings = getKunRuntimeSettings(settings).hooks
+      const body = JSON.stringify(hooksSettings)
+      await runtimeRequest('/v1/runtime/hooks/reload', 'POST', body)
+    } catch {
+      // Kun may not be running; best-effort push
+    }
+  }
+
+  ipcMain.handle('hooks:state', async (_event, payload: unknown) => {
+    const settings = await store.load()
+    const request = parseIpcPayload('hooks:state', hooksStatePayloadSchema, payload)
+    const workspaceRoot = request.workspaceRoot || settings.workspaceRoot
+    const hooksSettings = getKunRuntimeSettings(settings).hooks
+
+    // Auto-revoke changed hooks
+    const discovered = discoverAllHooks(workspaceRoot)
+    const { settings: updatedSettings, revoked } = autoRevokeChangedHooks(discovered, hooksSettings)
+    if (revoked.length > 0) {
+      // Persist the auto-revocation
+      await applySettingsPatch({ agents: { kun: { hooks: { trustedHooks: updatedSettings.trustedHooks } } } })
+      // Push revoked state to running Kun if alive
+      await pushHookSettingsToKun()
+    }
+
+    const effective = revoked.length > 0 ? updatedSettings : hooksSettings
+    const hooks = discovered.map((hook) => {
+      const entry = effective.trustedHooks[hook.id]
+      const hashMatches = entry ? entry.contentHash === hook.contentHash : false
+      return {
+        id: hook.id,
+        scriptPath: hook.scriptPath,
+        scope: hook.scope,
+        phase: hook.phase,
+        trusted: entry?.trusted === true && hashMatches,
+        approvedAt: entry?.approvedAt,
+        contentHash: hook.contentHash,
+        hashMatches
+      }
+    })
+
+    return {
+      killSwitchEnabled: effective.enabled,
+      hooks,
+      auditLog: effective.auditLog
+    }
+  })
+
+  ipcMain.handle('hooks:approve', async (_event, payload: unknown) => {
+    const settings = await store.load()
+    const request = parseIpcPayload('hooks:approve', hookApprovePayloadSchema, payload)
+    const workspaceRoot = request.workspaceRoot || settings.workspaceRoot
+    const hooksSettings = getKunRuntimeSettings(settings).hooks
+
+    const discovered = discoverAllHooks(workspaceRoot)
+    const hook = discovered.find((h) => h.id === request.hookId)
+    if (!hook) {
+      return { ok: false as const, message: `Hook not found: ${request.hookId}` }
+    }
+
+    const { settings: nextHookSettings, entry } = approveHook(hook, hooksSettings)
+    await applySettingsPatch({ agents: { kun: { hooks: nextHookSettings } } })
+    // Push approved trust state to running Kun if alive
+    await pushHookSettingsToKun()
+
+    return { ok: true as const, entry: { id: entry.id, trusted: entry.trusted, approvedAt: entry.approvedAt } }
+  })
+
+  ipcMain.handle('hooks:revoke', async (_event, payload: unknown) => {
+    const settings = await store.load()
+    const request = parseIpcPayload('hooks:revoke', hookRevokePayloadSchema, payload)
+    const hooksSettings = getKunRuntimeSettings(settings).hooks
+    const nextHookSettings = revokeHook(request.hookId, hooksSettings)
+    await applySettingsPatch({ agents: { kun: { hooks: nextHookSettings } } })
+    // Push revoked state to running Kun if alive
+    await pushHookSettingsToKun()
+    return { ok: true as const, entry: { id: request.hookId, trusted: false, approvedAt: undefined } }
+  })
+
+  ipcMain.handle('hooks:read-source', async (_event, payload: unknown) => {
+    const settings = await store.load()
+    const request = parseIpcPayload('hooks:read-source', hookSourcePayloadSchema, payload)
+    const workspaceRoot = request.workspaceRoot || settings.workspaceRoot
+
+    const discovered = discoverAllHooks(workspaceRoot)
+    const hook = discovered.find((h) => h.id === request.hookId)
+    if (!hook) {
+      return { ok: false as const, message: `Hook not found: ${request.hookId}` }
+    }
+
+    const result = readHookSource(hook.scriptPath)
+    if (!result.ok) {
+      return { ok: false as const, message: result.error }
+    }
+    return { ok: true as const, content: result.content, scriptPath: hook.scriptPath }
+  })
+
+  ipcMain.handle('hooks:kill-switch', async (_event, payload: unknown) => {
+    const settings = await store.load()
+    const request = parseIpcPayload('hooks:kill-switch', hooksKillSwitchPayloadSchema, payload)
+    const hooksSettings = getKunRuntimeSettings(settings).hooks
+    const nextHookSettings = setKillSwitch(request.enabled, hooksSettings)
+    await applySettingsPatch({ agents: { kun: { hooks: nextHookSettings } } })
+    // Push kill-switch state to running Kun if alive
+    await pushHookSettingsToKun()
     return { ok: true as const }
   })
 }

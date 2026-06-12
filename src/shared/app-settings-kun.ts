@@ -7,10 +7,13 @@ import {
   DEFAULT_MODEL_ENDPOINT_FORMAT,
   DEFAULT_SANDBOX_MODE,
   normalizeModelEndpointFormat,
+  defaultKunHookSettings,
   type AppSettingsV1,
   type KunCheckpointSettingsV1,
   type KunContextCompactionSettingsV1,
   type KunHistoryHygieneSettingsV1,
+  type KunHookSettingsV1,
+  type KunHookTrustEntryV1,
   type KunMcpSearchSettingsV1,
   type KunRuntimeTuningSettingsV1,
   type KunRuntimeSettingsPatchV1,
@@ -139,7 +142,8 @@ export function defaultKunRuntimeSettings(
     subagents: defaultKunSubagentSettings(),
     automation: defaultKunAutomationSettings(),
     terminal: defaultKunTerminalSettings(),
-    checkpoints: defaultKunCheckpointSettings()
+    checkpoints: defaultKunCheckpointSettings(),
+    hooks: defaultKunHookSettings()
   }
 }
 
@@ -432,6 +436,23 @@ export function mergeKunRuntimeSettings(
     ...currentCheckpoints,
     ...(patch?.checkpoints ?? {})
   })
+  const currentHooks = normalizeKunHookSettings(current.hooks)
+  const nextHooks = normalizeKunHookSettings({
+    ...currentHooks,
+    ...(patch?.hooks ?? {}),
+    trustedHooks: {
+      ...currentHooks.trustedHooks,
+      ...(patch?.hooks?.trustedHooks
+        ? Object.fromEntries(
+            Object.entries(patch.hooks.trustedHooks).map(([id, entry]) => [
+              id,
+              { ...currentHooks.trustedHooks[id], ...entry } as KunHookTrustEntryV1
+            ])
+          )
+        : {})
+    },
+    auditLog: patch?.hooks?.auditLog ?? currentHooks.auditLog
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -446,7 +467,22 @@ export function mergeKunRuntimeSettings(
     subagents: nextSubagents,
     automation: nextAutomation,
     terminal: nextTerminal,
-    checkpoints: nextCheckpoints
+    checkpoints: nextCheckpoints,
+    hooks: nextHooks
+  }
+}
+
+function normalizeKunHookSettings(
+  input: Partial<KunHookSettingsV1> | undefined
+): KunHookSettingsV1 {
+  const defaults = defaultKunHookSettings()
+  return {
+    enabled: input?.enabled === true,
+    trustedHooks: input?.trustedHooks ?? defaults.trustedHooks,
+    defaultTimeoutMs: boundedPositiveInt(input?.defaultTimeoutMs, defaults.defaultTimeoutMs, 120_000),
+    maxOutputBytes: boundedPositiveInt(input?.maxOutputBytes, defaults.maxOutputBytes, 8 * 1024 * 1024),
+    maxAuditEvents: boundedPositiveInt(input?.maxAuditEvents, defaults.maxAuditEvents, 10_000),
+    auditLog: Array.isArray(input?.auditLog) ? input.auditLog.slice(0, defaults.maxAuditEvents) : defaults.auditLog
   }
 }
 

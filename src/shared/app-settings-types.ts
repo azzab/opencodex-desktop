@@ -2,6 +2,14 @@ import type { GuiUpdateChannel } from './gui-update'
 import type { KeyboardShortcutsConfigV1 } from './keyboard-shortcuts'
 import type { ApprovalPolicy, SandboxMode } from '../../kun/src/contracts/policy.js'
 import type { ModelEndpointFormat } from '../../kun/src/contracts/model-endpoint-format.js'
+import type {
+  KunHookLifecyclePhase,
+  KunHookTrustEntryV1,
+  KunHookAuditEvent,
+  KunHookAllowDenyDecision,
+  KunHookSettingsV1,
+  KunHookTrustScopeV1
+} from '../../kun/src/contracts/hooks.js'
 export { DEFAULT_GUI_UPDATE_CHANNEL, normalizeGuiUpdateChannel, type GuiUpdateChannel } from './gui-update'
 export {
   DEFAULT_APPROVAL_POLICY,
@@ -16,6 +24,15 @@ export {
   normalizeModelEndpointFormat,
   type ModelEndpointFormat
 } from '../../kun/src/contracts/model-endpoint-format.js'
+export {
+  defaultKunHookSettings,
+  type KunHookLifecyclePhase,
+  type KunHookTrustEntryV1,
+  type KunHookAuditEvent,
+  type KunHookAllowDenyDecision,
+  type KunHookSettingsV1,
+  type KunHookTrustScopeV1
+} from '../../kun/src/contracts/hooks.js'
 export type UiFontScale = 'small' | 'medium' | 'large'
 export type ScheduleRunMode = 'agent' | 'plan'
 export type ScheduleKind = 'manual' | 'interval' | 'daily' | 'at'
@@ -260,6 +277,8 @@ export type KunRuntimeSettingsV1 = {
   terminal: KunTerminalSettingsV1
   /** Checkpoint retention and auto-creation controls. */
   checkpoints: KunCheckpointSettingsV1
+  /** Lifecycle hook execution with per-hook trust review, hash pinning, audit, and kill switch. */
+  hooks: KunHookSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -346,6 +365,12 @@ export type KunTokenEconomySettingsPatchV1 = Partial<
   historyHygiene?: Partial<KunHistoryHygieneSettingsV1>
 }
 
+export type KunHookSettingsPatchV1 = Partial<
+  Omit<KunHookSettingsV1, 'trustedHooks'>
+> & {
+  trustedHooks?: Partial<Record<string, Partial<KunHookTrustEntryV1>>>
+}
+
 export type KunRuntimeSettingsPatchV1 = Partial<
   Omit<
     KunRuntimeSettingsV1,
@@ -359,6 +384,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     | 'automation'
     | 'terminal'
     | 'checkpoints'
+    | 'hooks'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -380,6 +406,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     permissions?: Partial<KunAutomationPermissionsV1>
     auditLog?: Partial<KunAutomationAuditLogSettingsV1>
   }
+  hooks?: KunHookSettingsPatchV1
 }
 
 export type KunSettingsEnvelopePatchV1 = {

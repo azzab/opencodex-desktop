@@ -1533,5 +1533,21 @@
   "evidenceNetworkEmpty": "未捕获网络请求",
   "evidenceNetworkMethod": "方法",
   "evidenceNetworkUrl": "URL",
-  "evidenceNetworkStatus": "状态"
+  "evidenceNetworkStatus": "状态",
+  "hooksKillSwitch": "启用钩子执行（总开关）",
+  "hooksKillSwitchHint": "禁用后，无论信任状态如何，钩子都不会执行。",
+  "hooksAuditLog": "审计日志",
+  "hooksDecisionDeny": "已拒绝",
+  "hooksNoneFound": "未发现钩子。将可执行脚本放入 ~/.opencodex/hooks/（用户）或 .opencodex/hooks/（项目）。",
+  "hooksStatusDisabled": "已禁用",
+  "hooksStatusTrusted": "已信任",
+  "hooksStatusRevoked": "已撤销",
+  "hooksStatusChanged": "已变更",
+  "hooksStatusUntrusted": "未信任",
+  "hooksReviewSource": "查看源码",
+  "hooksRevoke": "撤销",
+  "hooksApprove": "批准",
+  "hooksReviewTitle": "查看钩子源码",
+  "hooksSourceNotFound": "无法读取钩子源码。",
+  "hooksApproveAndClose": "批准并关闭"
 }

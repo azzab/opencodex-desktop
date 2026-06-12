@@ -56,6 +56,7 @@ import {
 import { listThreadEvidence, getThreadEvidenceEntry } from './evidence.js'
 import { isAuthorized, bearerToken } from '../auth.js'
 import { ERRORS } from './runtime-error.js'
+import { reloadHookSettings } from './hooks-reload.js'
 import type { ServerRuntime } from './server-runtime.js'
 
 /**
@@ -96,6 +97,9 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('GET', '/v1/runtime/tools', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return runtimeToolDiagnosticsJsonResponse(runtime)
+  })
+  router.add('POST', '/v1/runtime/hooks/reload', async (request) => {
+    return reloadHookSettings(runtime, request)
   })
   router.add('GET', '/v1/skills', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
@@ -161,7 +165,7 @@ export function buildRouter(runtime: ServerRuntime): Router {
   })
   router.add('DELETE', '/v1/threads/:id', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
-    return deleteThread(runtime.threadService, ctx.params.id)
+    return deleteThread(runtime.threadService, ctx.params.id, runtime.hookGate)
   })
   router.add('POST', '/v1/threads/:id/fork', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
@@ -251,7 +255,8 @@ export function buildRouter(runtime: ServerRuntime): Router {
       approvalId: ctx.params.id,
       request,
       gate: runtime.approvalGate,
-      events: runtime.events
+      events: runtime.events,
+      hookGate: runtime.hookGate
     })
   })
   router.add('POST', '/v1/user-inputs/:id', async (request, ctx) => {
@@ -260,7 +265,8 @@ export function buildRouter(runtime: ServerRuntime): Router {
       inputId: ctx.params.id,
       request,
       gate: runtime.userInputGate,
-      events: runtime.events
+      events: runtime.events,
+      hookGate: runtime.hookGate
     })
   })
   router.add('POST', '/v1/user-input/:id', async (request, ctx) => {
@@ -269,12 +275,13 @@ export function buildRouter(runtime: ServerRuntime): Router {
       inputId: ctx.params.id,
       request,
       gate: runtime.userInputGate,
-      events: runtime.events
+      events: runtime.events,
+      hookGate: runtime.hookGate
     })
   })
   router.add('POST', '/v1/sessions/:id/resume-thread', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
-    return resumeSession(runtime.threadService, ctx.params.id, request)
+    return resumeSession(runtime.threadService, ctx.params.id, request, runtime.hookGate)
   })
   router.add('POST', '/v1/checkpoints', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()

@@ -15,6 +15,7 @@ import {
   KUN_MEMORY_TEMPLATE,
   KUN_RUNTIME_INFO_TEMPLATE,
   KUN_RUNTIME_TOOLS_TEMPLATE,
+  KUN_RUNTIME_HOOKS_RELOAD_TEMPLATE,
   KUN_SESSION_RESUME_TEMPLATE,
   KUN_SKILLS_TEMPLATE,
   KUN_THREADS_TEMPLATE,
@@ -105,6 +106,7 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_HEALTH_TEMPLATE, ['GET']),
   compileEndpoint(KUN_RUNTIME_INFO_TEMPLATE, ['GET']),
   compileEndpoint(KUN_RUNTIME_TOOLS_TEMPLATE, ['GET']),
+  compileEndpoint(KUN_RUNTIME_HOOKS_RELOAD_TEMPLATE, ['POST']),
   compileEndpoint(KUN_SKILLS_TEMPLATE, ['GET']),
   compileEndpoint(KUN_ATTACHMENTS_TEMPLATE, ['POST']),
   compileEndpoint(KUN_ATTACHMENT_DIAGNOSTICS_TEMPLATE, ['GET']),
@@ -376,6 +378,33 @@ const kunRuntimePatchSchema = z.object({
     maxPerThread: z.number().int().nonnegative().max(1000).optional(),
     maxTotal: z.number().int().nonnegative().max(10000).optional(),
     autoBeforeMutation: z.boolean().optional()
+  }).strict().optional(),
+  hooks: z.object({
+    enabled: z.boolean().optional(),
+    defaultTimeoutMs: z.number().int().positive().max(120_000).optional(),
+    maxOutputBytes: z.number().int().positive().max(8 * 1024 * 1024).optional(),
+    maxAuditEvents: z.number().int().positive().max(10_000).optional(),
+    trustedHooks: z.record(z.string().min(1).max(MAX_ID_LENGTH), z.object({
+      id: z.string().min(1).max(MAX_ID_LENGTH).optional(),
+      scriptPath: z.string().max(MAX_PATH_LENGTH).optional(),
+      pinnedContent: z.string().max(MAX_BODY_BYTES).optional(),
+      contentHash: z.string().max(128).optional(),
+      scope: z.enum(['user', 'project']).optional(),
+      approvedAt: z.string().max(128).optional(),
+      trusted: z.boolean().optional()
+    }).strict()).optional(),
+    auditLog: z.array(z.object({
+      hookId: z.string().min(1).max(MAX_ID_LENGTH),
+      phase: z.string().min(1).max(128),
+      startedAt: z.string().max(128),
+      durationMs: z.number().int().nonnegative(),
+      exitCode: z.number().int().nullable(),
+      signal: z.string().max(64).nullable(),
+      stdoutBytes: z.number().int().nonnegative(),
+      stderrBytes: z.number().int().nonnegative(),
+      decision: z.enum(['allow', 'deny']).optional(),
+      error: z.string().max(MAX_CHANNEL_TEXT_LENGTH).optional()
+    }).strict()).max(200).optional()
   }).strict().optional()
 }).strict()
 
@@ -1029,5 +1058,37 @@ export const terminalAgentExecObservedPayloadSchema = z
     summary: z.string().trim().max(2000).optional(),
     outputTruncated: z.string().trim().max(10000).optional(),
     exitCode: z.number().int().optional()
+  })
+  .strict()
+
+export const hooksStatePayloadSchema = z
+  .object({
+    workspaceRoot: z.string().trim().max(MAX_PATH_LENGTH).optional()
+  })
+  .strict()
+
+export const hookApprovePayloadSchema = z
+  .object({
+    hookId: trimmedString(MAX_ID_LENGTH),
+    workspaceRoot: z.string().trim().max(MAX_PATH_LENGTH).optional()
+  })
+  .strict()
+
+export const hookRevokePayloadSchema = z
+  .object({
+    hookId: trimmedString(MAX_ID_LENGTH)
+  })
+  .strict()
+
+export const hookSourcePayloadSchema = z
+  .object({
+    hookId: trimmedString(MAX_ID_LENGTH),
+    workspaceRoot: z.string().trim().max(MAX_PATH_LENGTH).optional()
+  })
+  .strict()
+
+export const hooksKillSwitchPayloadSchema = z
+  .object({
+    enabled: z.boolean()
   })
   .strict()
