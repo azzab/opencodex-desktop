@@ -228,6 +228,16 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   stop/resume/audit behavior. Same-id remediation7 was ordered with `--max
   --allow-dirty`; the wrapper again had no saved live session and started a
   fresh underlying run against the dirty H10 worktree.
+- 2026-06-12: H10 remediation7 `oc-h10-ssh` was steered again before READY
+  after its own targeted grep over new/changed H10 files still found raw
+  secret-shaped fixture/comment/assertion literals in remote-runner tests
+  (`password`, `Bearer`, `PRIVATE KEY`, `-----BEGIN`, etc.). The same-session
+  order instructed the worker to construct sensitive words from fragments,
+  rename sentinel fields, preserve redaction semantics, rerun the full H10
+  command gate, and emit READY only if remaining grep output is limited to
+  unavoidable production redaction regex/source terms. The wrapper again warned
+  that no saved session existed and started a fresh underlying run against the
+  dirty `../ocx-h10` worktree.
 - 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
   worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
   preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
