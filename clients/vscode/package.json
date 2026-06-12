@@ -1,0 +1,98 @@
+{
+  "name": "opencodex-vscode",
+  "displayName": "OpenCodex",
+  "description": "OpenCodex IDE companion — thin app-server protocol adapter for Kun runtime",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:opencodex.sidebar",
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opencodex",
+          "title": "OpenCodex",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "opencodex": [
+        {
+          "type": "webview",
+          "id": "opencodex.sidebar",
+          "name": "Threads"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opencodex.showThreads",
+        "title": "Show Threads",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "opencodex.sendTurn",
+        "title": "Send Turn",
+        "icon": "$(send)"
+      },
+      {
+        "command": "opencodex.approveAction",
+        "title": "Approve/Deny",
+        "icon": "$(check)"
+      },
+      {
+        "command": "opencodex.health",
+        "title": "Check Server Health",
+        "icon": "$(pulse)"
+      }
+    ],
+    "configuration": {
+      "title": "OpenCodex",
+      "properties": {
+        "opencodex.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Kun server host"
+        },
+        "opencodex.port": {
+          "type": "number",
+          "default": 18999,
+          "description": "Kun server port"
+        },
+        "opencodex.token": {
+          "type": "string",
+          "default": "",
+          "description": "Local auth token"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.7"
+  }
+}
