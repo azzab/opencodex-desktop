@@ -13,7 +13,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 1 | H1 Arabic i18n Completion | `oc-h1-arabic` | dsv4-pro medium | ✅ | $0.4015 / in 340,885 out 224,620 cache 97.9% | Merged to `main`; post-merge full gate green (root 844/844, Kun 451/451) | `dfe60ef` | Missing-key counts 0/0; dummy future en key makes locale test fail, then passes after removal |
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
-| 3.5 | H3.5 Electron 42 Security Fixpack | `oc-h3-5-electron` | dsv4-pro max | ❌ | $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6% | Blocked after initial dispatch plus two same-lane recovery orders. Orchestrator reproduced `node scripts/kun-smoke.cjs` failure: Kun healthy, thread created, turn returns 202 `application/json`, 0 SSE events | — | Electron 42.4.0 lane not mergeable; fallback `39.8.10` now authorized by prior operator decision but not executed yet. Wave 2 remains blocked |
+| 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | 🔵 | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback cost pending | 42.4.0 path blocked after recovery. Fallback `39.8.10` dispatched in `../ocx-h3-5-39`; verification pending worker completion | — | Electron 42.4.0 lane not mergeable; authorized `39.8.10` fallback now running. Wave 2 remains blocked until fallback merges gate-green |
 | 4 | H4 Planner/Executor Split | `oc-h4-planner` | dsv4-pro max | ⬜ | — | — | — | Merge before H5 (thread-service overlap); dispatch after H3.5 merges gate-green |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | ⬜ | — | — | — | Rebase on H4 before merge |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
@@ -154,3 +154,12 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   fallback to `39.8.10` is authorized only because 42.4.0 could not go green
   after recovery rules, with this reason recorded here. Wave 2 remains blocked
   until an approved Electron security lane merges gate-green.
+- 2026-06-12: Added an explicit H3.5 fallback launcher to
+  `PHASE_H3_5_ELECTRON_SECURITY_FIXPACK.md` and updated `PHASE_RUNNER.md` so
+  the authorized `39.8.10` fallback can be dispatched from phase docs verbatim
+  without asking a worker to self-elect the fallback. Created fresh fallback
+  worktree `../ocx-h3-5-39` on `phase/h3-5-electron39` from main `506613e`.
+  `pidev` preflight passed for `oc-h3-5-electron39` (fresh session id, clean
+  tree, no live pi worker). Dispatched the Fallback Short Launcher Prompt
+  verbatim with `--max`; worker pid `844`, log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h3-5-electron39/run-20260612T115933.log`.
