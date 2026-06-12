@@ -63,6 +63,8 @@ import { SkillRuntime } from '../skills/skill-runtime.js'
 import { FileMemoryStore } from '../memory/memory-store.js'
 import { DelegationRuntime, FileDelegationStore } from '../delegation/delegation-runtime.js'
 import { createChildAgentExecutor } from '../delegation/child-agent-executor.js'
+import { FileAutomationEvidenceStore } from '../automation/evidence-store.js'
+import { PlaywrightSidecar } from '../automation/playwright-sidecar.js'
 
 export type KunServeRuntimeOptions = {
   host: string
@@ -180,7 +182,25 @@ export async function createKunServeRuntime(
   })
   const mcpProviders = await buildMcpToolProviders(options.capabilities?.mcp)
   const webProviders = buildWebToolProviders(options.capabilities?.web)
+  const evidenceStore = options.capabilities?.automation.enabled
+    ? new FileAutomationEvidenceStore({
+        artifactsRoot: join(options.dataDir, 'automation-evidence'),
+        maxPerThread: 200
+      })
+    : undefined
+  if (evidenceStore) {
+    evidenceStore.loadFromDisk()
+  }
+  const automationSidecar = options.capabilities?.automation.enabled
+    ? new PlaywrightSidecar({
+        headless: true,
+        onEvidence: evidenceStore
+          ? (batch) => evidenceStore.ingest(batch)
+          : undefined
+      })
+    : undefined
   const automationProviders = buildAutomationToolProviders(options.capabilities?.automation, {
+    sidecar: automationSidecar,
     auditLog: {
       record: async (event: AutomationAuditRecord) => {
         await events.record({
@@ -372,6 +392,7 @@ export async function createKunServeRuntime(
     toolHost,
     ...(attachmentStore ? { attachmentStore } : {}),
     ...(memoryStore ? { memoryStore } : {}),
+    ...(evidenceStore ? { evidenceStore } : {}),
     runTurn(threadId, turnId) {
       return loop.runTurn(threadId, turnId)
     },

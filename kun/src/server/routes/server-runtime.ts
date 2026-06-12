@@ -20,6 +20,7 @@ import type { AttachmentDiagnostics } from '../../contracts/attachments.js'
 import type { AttachmentStore } from '../../attachments/attachment-store.js'
 import type { MemoryDiagnostics } from '../../contracts/memory.js'
 import type { MemoryStore } from '../../memory/memory-store.js'
+import type { AutomationEvidenceStore } from '../../automation/evidence-store.js'
 import type { ReviewTarget } from '../../contracts/review.js'
 
 export type RuntimeToolDiagnostics = {
@@ -53,6 +54,7 @@ export type ServerRuntime = {
   toolHost?: ToolHost
   attachmentStore?: AttachmentStore
   memoryStore?: MemoryStore
+  evidenceStore?: AutomationEvidenceStore
   runTurn(threadId: string, turnId: string): Promise<'completed' | 'failed' | 'aborted'> | void
   runReview?(input: {
     threadId: string

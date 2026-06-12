@@ -1516,5 +1516,21 @@
   "checkpointSettingsMaxPerThread": "الحد الأقصى لكل جلسة",
   "checkpointSettingsMaxTotal": "الحد الأقصى الإجمالي",
   "checkpointSettingsAuto": "إنشاء تلقائي قبل التعديل",
-  "checkpointDirtyBlocked": "الاستعادة محظورة — مساحة العمل غير نظيفة"
+  "checkpointDirtyBlocked": "الاستعادة محظورة — مساحة العمل غير نظيفة",
+  "evidencePanelTitle": "الأدلة",
+  "evidenceEmptyTitle": "لم يتم التقاط أدلة بعد",
+  "evidenceEmptyDescription": "ستظهر أدلة أتمتة المتصفح (لقطات الشاشة، سجلات وحدة التحكم، الشبكة) هنا بعد أن يقوم الوكيل بتشغيل إجراء متصفح.",
+  "evidenceScreenshots": "لقطات الشاشة",
+  "evidenceConsole": "وحدة التحكم",
+  "evidenceNetwork": "الشبكة",
+  "evidenceScreenshotAlt": "لقطة شاشة المتصفح",
+  "evidenceUntitled": "بدون عنوان",
+  "evidenceConsoleEmpty": "لم يتم التقاط إدخالات وحدة التحكم",
+  "evidenceConsoleType": "النوع",
+  "evidenceConsoleText": "الرسالة",
+  "evidenceConsoleLocation": "الموقع",
+  "evidenceNetworkEmpty": "لم يتم التقاط طلبات الشبكة",
+  "evidenceNetworkMethod": "الطريقة",
+  "evidenceNetworkUrl": "الرابط",
+  "evidenceNetworkStatus": "الحالة"
 }

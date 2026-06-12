@@ -142,6 +142,15 @@ export function kunThreadCheckpointsPath(threadId: string): string {
 export const KUN_USAGE_PATH = '/v1/usage'
 export const KUN_USAGE_TEMPLATE = '/v1/usage'
 
+export const KUN_THREAD_EVIDENCE_TEMPLATE = '/v1/threads/{id}/evidence'
+export function kunThreadEvidencePath(threadId: string): string {
+  return `${kunThreadPath(threadId)}/evidence`
+}
+export const KUN_THREAD_EVIDENCE_ENTRY_TEMPLATE = '/v1/threads/{id}/evidence/{evidenceId}'
+export function kunThreadEvidenceEntryPath(threadId: string, evidenceId: string): string {
+  return `${kunThreadEvidencePath(threadId)}/${encodeURIComponent(evidenceId)}`
+}
+
 /** Thread mode shared with the Kun contract. */
 export type KunThreadMode = 'agent' | 'plan'
 

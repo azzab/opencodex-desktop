@@ -21,6 +21,7 @@ export type AutomationAction =
   | 'browser.click'
   | 'browser.type'
   | 'browser.screenshot'
+  | 'browser.snapshot'
   | 'local_file.access'
   | 'app.control'
 
@@ -79,6 +80,15 @@ export function decideAutomationPermission(
     const urlDecision = validateBrowserTarget(config, request.target.url)
     if (!urlDecision.ok) return deny(permission, urlDecision.reason)
   }
+  if (request.action === 'browser.snapshot') {
+    // DOM snapshot shares browser navigation permission gate.
+    // If an explicit URL is provided, validate it against the host allowlist
+    // so disallowed hosts are blocked before any browser access is attempted.
+    if (request.target.url) {
+      const urlDecision = validateBrowserTarget(config, request.target.url)
+      if (!urlDecision.ok) return deny(permission, urlDecision.reason)
+    }
+  }
   if (request.action === 'browser.click' || request.action === 'browser.type') {
     if (!stringValue(request.target.selector)) {
       return deny(permission, 'browser interaction requires a controlled-browser selector')
@@ -115,6 +125,8 @@ function permissionForAction(action: AutomationAction): AutomationPermissionKey 
       return 'browserInteraction'
     case 'browser.screenshot':
       return 'screenshots'
+    case 'browser.snapshot':
+      return 'browserNavigation'
     case 'local_file.access':
       return 'localFileAccess'
     case 'app.control':

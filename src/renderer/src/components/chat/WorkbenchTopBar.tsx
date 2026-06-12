@@ -4,6 +4,7 @@ import type { EditorInfo } from '@shared/editor'
 import type { GuiUpdateState } from '@shared/gui-update'
 import {
   ArrowUpCircle,
+  Camera,
   Check,
   ChevronDown,
   Code2,
@@ -29,6 +30,7 @@ export type RightPanelMode =
   | 'changes'
   | 'checkpoints'
   | 'browser'
+  | 'evidence'
   | 'file'
   | 'plan'
   | 'sdd-ai'
@@ -69,7 +71,8 @@ export function WorkbenchTopBar({
     ...(planPanelEnabled ? [{ mode: 'plan' as const, label: t('rightPanelPlan'), icon: ClipboardList }] : []),
     { mode: 'changes' as const, label: t('rightPanelChanges'), icon: FileEdit },
     { mode: 'checkpoints' as const, label: t('checkpointTimelineTitle'), icon: History },
-    { mode: 'browser' as const, label: t('rightPanelBrowser'), icon: Globe2 }
+    { mode: 'browser' as const, label: t('rightPanelBrowser'), icon: Globe2 },
+    { mode: 'evidence' as const, label: t('missionBrowserEvidence'), icon: Camera }
   ]
   const selectedEditor = useMemo(
     () => editors.find((editor) => editor.id === selectedEditorId) ?? editors[0],

@@ -53,6 +53,7 @@ import {
   listCheckpoints,
   restoreCheckpoint
 } from './checkpoints.js'
+import { listThreadEvidence, getThreadEvidenceEntry } from './evidence.js'
 import { isAuthorized, bearerToken } from '../auth.js'
 import { ERRORS } from './runtime-error.js'
 import type { ServerRuntime } from './server-runtime.js'
@@ -302,6 +303,14 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('GET', '/v1/usage', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return usageJsonResponse(request, runtime)
+  })
+  router.add('GET', '/v1/threads/:id/evidence', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return listThreadEvidence(runtime, ctx.params.id, request)
+  })
+  router.add('GET', '/v1/threads/:id/evidence/:evidenceId', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return getThreadEvidenceEntry(runtime, ctx.params.id, ctx.params.evidenceId)
   })
   return router
 }

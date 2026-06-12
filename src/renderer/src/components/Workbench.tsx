@@ -103,6 +103,9 @@ const PlanPanel = lazy(() =>
 const TodoPanel = lazy(() =>
   import('./todo/TodoPanel').then((module) => ({ default: module.TodoPanel }))
 )
+const EvidencePanel = lazy(() =>
+  import('./automation/EvidencePanel').then((module) => ({ default: module.EvidencePanel }))
+)
 const UsagePanel = lazy(() =>
   import('./usage/UsagePanel').then((module) => ({ default: module.UsagePanel }))
 )
@@ -1582,6 +1585,11 @@ export function Workbench(): ReactElement {
                 blocks={devPreviewBlocks}
                 preferredUrl={latestDevPreviewUrl}
                 className="h-full max-h-full w-full flex-col"
+                onCollapse={closeRightPanel}
+              />
+            ) : rightPanelMode === 'evidence' ? (
+              <EvidencePanel
+                className="h-full max-h-full w-full"
                 onCollapse={closeRightPanel}
               />
             ) : rightPanelMode === 'plan' ? (
