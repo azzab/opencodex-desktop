@@ -3,6 +3,7 @@ import { TurnItem } from './items.js'
 import { ThreadGoalSchema, ThreadTodoListSchema } from './threads.js'
 import { UsageSnapshotSchema } from './usage.js'
 import { RuntimeErrorSeverity } from './errors.js'
+import { CheckpointRecord, RestoreTarget } from './checkpoints.js'
 
 /**
  * Persisted runtime events. Every event has a per-thread `seq` so the
@@ -42,7 +43,10 @@ export const RuntimeEventKind = z.enum([
   'pipeline_stage',
   'usage',
   'error',
-  'heartbeat'
+  'heartbeat',
+  'checkpoint_created',
+  'checkpoint_restore',
+  'checkpoint_fork'
 ])
 export type RuntimeEventKind = z.infer<typeof RuntimeEventKind>
 
@@ -257,6 +261,16 @@ export const HeartbeatEvent = RuntimeEventBase.extend({
 })
 export type HeartbeatEvent = z.infer<typeof HeartbeatEvent>
 
+export const CheckpointEvent = RuntimeEventBase.extend({
+  kind: z.enum(['checkpoint_created', 'checkpoint_restore', 'checkpoint_fork']),
+  checkpointId: z.string().min(1),
+  turnId: z.string().optional(),
+  trigger: z.enum(['pre_mutation', 'manual']).optional(),
+  target: RestoreTarget.optional(),
+  forkedThreadId: z.string().min(1).optional()
+})
+export type CheckpointEvent = z.infer<typeof CheckpointEvent>
+
 export const RuntimeEvent = z.discriminatedUnion('kind', [
   ItemEvent,
   ThreadLifecycleEvent,
@@ -275,7 +289,8 @@ export const RuntimeEvent = z.discriminatedUnion('kind', [
   PipelineStageEvent,
   UsageEvent,
   ErrorEvent,
-  HeartbeatEvent
+  HeartbeatEvent,
+  CheckpointEvent
 ])
 export type RuntimeEvent = z.infer<typeof RuntimeEvent>
 

@@ -213,6 +213,12 @@ export type KunTerminalSettingsV1 = {
   enabled: boolean
 }
 
+export type KunCheckpointSettingsV1 = {
+  maxPerThread: number
+  maxTotal: number
+  autoBeforeMutation: boolean
+}
+
 export type KunRuntimeSettingsV1 = {
   binaryPath: string
   port: number
@@ -252,6 +258,8 @@ export type KunRuntimeSettingsV1 = {
   automation: KunAutomationSettingsV1
   /** Managed PTY terminal panel availability. Default ON for user sessions. */
   terminal: KunTerminalSettingsV1
+  /** Checkpoint retention and auto-creation controls. */
+  checkpoints: KunCheckpointSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -350,6 +358,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     | 'subagents'
     | 'automation'
     | 'terminal'
+    | 'checkpoints'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -364,6 +373,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     workflowPresets?: Partial<Record<KunSubagentWorkflowPresetIdV1, Partial<KunSubagentWorkflowPresetSettingsV1>>>
   }
   terminal?: Partial<KunTerminalSettingsV1>
+  checkpoints?: Partial<KunCheckpointSettingsV1>
   automation?: Partial<
     Omit<KunAutomationSettingsV1, 'permissions' | 'auditLog'>
   > & {

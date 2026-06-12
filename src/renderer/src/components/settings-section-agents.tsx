@@ -1863,6 +1863,70 @@ export function AgentsSettingsSection({ ctx }: { ctx: Record<string, any> }): Re
               </div>
 
               <div className="mt-6">
+                <SettingsCard title={t('checkpointSettingsRetention')}>
+                  <div className="px-3 py-4">
+                    <AdvancedSettingsDisclosure
+                      title={t('checkpointSettingsRetention')}
+                      description={t('checkpointTimelineEmptyDesc')}
+                    >
+                      <div className="divide-y divide-ds-border-muted">
+                        <SettingRow
+                          title={t('checkpointSettingsAuto')}
+                          description={t('checkpointTimelineEmptyDesc')}
+                          control={
+                            <Toggle
+                              checked={kun.checkpoints?.autoBeforeMutation !== false}
+                              onChange={(enabled) => updateKun({ checkpoints: { ...(kun.checkpoints ?? {}), autoBeforeMutation: enabled } })}
+                            />
+                          }
+                        />
+                        <SettingRow
+                          title={t('checkpointSettingsMaxPerThread')}
+                          description={t('checkpointSettingsMaxPerThread')}
+                          wideControl
+                          control={
+                            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                              <div className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink">
+                                {t('checkpointSettingsMaxPerThread')}
+                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={1000}
+                                className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                                value={kun.checkpoints?.maxPerThread ?? 20}
+                                onChange={(event) => updateKun({ checkpoints: { ...(kun.checkpoints ?? {}), maxPerThread: Number(event.target.value) } })}
+                              />
+                            </div>
+                          }
+                        />
+                        <SettingRow
+                          title={t('checkpointSettingsMaxTotal')}
+                          description={t('checkpointSettingsMaxTotal')}
+                          wideControl
+                          control={
+                            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                              <div className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink">
+                                {t('checkpointSettingsMaxTotal')}
+                              </div>
+                              <input
+                                type="number"
+                                min={0}
+                                max={10000}
+                                className="rounded-xl border border-ds-border bg-ds-card px-3 py-2 text-[14px] text-ds-ink shadow-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                                value={kun.checkpoints?.maxTotal ?? 200}
+                                onChange={(event) => updateKun({ checkpoints: { ...(kun.checkpoints ?? {}), maxTotal: Number(event.target.value) } })}
+                              />
+                            </div>
+                          }
+                        />
+                      </div>
+                    </AdvancedSettingsDisclosure>
+                  </div>
+                </SettingsCard>
+              </div>
+
+              <div className="mt-6">
                 <SettingsCard title={t('kunDiagnostics')}>
                   <div className="px-3 py-4">
                     <AdvancedSettingsDisclosure

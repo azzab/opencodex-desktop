@@ -45,6 +45,14 @@ import {
   memoryDiagnostics,
   updateMemory
 } from './memory.js'
+import {
+  createCheckpoint,
+  deleteCheckpoint,
+  forkFromCheckpoint,
+  getCheckpoint,
+  listCheckpoints,
+  restoreCheckpoint
+} from './checkpoints.js'
 import { isAuthorized, bearerToken } from '../auth.js'
 import { ERRORS } from './runtime-error.js'
 import type { ServerRuntime } from './server-runtime.js'
@@ -266,6 +274,30 @@ export function buildRouter(runtime: ServerRuntime): Router {
   router.add('POST', '/v1/sessions/:id/resume-thread', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return resumeSession(runtime.threadService, ctx.params.id, request)
+  })
+  router.add('POST', '/v1/checkpoints', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return createCheckpoint(runtime, request)
+  })
+  router.add('GET', '/v1/checkpoints/:id', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return getCheckpoint(runtime, ctx.params.id)
+  })
+  router.add('DELETE', '/v1/checkpoints/:id', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return deleteCheckpoint(runtime, ctx.params.id)
+  })
+  router.add('POST', '/v1/checkpoints/:id/restore', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return restoreCheckpoint(runtime, ctx.params.id, request)
+  })
+  router.add('POST', '/v1/checkpoints/:id/fork', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return forkFromCheckpoint(runtime, ctx.params.id, request)
+  })
+  router.add('GET', '/v1/threads/:id/checkpoints', async (request, ctx) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    return listCheckpoints(runtime, ctx.params.id)
   })
   router.add('GET', '/v1/usage', async (request) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()

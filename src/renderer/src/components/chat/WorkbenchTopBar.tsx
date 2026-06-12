@@ -13,6 +13,7 @@ import {
   FileEdit,
   FolderOpen,
   Globe2,
+  History,
   ListTodo,
   Loader2,
   MessageCircleMore,
@@ -26,6 +27,7 @@ import type { WorkbenchSurfaceMode } from '../workbench/WorkbenchSurfacePanel'
 export type RightPanelMode =
   | 'todo'
   | 'changes'
+  | 'checkpoints'
   | 'browser'
   | 'file'
   | 'plan'
@@ -66,6 +68,7 @@ export function WorkbenchTopBar({
     { mode: 'todo' as const, label: t('rightPanelTodo'), icon: ListTodo },
     ...(planPanelEnabled ? [{ mode: 'plan' as const, label: t('rightPanelPlan'), icon: ClipboardList }] : []),
     { mode: 'changes' as const, label: t('rightPanelChanges'), icon: FileEdit },
+    { mode: 'checkpoints' as const, label: t('checkpointTimelineTitle'), icon: History },
     { mode: 'browser' as const, label: t('rightPanelBrowser'), icon: Globe2 }
   ]
   const selectedEditor = useMemo(

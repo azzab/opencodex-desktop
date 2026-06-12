@@ -8,6 +8,7 @@ import {
   DEFAULT_SANDBOX_MODE,
   normalizeModelEndpointFormat,
   type AppSettingsV1,
+  type KunCheckpointSettingsV1,
   type KunContextCompactionSettingsV1,
   type KunHistoryHygieneSettingsV1,
   type KunMcpSearchSettingsV1,
@@ -137,13 +138,22 @@ export function defaultKunRuntimeSettings(
     userAgentStack: defaultUserAgentStackProfile(),
     subagents: defaultKunSubagentSettings(),
     automation: defaultKunAutomationSettings(),
-    terminal: defaultKunTerminalSettings()
+    terminal: defaultKunTerminalSettings(),
+    checkpoints: defaultKunCheckpointSettings()
   }
 }
 
 export function defaultKunTerminalSettings(): KunTerminalSettingsV1 {
   return {
     enabled: true
+  }
+}
+
+export function defaultKunCheckpointSettings(): KunCheckpointSettingsV1 {
+  return {
+    maxPerThread: 20,
+    maxTotal: 200,
+    autoBeforeMutation: true
   }
 }
 
@@ -417,6 +427,11 @@ export function mergeKunRuntimeSettings(
     ...current.terminal,
     ...(patch?.terminal ?? {})
   })
+  const currentCheckpoints = normalizeKunCheckpointSettings(current.checkpoints)
+  const nextCheckpoints = normalizeKunCheckpointSettings({
+    ...currentCheckpoints,
+    ...(patch?.checkpoints ?? {})
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -430,7 +445,8 @@ export function mergeKunRuntimeSettings(
     userAgentStack: nextUserAgentStack,
     subagents: nextSubagents,
     automation: nextAutomation,
-    terminal: nextTerminal
+    terminal: nextTerminal,
+    checkpoints: nextCheckpoints
   }
 }
 
@@ -440,6 +456,17 @@ function normalizeKunTerminalSettings(
   const defaults = defaultKunTerminalSettings()
   return {
     enabled: input?.enabled !== false
+  }
+}
+
+function normalizeKunCheckpointSettings(
+  input: Partial<KunCheckpointSettingsV1> | undefined
+): KunCheckpointSettingsV1 {
+  const defaults = defaultKunCheckpointSettings()
+  return {
+    maxPerThread: boundedPositiveInt(input?.maxPerThread, defaults.maxPerThread, 1000),
+    maxTotal: boundedPositiveInt(input?.maxTotal, defaults.maxTotal, 10000),
+    autoBeforeMutation: input?.autoBeforeMutation !== false
   }
 }
 

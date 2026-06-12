@@ -5,6 +5,10 @@ import {
   KUN_ATTACHMENT_DIAGNOSTICS_TEMPLATE,
   KUN_ATTACHMENTS_TEMPLATE,
   KUN_ATTACHMENT_TEMPLATE,
+  KUN_CHECKPOINTS_TEMPLATE,
+  KUN_CHECKPOINT_FORK_TEMPLATE,
+  KUN_CHECKPOINT_RESTORE_TEMPLATE,
+  KUN_CHECKPOINT_TEMPLATE,
   KUN_HEALTH_TEMPLATE,
   KUN_MEMORY_DIAGNOSTICS_TEMPLATE,
   KUN_MEMORY_RECORD_TEMPLATE,
@@ -14,6 +18,7 @@ import {
   KUN_SESSION_RESUME_TEMPLATE,
   KUN_SKILLS_TEMPLATE,
   KUN_THREADS_TEMPLATE,
+  KUN_THREAD_CHECKPOINTS_TEMPLATE,
   KUN_THREAD_COMPACT_TEMPLATE,
   KUN_THREAD_FORK_TEMPLATE,
   KUN_THREAD_GOAL_TEMPLATE,
@@ -119,7 +124,12 @@ const ENDPOINTS: readonly EndpointTemplate[] = [
   compileEndpoint(KUN_APPROVAL_TEMPLATE, ['POST']),
   compileEndpoint(KUN_USER_INPUT_TEMPLATE, ['POST']),
   compileEndpoint(KUN_SESSION_RESUME_TEMPLATE, ['POST']),
-  compileEndpoint(KUN_USAGE_TEMPLATE, ['GET'])
+  compileEndpoint(KUN_USAGE_TEMPLATE, ['GET']),
+  compileEndpoint(KUN_CHECKPOINTS_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_CHECKPOINT_TEMPLATE, ['GET', 'DELETE']),
+  compileEndpoint(KUN_CHECKPOINT_RESTORE_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_CHECKPOINT_FORK_TEMPLATE, ['POST']),
+  compileEndpoint(KUN_THREAD_CHECKPOINTS_TEMPLATE, ['GET'])
 ]
 
 function isAllowedRuntimeRequest(value: { path: string; method?: string }): boolean {
@@ -357,6 +367,11 @@ const kunRuntimePatchSchema = z.object({
   }).strict().optional(),
   terminal: z.object({
     enabled: z.boolean().optional()
+  }).strict().optional(),
+  checkpoints: z.object({
+    maxPerThread: z.number().int().nonnegative().max(1000).optional(),
+    maxTotal: z.number().int().nonnegative().max(10000).optional(),
+    autoBeforeMutation: z.boolean().optional()
   }).strict().optional()
 }).strict()
 

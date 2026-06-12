@@ -2,6 +2,7 @@ import type { ThreadService } from '../../services/thread-service.js'
 import type { TurnService } from '../../services/turn-service.js'
 import type { UsageService } from '../../services/usage-service.js'
 import type { ReviewService } from '../../services/review-service.js'
+import type { CheckpointService } from '../../services/checkpoint-service.js'
 import type { EventBus } from '../../ports/event-bus.js'
 import type { SessionStore } from '../../ports/session-store.js'
 import type { ApprovalGate } from '../../ports/approval-gate.js'
@@ -42,6 +43,7 @@ export type ServerRuntime = {
   turnService: TurnService
   usageService: UsageService
   reviewService?: ReviewService
+  checkpointService: CheckpointService
   eventBus: EventBus
   sessionStore: SessionStore
   events: RuntimeEventRecorder
