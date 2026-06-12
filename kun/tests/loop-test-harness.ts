@@ -173,7 +173,7 @@ export async function bootstrapThread(
   } = {}
 ): Promise<void> {
   await h.threadStore.upsert(
-    createThreadRecord({ id: h.threadId, title: 'demo', workspace: options.workspace ?? '/tmp', model: 'fake' })
+    createThreadRecord({ id: h.threadId, title: 'demo', workspace: options.workspace ?? '/tmp', model: 'fake', sandboxMode: 'danger-full-access' })
   )
   const response = await h.turns.startTurn({
     threadId: h.threadId,

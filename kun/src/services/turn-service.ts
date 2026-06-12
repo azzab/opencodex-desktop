@@ -67,6 +67,12 @@ export class TurnService {
     await this.upsertThread(input.threadId, (current) => ({
       ...touchThread(current, this.deps.nowIso()),
       status: 'running',
+      ...(input.request.approvalPolicy !== undefined
+        ? { approvalPolicy: input.request.approvalPolicy }
+        : {}),
+      ...(input.request.sandboxMode !== undefined
+        ? { sandboxMode: input.request.sandboxMode }
+        : {}),
       turns: [...current.turns, startTurnRecord(appendTurnItem(turn, userItem))]
     }))
     await this.deps.sessionStore.appendItem(input.threadId, userItem)
@@ -116,6 +122,8 @@ export class TurnService {
     })
     if (input.discard) {
       await this.discardTurnItems(input.threadId, input.turnId)
+    } else {
+      await this.finalizePersistedOpenItems(input.threadId, input.turnId, 'aborted')
     }
     await this.upsertThread(input.threadId, (current) => {
       const turn = current.turns.find((t) => t.id === input.turnId)
@@ -206,6 +214,7 @@ export class TurnService {
     this.inflightTurns.delete(input.turnId)
     this.deps.inflight.end(input.turnId)
     this.deps.steering.clear()
+    await this.finalizePersistedOpenItems(input.threadId, input.turnId, input.status)
     await this.upsertThread(input.threadId, (current) => {
       const next = current.turns.map((t) => {
         if (t.id !== input.turnId) return t
@@ -366,6 +375,21 @@ export class TurnService {
       threadId,
       items.filter((item) => item.turnId !== turnId || item.kind === 'user_message')
     )
+  }
+
+  private async finalizePersistedOpenItems(
+    threadId: string,
+    turnId: string,
+    status: Extract<TurnStatus, 'completed' | 'failed' | 'aborted'>
+  ): Promise<void> {
+    const items = await this.deps.sessionStore.loadItems(threadId)
+    const finishedAt = this.deps.nowIso()
+    for (const item of items) {
+      if (item.turnId !== turnId) continue
+      const finalized = this.finalizeOpenItem(item, status, finishedAt)
+      if (finalized === item) continue
+      await this.updateItem(threadId, item.id, finalized)
+    }
   }
 
   private keepUserItems(items: TurnItem[]): TurnItem[] {

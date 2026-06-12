@@ -26,6 +26,7 @@ function buildContext(overrides: Partial<ToolHostContext> = {}): ToolHostContext
     workspace: '/tmp/ws',
     threadMode: overrides.threadMode ?? 'agent',
     approvalPolicy: 'on-request',
+    sandboxMode: 'danger-full-access',
     abortSignal: new AbortController().signal,
     awaitApproval: async () => 'allow',
     ...overrides

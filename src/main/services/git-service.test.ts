@@ -1,9 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  createAndSwitchGitBranch,
   createGitWorktreeHandoffSummary,
   createManagedGitWorktree,
   discardGitChanges,
@@ -453,5 +456,135 @@ describe('git-service', () => {
       expect(preparation.suggestedCommands).toEqual(['git status --short'])
       expect(preparation.markdown).toContain('No staged changes are ready to commit.')
     }
+  })
+})
+
+/**
+ * Subdirectory workspace-root integration tests.
+ *
+ * These tests exercise the real `git` binary and prove that
+ * `getGitBranches`, `switchGitBranch`, and `createAndSwitchGitBranch`
+ * return the correct `repositoryRoot` when called with a subdirectory path —
+ * the exact behaviour reported as broken in upstream issue #98 and ported
+ * during Phase H11 lane 8A.
+ */
+let sandbox = ''
+let repoRoot = ''
+
+describe('git-service subdirectory workspace roots (issue #98)', () => {
+  beforeEach(async () => {
+    sandbox = await mkdtemp(join(tmpdir(), 'opencodex-git-service-subdir-'))
+    repoRoot = await realpath(sandbox)
+    execFileSync('git', ['init', '-b', 'main', repoRoot], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repoRoot, 'config', 'user.email', 'test@example.com'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repoRoot, 'config', 'user.name', 'Test'], { stdio: 'pipe' })
+    writeFileSync(join(repoRoot, 'README.md'), 'test')
+    execFileSync('git', ['-C', repoRoot, 'add', 'README.md'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repoRoot, 'commit', '-m', 'init'], { stdio: 'pipe' })
+  })
+
+  afterEach(async () => {
+    if (sandbox) {
+      await rm(sandbox, { recursive: true, force: true })
+      sandbox = ''
+      repoRoot = ''
+    }
+  })
+
+  it('returns ok with the repo root when called from a nested subdirectory (issue #98)', async () => {
+    const deep = join(repoRoot, 'a', 'b', 'c', 'd', 'e')
+    await mkdir(deep, { recursive: true })
+
+    const result = await getGitBranches(deep)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable: just checked ok')
+    expect(result.repositoryRoot).toBe(repoRoot)
+    expect(result.currentBranch).toBe('main')
+    expect(result.branches.map((b) => b.name)).toContain('main')
+    expect(result.dirtyCount).toBe(0)
+  })
+
+  it('returns ok when called from the repo root itself', async () => {
+    const result = await getGitBranches(repoRoot)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable')
+    expect(result.repositoryRoot).toBe(repoRoot)
+    expect(result.currentBranch).toBe('main')
+  })
+
+  it('reports dirty files inside the workspace subdirectory', async () => {
+    const sub = join(repoRoot, 'src')
+    await mkdir(sub, { recursive: true })
+    writeFileSync(join(sub, 'untracked.ts'), 'export const x = 1\n')
+
+    const result = await getGitBranches(sub)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable')
+    expect(result.repositoryRoot).toBe(repoRoot)
+    expect(result.dirtyCount).toBeGreaterThanOrEqual(1)
+  })
+
+  it('returns not_git_repo when the path is outside any repository', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'opencodex-git-outside-'))
+    try {
+      const result = await getGitBranches(outside)
+      expect(result.ok).toBe(false)
+      if (result.ok) throw new Error('expected not_git_repo, got ok')
+      expect(result.reason).toBe('not_git_repo')
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('returns no_workspace for an empty workspace root', async () => {
+    const result = await getGitBranches('   ')
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected no_workspace, got ok')
+    expect(result.reason).toBe('no_workspace')
+  })
+
+  it('switches to an existing branch from a subdirectory', async () => {
+    execFileSync('git', ['-C', repoRoot, 'checkout', '-b', 'feature/x'], { stdio: 'pipe' })
+    writeFileSync(join(repoRoot, 'feature.txt'), 'feature work')
+    execFileSync('git', ['-C', repoRoot, 'add', 'feature.txt'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repoRoot, 'commit', '-m', 'feature'], { stdio: 'pipe' })
+    execFileSync('git', ['-C', repoRoot, 'checkout', 'main'], { stdio: 'pipe' })
+
+    const sub = join(repoRoot, 'src', 'components')
+    await mkdir(sub, { recursive: true })
+
+    const result = await switchGitBranch(sub, 'feature/x')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable')
+    expect(result.repositoryRoot).toBe(repoRoot)
+    expect(result.currentBranch).toBe('feature/x')
+
+    const actual = execFileSync('git', ['-C', repoRoot, 'branch', '--show-current'], {
+      encoding: 'utf8'
+    }).trim()
+    expect(actual).toBe('feature/x')
+  })
+
+  it('creates a new branch from a subdirectory and switches to it', async () => {
+    const sub = join(repoRoot, 'src', 'components')
+    await mkdir(sub, { recursive: true })
+
+    const result = await createAndSwitchGitBranch(sub, 'feature/y')
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('unreachable')
+    expect(result.repositoryRoot).toBe(repoRoot)
+    expect(result.currentBranch).toBe('feature/y')
+    // Git stores branches with '/' as nested directories under refs/heads/.
+    // Verify via git branch --format instead of readdirSync which misses
+    // hierarchical branch names.
+    const branchList = execFileSync('git', ['-C', repoRoot, 'branch', '--format=%(refname:short)'], {
+      encoding: 'utf8'
+    }).trim().split('\n')
+    expect(branchList).toContain('feature/y')
   })
 })

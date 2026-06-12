@@ -8,7 +8,7 @@ import type {
   ToolProviderKind
 } from '../ports/tool-host.js'
 import type { ModelCapabilityMetadata } from '../contracts/capabilities.js'
-import { DEFAULT_APPROVAL_POLICY } from '../contracts/policy.js'
+import { DEFAULT_APPROVAL_POLICY, DEFAULT_SANDBOX_MODE } from '../contracts/policy.js'
 import type { ThreadStore } from '../ports/thread-store.js'
 import type { SessionStore } from '../ports/session-store.js'
 import type { ApprovalGate } from '../ports/approval-gate.js'
@@ -688,6 +688,7 @@ export class AgentLoop {
       effectiveHistoryAfterLatestCompaction(healed.items)
     )
     const approvalPolicy = normalizeApprovalPolicy(thread?.approvalPolicy)
+    const sandboxMode = normalizeSandboxMode(thread?.sandboxMode)
     // Per-turn mode overrides the thread mode so the GUI can toggle
     // Plan/agent (and run Build as agent) without recreating the thread.
     const effectiveMode = turn?.mode ?? thread?.mode
@@ -746,6 +747,7 @@ export class AgentLoop {
       delegationPolicy: { enabled: false },
       ...(allowedToolNames ? { allowedToolNames } : {}),
       approvalPolicy,
+      sandboxMode,
       abortSignal: signal,
       awaitApproval: async () => 'allow',
       awaitUserInput: (input) => this.awaitUserInput(threadId, turnId, input, signal)
@@ -1088,6 +1090,7 @@ export class AgentLoop {
             allowedToolNames,
             toolProviderKinds: new Map(tools.map((tool) => [tool.name, tool.providerKind])),
             approvalPolicy,
+            sandboxMode,
             signal
           })
           if (dispatched === 'aborted') return 'aborted'
@@ -1128,6 +1131,7 @@ export class AgentLoop {
       allowedToolNames,
       toolProviderKinds: new Map(tools.map((tool) => [tool.name, tool.providerKind])),
       approvalPolicy,
+      sandboxMode,
       signal
     })
     if (dispatched === 'aborted') return 'aborted'
@@ -1146,6 +1150,7 @@ export class AgentLoop {
     allowedToolNames?: readonly string[]
     toolProviderKinds: ReadonlyMap<string, ToolProviderKind | undefined>
     approvalPolicy: ToolHostContext['approvalPolicy']
+    sandboxMode: NonNullable<ToolHostContext['sandboxMode']>
     signal: AbortSignal
   }): Promise<'continue' | 'aborted'> {
     // Create a pre-mutation checkpoint before the first mutating tool call
@@ -1316,6 +1321,7 @@ export class AgentLoop {
     activeSkillIds: readonly string[]
     allowedToolNames?: readonly string[]
     approvalPolicy: ToolHostContext['approvalPolicy']
+    sandboxMode: NonNullable<ToolHostContext['sandboxMode']>
     signal: AbortSignal
   }): ToolHostContext {
     return {
@@ -1330,6 +1336,7 @@ export class AgentLoop {
       delegationPolicy: { enabled: false },
       ...(input.allowedToolNames ? { allowedToolNames: input.allowedToolNames } : {}),
       approvalPolicy: input.approvalPolicy,
+      sandboxMode: input.sandboxMode,
       abortSignal: input.signal,
       awaitApproval: async (approval) => {
         await this.opts.events.record({
@@ -2235,6 +2242,7 @@ function normalizeApprovalPolicy(
   value: string | undefined
 ): ToolHostContext['approvalPolicy'] {
   switch (value) {
+    case 'on-request':
     case 'never':
     case 'auto':
     case 'suggest':
@@ -2242,6 +2250,20 @@ function normalizeApprovalPolicy(
       return value
     default:
       return DEFAULT_APPROVAL_POLICY
+  }
+}
+
+function normalizeSandboxMode(
+  value: string | undefined
+): NonNullable<ToolHostContext['sandboxMode']> {
+  switch (value) {
+    case 'read-only':
+    case 'workspace-write':
+    case 'danger-full-access':
+    case 'external-sandbox':
+      return value
+    default:
+      return DEFAULT_SANDBOX_MODE
   }
 }
 

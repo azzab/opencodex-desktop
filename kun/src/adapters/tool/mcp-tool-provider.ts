@@ -77,7 +77,15 @@ export type McpToolProviderBuildResult = {
 export type McpToolProviderOptions = {
   clientFactory?: (serverId: string, server: McpServerConfig) => Promise<McpClientLike>
   nowIso?: () => string
+  /**
+   * Upper bound for connect + initial tool listing per server during startup.
+   * A slow or hung server (e.g. an npx-based stdio server resolving packages)
+   * must not keep the whole runtime from reporting ready.
+   */
+  startupConnectTimeoutMs?: number
 }
+
+const DEFAULT_MCP_STARTUP_CONNECT_TIMEOUT_MS = 10_000
 
 type McpConnectionState = {
   serverId: string
@@ -128,36 +136,70 @@ export async function buildMcpToolProviders(
     }
   }
 
-  for (const [serverId, server] of Object.entries(mcp.servers)) {
-    if (!server.enabled) {
-      diagnostics.push(serverDiagnostic({ serverId, server }, 'disabled', 0))
+  // Connect all servers in parallel — startup previously paid the sum of
+  // every server's connect + list latency, and a single hung server (e.g.
+  // npx resolving a package) blocked the runtime ready signal forever.
+  const startupTimeoutMs = options.startupConnectTimeoutMs ?? DEFAULT_MCP_STARTUP_CONNECT_TIMEOUT_MS
+  type ConnectOutcome =
+    | { serverId: string; server: McpServerConfig; status: 'disabled' }
+    | { serverId: string; server: McpServerConfig; status: 'error'; error: unknown }
+    | {
+        serverId: string
+        server: McpServerConfig
+        status: 'connected'
+        state: McpConnectionState
+        listed: McpToolDescriptor[]
+      }
+  const outcomes = await Promise.all(
+    Object.entries(mcp.servers).map(async ([serverId, server]): Promise<ConnectOutcome> => {
+      if (!server.enabled) {
+        return { serverId, server, status: 'disabled' }
+      }
+      const attempt = (async () => {
+        const client = await clientFactory(serverId, server)
+        const state: McpConnectionState = {
+          serverId,
+          server,
+          client,
+          clientFactory,
+          nowIso,
+          lastConnectedAt: nowIso()
+        }
+        const listed = await refreshMcpConnectionCatalog(state)
+        return { state, listed }
+      })()
+      try {
+        const result = await raceStartupTimeout(attempt, startupTimeoutMs, serverId)
+        return { serverId, server, status: 'connected', ...result }
+      } catch (error) {
+        return { serverId, server, status: 'error', error }
+      }
+    })
+  )
+
+  for (const outcome of outcomes) {
+    if (outcome.status === 'disabled') {
+      diagnostics.push(serverDiagnostic({ serverId: outcome.serverId, server: outcome.server }, 'disabled', 0))
       continue
     }
-    try {
-      const client = await clientFactory(serverId, server)
-      const state: McpConnectionState = {
-        serverId,
-        server,
-        client,
-        clientFactory,
-        nowIso,
-        lastConnectedAt: nowIso()
-      }
-      connected.push(state)
-      const listed = await refreshMcpConnectionCatalog(state)
-      catalogState.records.push(...listed.map((tool) => createMcpSearchCatalogRecord(state, tool)))
-      const tools = listed.map((tool) => createMcpLocalTool(state, tool))
-      directProviders.push({
-        id: `mcp:${serverId}`,
-        kind: 'mcp',
-        enabled: true,
-        available: true,
-        tools
-      })
-      diagnostics.push(serverDiagnostic(state, 'connected', tools.length))
-    } catch (error) {
-      diagnostics.push(serverDiagnostic({ serverId, server }, 'error', 0, errorMessage(error)))
+    if (outcome.status === 'error') {
+      diagnostics.push(
+        serverDiagnostic({ serverId: outcome.serverId, server: outcome.server }, 'error', 0, errorMessage(outcome.error))
+      )
+      continue
     }
+    const { state, listed } = outcome
+    connected.push(state)
+    catalogState.records.push(...listed.map((tool) => createMcpSearchCatalogRecord(state, tool)))
+    const tools = listed.map((tool) => createMcpLocalTool(state, tool))
+    directProviders.push({
+      id: `mcp:${outcome.serverId}`,
+      kind: 'mcp',
+      enabled: true,
+      available: true,
+      tools
+    })
+    diagnostics.push(serverDiagnostic(state, 'connected', tools.length))
   }
 
   const connectedServers = diagnostics.filter((diagnostic) => diagnostic.status === 'connected').length
@@ -422,6 +464,31 @@ function slug(value: string): string {
 
 function normalizePathForTrust(value: string): string {
   return value.replace(/\\/g, '/').replace(/\/+$/g, '')
+}
+
+async function raceStartupTimeout<T extends { state: McpConnectionState }>(
+  attempt: Promise<T>,
+  timeoutMs: number,
+  serverId: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      attempt,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`MCP server "${serverId}" did not connect within ${timeoutMs}ms during startup`)),
+          timeoutMs
+        )
+      })
+    ])
+  } catch (error) {
+    // A late successful connection would otherwise leak the child process.
+    void attempt.then((result) => result.state.client.close()).catch(() => undefined)
+    throw error
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 function errorMessage(error: unknown): string {
