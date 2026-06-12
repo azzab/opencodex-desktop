@@ -71,6 +71,10 @@ import {
   deleteLoop
 } from './loop-scheduler.js'
 import { evaluateGoal } from './goal-evaluator.js'
+import {
+  createApprovalRequest,
+  type ApprovalRequest
+} from '../../domain/approval.js'
 
 /**
  * Build the full router used by the HTTP server. The router exposes:
@@ -272,6 +276,81 @@ export function buildRouter(runtime: ServerRuntime): Router {
       hookGate: runtime.hookGate
     })
   })
+
+  // ── Approval listing ──
+  router.add('GET', '/v1/approvals', async (request) => {
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    const url = new URL(request.url)
+    const threadId = url.searchParams.get('threadId') ?? undefined
+    const pending = runtime.approvalGate.pending(threadId)
+    return jsonResponse({
+      approvals: pending.map((a) => ({
+        id: a.id,
+        threadId: a.threadId,
+        turnId: a.turnId,
+        toolName: a.toolName,
+        status: a.status,
+        summary: a.summary
+      }))
+    })
+  })
+
+  // ═══ Test-only approval fixture (insecure mode only) ═══
+  // POST /v1/_test/approvals creates a pending approval via the real
+  // gate protocol so smoke tests can exercise the full approval
+  // round-trip (list → allow/deny → confirm resolved) without requiring
+  // a real model + tool invocation to trigger one.
+  router.add('POST', '/v1/_test/approvals', async (request) => {
+    if (!runtime.insecure) {
+      return ERRORS.notFound('no route')
+    }
+    if (!authorize(request, runtime)) return ERRORS.unauthorized()
+    try {
+      const body = (await request.json()) as Record<string, unknown>
+      const threadId = String(body.threadId ?? '')
+      const turnId = String(body.turnId ?? '')
+      const toolName = String(body.toolName ?? '_test_fixture')
+      const summary = String(body.summary ?? 'Test approval')
+      if (!threadId || !turnId) {
+        return jsonResponse({ error: 'threadId and turnId are required' }, 400)
+      }
+      const approval = createApprovalRequest({
+        id: `app_test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        threadId,
+        turnId,
+        toolName,
+        summary
+      })
+      // Request via the real gate; creates a pending promise that nobody
+      // awaits (no agent loop is running), but the gate registry is populated
+      // so list+decide work identically to a real approval.
+      runtime.approvalGate.request(approval).catch(() => { /* nobody waiting */ })
+      await runtime.events.record({
+        kind: 'approval_requested' as const,
+        threadId: approval.threadId,
+        turnId: approval.turnId,
+        itemId: undefined,
+        approvalId: approval.id,
+        toolName: approval.toolName,
+        status: 'pending',
+        summary: approval.summary
+      })
+      return jsonResponse({
+        ok: true,
+        approval: {
+          id: approval.id,
+          threadId: approval.threadId,
+          turnId: approval.turnId,
+          toolName: approval.toolName,
+          status: approval.status,
+          summary: approval.summary
+        }
+      }, 201)
+    } catch {
+      return jsonResponse({ error: 'Invalid request body' }, 400)
+    }
+  })
+
   router.add('POST', '/v1/user-inputs/:id', async (request, ctx) => {
     if (!authorize(request, runtime)) return ERRORS.unauthorized()
     return resolveUserInput({

@@ -1,0 +1,25 @@
+{
+  "name": "opencodex-cli",
+  "version": "0.1.0",
+  "description": "OpenCodex CLI — thin app-server protocol adapter for Kun runtime",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "bin": {
+    "opencodex": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.7"
+  }
+}
