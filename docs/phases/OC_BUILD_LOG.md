@@ -238,6 +238,13 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   unavoidable production redaction regex/source terms. The wrapper again warned
   that no saved session existed and started a fresh underlying run against the
   dirty `../ocx-h10` worktree.
+- 2026-06-12: The H10 grep steering order briefly left two live pi workers on
+  the same dirty `../ocx-h10` tree: stale remediation7 pid `25751` and fresh
+  steering pid `50199`. To restore the one-worker-per-tree invariant,
+  orchestrator sent TERM to the stale remediation7 process group
+  (`25751`/`25750`/`25714`) and confirmed only the fresh steering run remained
+  active under log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h10-ssh/run-20260612T180032.log`.
 - 2026-06-12: H4 dispatched after H3.5 merged gate-green. Created fresh
   worktree `../ocx-h4` on `phase/h4-planner` from main `6340327`. `pidev`
   preflight passed for `oc-h4-planner` (fresh session id, clean tree, no live
