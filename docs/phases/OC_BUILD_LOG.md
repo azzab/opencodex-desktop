@@ -14,7 +14,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | 2 | H2 Telemetry Dashboard | `oc-h2-telemetry` | dsv4-pro high | ✅ | $1.0178 / initial in 582,858 out 229,486 cache 98.8%; retry in 400,257 out 183,581 cache 97.4% | Merged to `main`; post-merge full gate green (root 870/870, Kun 451/451); live dev usage proof passed | `4c92769` | Resolved Arabic locale conflict by preserving H1 parity and adding 50 H2 usage keys; live proof thread `thr_rlt445z1` reported 14,482 tokens / $0.00631533 |
 | 3 | H3 Terminal Panel | `oc-h3-terminal` | dsv4-pro max | ✅ | $2.9423 / initial in 775,936 out 201,788 cache 98.9%; steering1 in 564,017 out 123,917 cache 97.6%; steering2 in 695,931 out 118,970 cache 98.4%; steering3 in 596,647 out 234,904 cache 98.5%; steering4 in 513,150 out 303,658 cache 98.0% | Merged to `main`; post-merge full gate green (root 932/932, Kun 451/451); production audit clean | `84f1fb4` | Added npm override forcing transitive `axios@1.17.0` for `@larksuiteoapi/node-sdk`; DMG dry-run and real `node-pty` smoke passed |
 | 3.5 | H3.5 Electron Security Fixpack | `oc-h3-5-electron`; fallback `oc-h3-5-electron39` | dsv4-pro max | ✅ | 42.4.0 path: $1.3876 total / initial in 694,748 out 157,709 cache 97.8%; recovery1 in 569,638 out 115,332 cacheRead 18,827,264; recovery2 in 342,441 out 210,710 cache 98.6%; fallback $0.4538 / in 618,362 out 109,475 cacheRead 24,719,104 cache 97.6% | Fallback `39.8.10` merged; post-merge full gate green (root 932/932, Kun 451/451); `npm audit` 0 vulns; dev Kun turn completed; `smoke:release`; `dist:mac:arm64:dmg`; packaged Electron `39.8.10`; PTY proof; clean-room full gate green | `29ae887` | 42.4.0 remained not mergeable after recovery; authorized 39.8.10 fallback cleared audit and all H3.5 stop gates. Wave 2 unblocked |
-| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | 🟡 | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation pending | Retry full command gate green, but phase stop gates failed; same-id remediation ordered for renderer approve surface + hash/reload/API proofs | — | Wave 2 blocked pending H4 remediation; `../ocx-h4` and `../ocx-h4-r2` retained as evidence |
+| 4 | H4 Planner/Executor Split | `oc-h4-planner`; retry `oc-h4-planner-r2` | dsv4-pro max | 🟡 | initial partial/unmergeable; retry $0.6559 / in 636,128 out 210,895 cacheRead 53,991,168 cache 98.8%; remediation1 $0.5834 / in 518,406 out 170,379 cacheRead 57,833,856 cache 99.1%; remediation2 pending | Remediation1 full command gate green, but review found reload/API stop-gate proofs too weak; remediation2 ordered for persistent-store reload + PATCH denial proof | — | Wave 2 blocked pending H4 remediation; `../ocx-h4` and `../ocx-h4-r2` retained as evidence |
 | 5 | H5 Checkpoint & Rewind | `oc-h5-checkpoint` | dsv4-pro max | 🔵 | $0.5778 / in 544,726 out 204,438 cacheRead 44,947,072 cache 98.8% | Worker READY rejected/held; not rebased on H4, and worker-listed blockers remain | — | Held pending H4; `../ocx-h5` retained for evidence/remediation |
 | 6 | H6 Browser Automation Sidecar | `oc-h6-browser` | dsv4-pro max | ⬜ | — | — | — | |
 | 7 | H7 Hooks Execution & Trust | `oc-h7-hooks` | dsv4-pro max | ⬜ | — | — | — | |
@@ -239,3 +239,20 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   thread-store reload persistence proof, API/app-server transition denial
   proof, and mode-state event visibility. Worker pid `89757`, log
   `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner-r2/run-20260612T125734.log`.
+- 2026-06-12: H4 remediation1 reported READY with cost `$0.5834` (in 518,406
+  / out 170,379 / cacheRead 57,833,856 / cache 99.1%). Orchestrator reran the
+  full command gate inside `../ocx-h4-r2`; it exited 0 (`npm run typecheck`,
+  `npm run lint` with 7 warnings, root tests 932/932, Kun typecheck, Kun tests
+  486/486, `npm run build`, `git diff --check`). Review accepted the new
+  renderer approve surface, locale keys, API route, hash-unchanged denial test,
+  and mode event surface, but rejected two stop-gate proofs as still too weak:
+  the plan reload test explicitly used `InMemoryThreadStore` and was
+  schema-only rather than a persistent store reload, and the API transition
+  denial proof did not explicitly show `PATCH /v1/threads/:id` cannot switch a
+  plan thread to agent mode. A second same-tree remediation order was issued
+  on `oc-h4-planner-r2`; the wrapper again warned that no saved pi session file
+  exists, so it started a fresh pi conversation against the current dirty H4
+  worktree. Ordered scope: add persistent `HybridThreadStore`/`FileThreadStore`
+  reload proof and explicit unauthorized mode-change API denial proof, then
+  rerun the full gate. Worker log
+  `/Users/mohamedazab/.pidev-orchestrator/oc-h4-planner-r2/run-20260612T132037.log`.
