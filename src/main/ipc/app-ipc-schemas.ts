@@ -440,6 +440,57 @@ const kunRuntimePatchSchema = z.object({
       decision: z.enum(['allow', 'deny']).optional(),
       error: z.string().max(MAX_CHANNEL_TEXT_LENGTH).optional()
     }).strict()).max(200).optional()
+  }).strict().optional(),
+  remoteRunners: z.object({
+    enabled: z.boolean().optional(),
+    hosts: z.array(z.object({
+      id: z.string().trim().min(1).max(MAX_ID_LENGTH),
+      label: z.string().trim().min(1).max(200),
+      enabled: z.boolean(),
+      endpointRef: z.string().trim().min(1).max(MAX_ID_LENGTH),
+      usernameRef: z.string().trim().max(MAX_ID_LENGTH).optional(),
+      credentialStorage: z.object({
+        kind: z.enum(['none', 'os-keychain', 'ssh-agent', 'secret-manager']),
+        credentialRef: z.string().max(MAX_ID_LENGTH).optional(),
+        exportsRawSecret: z.literal(false)
+      }).strict(),
+      hostKeyPolicy: z.enum(['known-hosts', 'pinned-fingerprint-ref', 'manual-confirm']),
+      connectionStatus: z.enum(['disconnected', 'connecting', 'handshaking', 'connected', 'error']).default('disconnected'),
+      lastHandshake: z.union([
+        z.object({
+          issuedAt: z.string().trim().min(1).max(128),
+          shell: z.object({ os: z.string(), shell: z.string() }).strict(),
+          gitAvailable: z.boolean(),
+          toolPolicy: z.record(z.string(), z.string())
+        }).strict(),
+        z.null()
+      ]).optional(),
+      lastHandshakeError: z.string().max(MAX_CHANNEL_TEXT_LENGTH).nullable().optional(),
+      trustedPaths: z.array(z.object({
+        path: z.string().trim().min(1).max(MAX_PATH_LENGTH),
+        label: z.string().trim().min(1).max(200),
+        trustedAt: z.string().max(128),
+        auditId: z.string().max(MAX_ID_LENGTH)
+      }).strict()).max(200).default([])
+    }).strict()).max(50).optional(),
+    dataPolicy: z.object({
+      defaultAllowed: z.array(z.string().max(100)).max(32).optional(),
+      consentRequired: z.array(z.string().max(100)).max(32).optional(),
+      never: z.array(z.string().max(100)).max(32).optional()
+    }).strict().optional(),
+    auditLog: z.array(z.object({
+      id: z.string().min(1).max(MAX_ID_LENGTH),
+      timestamp: z.string().max(128),
+      runnerId: z.string().max(MAX_ID_LENGTH),
+      runId: z.string().max(MAX_ID_LENGTH).optional(),
+      actor: z.enum(['host', 'remote-client', 'policy', 'runner']),
+      action: z.string().min(1).max(256),
+      outcome: z.enum(['requested', 'allowed', 'denied', 'blocked', 'completed', 'failed']),
+      payloadRedaction: z.enum(['metadata', 'summary', 'selected_excerpt', 'explicit_full']),
+      consentId: z.string().max(MAX_ID_LENGTH).optional(),
+      reason: z.string().max(MAX_CHANNEL_TEXT_LENGTH).optional()
+    }).strict()).max(500).optional(),
+    maxAuditEntries: z.number().int().positive().max(10_000).optional()
   }).strict().optional()
 }).strict()
 
@@ -1125,5 +1176,27 @@ export const hookSourcePayloadSchema = z
 export const hooksKillSwitchPayloadSchema = z
   .object({
     enabled: z.boolean()
+  })
+  .strict()
+
+export const remoteRunnerExecPayloadSchema = z
+  .object({
+    hostId: z.string().trim().min(1).max(MAX_ID_LENGTH),
+    command: z.string().trim().min(1).max(MAX_CHANNEL_TEXT_LENGTH),
+    cwd: z.string().trim().max(MAX_PATH_LENGTH).optional(),
+    timeoutMs: z.number().int().positive().max(86_400_000).optional(),
+    maxOutputBytes: z.number().int().positive().max(10_000_000).optional()
+  })
+  .strict()
+
+export const remoteRunnerStopPayloadSchema = z
+  .object({
+    hostId: z.string().trim().min(1).max(MAX_ID_LENGTH)
+  })
+  .strict()
+
+export const remoteRunnerResumePayloadSchema = z
+  .object({
+    hostId: z.string().trim().min(1).max(MAX_ID_LENGTH)
   })
   .strict()

@@ -15,7 +15,17 @@ import {
   AppServerThreadSchema,
   AppServerToolCallSchema,
   AppServerTurnSchema,
-  AppServerUsageSchema
+  AppServerUsageSchema,
+  AppServerHealthResponseSchema,
+  AppServerRemoteRunnerHostSummarySchema,
+  AppServerRemoteRunnerStatusResponseSchema,
+  AppServerRemoteRunnerActionResponseSchema,
+  AppServerRemoteRunnerTrustResponseSchema,
+  AppServerRemoteRunnerExecResponseSchema,
+  AppServerRemoteRunnerStopResponseSchema,
+  AppServerRemoteRunnerResumeResponseSchema,
+  AppServerRemoteRunnerAuditEntrySchema,
+  AppServerRemoteRunnerAuditResponseSchema
 } from './app-server-protocol'
 
 describe('app-server protocol schemas', () => {
@@ -52,7 +62,8 @@ describe('app-server protocol schemas', () => {
         usage: true,
         events: true,
         attachments: true,
-        automation: true
+        automation: true,
+        remoteRunners: false
       }
     })).toMatchObject({ id: 'project_1' })
     expect(AppServerThreadSchema.parse({
@@ -164,6 +175,233 @@ describe('app-server protocol schemas', () => {
     })).toMatchObject({
       workspaceRoot: '/repo',
       mode: 'plan'
+    })
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Remote Runner Protocol Schemas (Phase H10)                        */
+  /* ------------------------------------------------------------------ */
+
+  it('validates remote runner host summaries with metadata-only fields', () => {
+    const host = AppServerRemoteRunnerHostSummarySchema.parse({
+      id: 'host_1',
+      label: 'Build Host',
+      enabled: true,
+      connectionStatus: 'connected',
+      lastHandshake: {
+        issuedAt: '2026-06-12T10:00:00.000Z',
+        shell: { os: 'linux', shell: 'bash' },
+        gitAvailable: true,
+        toolPolicy: { terminal: 'consent_required', filesystem: 'consent_required' }
+      },
+      lastError: null,
+      trustedPathCount: 3
+    })
+
+    expect(host).toMatchObject({
+      id: 'host_1',
+      connectionStatus: 'connected',
+      trustedPathCount: 3
+    })
+
+    // Trusted path count is metadata-only — no actual paths exposed
+    expect(host).not.toHaveProperty('trustedPaths')
+    expect(host).not.toHaveProperty('endpointRef')
+    expect(host).not.toHaveProperty('credentialRef')
+    expect(host).not.toHaveProperty('usernameRef')
+  })
+
+  it('rejects host summaries with raw credential-shaped fields', () => {
+    const result = AppServerRemoteRunnerHostSummarySchema.safeParse({
+      id: 'host_1',
+      label: 'Build Host',
+      enabled: true,
+      connectionStatus: 'connected',
+      lastHandshake: null,
+      lastError: null,
+      trustedPathCount: 0,
+      endpointRef: 'ssh-config:build' // not allowed
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('validates remote runner status response with audit log', () => {
+    const status = AppServerRemoteRunnerStatusResponseSchema.parse({
+      hosts: [{
+        id: 'host_1',
+        label: 'Build Host',
+        enabled: true,
+        connectionStatus: 'connected',
+        lastHandshake: {
+          issuedAt: '2026-06-12T10:00:00.000Z',
+          shell: { os: 'linux', shell: 'bash' },
+          gitAvailable: true,
+          toolPolicy: { terminal: 'consent_required' }
+        },
+        lastError: null,
+        trustedPathCount: 2
+      }],
+      enabled: true,
+      auditLog: [{
+        id: 'audit_1',
+        timestamp: '2026-06-12T10:00:00.000Z',
+        runnerId: 'host_1',
+        action: 'remote-runner.connect',
+        outcome: 'completed',
+        reason: null
+      }]
+    })
+
+    expect(status).toMatchObject({
+      hosts: [{ id: 'host_1' }],
+      enabled: true,
+      auditLog: [{ action: 'remote-runner.connect' }]
+    })
+  })
+
+  it('validates remote runner action response schemas', () => {
+    expect(AppServerRemoteRunnerActionResponseSchema.parse({
+      ok: true,
+      hostId: 'host_1'
+    })).toMatchObject({ ok: true, hostId: 'host_1' })
+
+    expect(AppServerRemoteRunnerActionResponseSchema.parse({
+      ok: false,
+      hostId: 'host_1',
+      message: 'Connection failed'
+    })).toMatchObject({ ok: false, message: 'Connection failed' })
+  })
+
+  it('validates remote runner trust response schemas', () => {
+    expect(AppServerRemoteRunnerTrustResponseSchema.parse({
+      ok: true,
+      hostId: 'host_1',
+      path: '/tmp/workspace'
+    })).toMatchObject({ ok: true, path: '/tmp/workspace' })
+
+    expect(AppServerRemoteRunnerTrustResponseSchema.parse({
+      ok: false,
+      hostId: 'host_1',
+      path: '/tmp/workspace',
+      message: 'Path already trusted'
+    })).toMatchObject({ ok: false })
+  })
+
+  it('validates remote runner exec response schemas (metadata-only output)', () => {
+    expect(AppServerRemoteRunnerExecResponseSchema.parse({
+      ok: true,
+      runId: 'run_1',
+      output: 'hello\n',
+      exitCode: 0
+    })).toMatchObject({ ok: true, runId: 'run_1', exitCode: 0 })
+
+    expect(AppServerRemoteRunnerExecResponseSchema.parse({
+      ok: false,
+      message: 'Host not connected'
+    })).toMatchObject({ ok: false, message: 'Host not connected' })
+  })
+
+  it('validates remote runner stop response schemas', () => {
+    expect(AppServerRemoteRunnerStopResponseSchema.parse({
+      ok: true,
+      hostId: 'host_1',
+      wasRunning: true
+    })).toMatchObject({ ok: true, wasRunning: true })
+  })
+
+  it('validates remote runner resume response schemas', () => {
+    expect(AppServerRemoteRunnerResumeResponseSchema.parse({
+      ok: true,
+      hostId: 'host_1',
+      runId: 'run_restored',
+      restored: true
+    })).toMatchObject({ ok: true, restored: true })
+
+    expect(AppServerRemoteRunnerResumeResponseSchema.parse({
+      ok: true,
+      hostId: 'host_1',
+      runId: null,
+      restored: false
+    })).toMatchObject({ restored: false })
+  })
+
+  it('validates remote runner audit entries and response', () => {
+    const entry = AppServerRemoteRunnerAuditEntrySchema.parse({
+      id: 'audit_1',
+      timestamp: '2026-06-12T10:00:00.000Z',
+      runnerId: 'host_1',
+      action: 'remote-runner.exec-allowed',
+      outcome: 'allowed',
+      reason: 'Operator approved'
+    })
+
+    expect(entry).toMatchObject({ runnerId: 'host_1', outcome: 'allowed' })
+
+    const response = AppServerRemoteRunnerAuditResponseSchema.parse({
+      entries: [entry]
+    })
+
+    expect(response.entries).toHaveLength(1)
+  })
+
+  it('health response includes remote runner capability', () => {
+    const health = AppServerHealthResponseSchema.parse({
+      ok: true,
+      protocolVersion: APP_SERVER_PROTOCOL_VERSION,
+      runtime: {
+        ok: true,
+        status: 200,
+        owner: 'kun'
+      },
+      auth: {
+        loopbackOnly: true,
+        tokenRequired: true
+      },
+      remoteRunners: {
+        available: true,
+        enabled: true
+      }
+    })
+
+    expect(health).toMatchObject({
+      remoteRunners: { available: true, enabled: true }
+    })
+  })
+
+  it('project capabilities include remote runner flag', () => {
+    const project = AppServerProjectSchema.parse({
+      id: 'project_1',
+      root: '/repo',
+      label: 'repo',
+      trusted: true,
+      active: true,
+      capabilities: {
+        threads: true,
+        approvals: true,
+        usage: true,
+        events: true,
+        attachments: true,
+        automation: true,
+        remoteRunners: false
+      }
+    })
+
+    expect(project.capabilities.remoteRunners).toBe(false)
+  })
+
+  it('notifications include remote_runner category', () => {
+    expect(AppServerNotificationSchema.parse({
+      id: 'evt_rr_1',
+      version: APP_SERVER_PROTOCOL_VERSION,
+      category: 'remote_runner',
+      type: 'remote_runner.status_changed',
+      sentAt: '2026-06-12T10:00:00.000Z',
+      redaction: 'metadata',
+      payload: { hostId: 'host_1', connectionStatus: 'connected' }
+    })).toMatchObject({
+      category: 'remote_runner',
+      redaction: 'metadata'
     })
   })
 })

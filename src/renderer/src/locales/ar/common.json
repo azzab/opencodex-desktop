@@ -1641,5 +1641,13 @@
   "automationLoopDefaultModel": "النموذج الافتراضي للحلقة",
   "automationLoopMaxConcurrent": "أقصى حلقات متزامنة",
   "automationLoopMinInterval": "أقل فاصل (دقائق)",
-  "automationLoopRequireProject": "يتطلب معرف المشروع"
+  "automationLoopRequireProject": "يتطلب معرف المشروع",
+  "remoteApprovalDialogTitle": "عن بعد — الموافقة على الأمر مطلوبة",
+  "remoteApprovalDialogMessage": "المضيف البعيد \"{{host}}\" يريد تنفيذ أمر.",
+  "remoteApprovalDialogDetail": "المضيف:       {{host}}\nمعرف المضيف:  {{hostId}}\nالأمر:        {{command}}\nالمجلد:       {{cwd}}\nالوقت:        {{time}}\n\n⚠️  سيتم تشغيل هذا الأمر على جهاز بعيد، وليس على حاسوبك المحلي.\nلا تسمح إلا بالأوامر التي تثق بها تماما على هذا المضيف البعيد.",
+  "remoteApprovalAllow": "السماح",
+  "remoteApprovalDeny": "رفض",
+  "remoteApprovalLabelRemote": "عن بعد",
+  "remoteApprovalTrustContext": "سياق الثقة",
+  "remoteApprovalErrorNoCallback": "تم رفض التنفيذ عن بعد: لم يتم تكوين رد اتصال للموافقة. يلزم وجود واجهة موافقة مرئية للأوامر البعيدة."
 }

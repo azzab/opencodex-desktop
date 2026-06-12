@@ -311,6 +311,8 @@ export type KunRuntimeSettingsV1 = {
   checkpoints: KunCheckpointSettingsV1
   /** Lifecycle hook execution with per-hook trust review, hash pinning, audit, and kill switch. */
   hooks: KunHookSettingsV1
+  /** Remote runner hosts (SSH). Handshake status, trust management, and execution policy. */
+  remoteRunners: KunRemoteRunnersSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -379,6 +381,90 @@ export type KunRuntimeTuningSettingsV1 = {
  * `agents.kun` envelope. Prefer operating on the contained
  * `KunRuntimeSettingsV1` directly in new code.
  */
+/** Remote runner connection status for the settings UI. */
+export type RemoteRunnerConnectionStatus = 'disconnected' | 'connecting' | 'handshaking' | 'connected' | 'error'
+
+export type RemoteRunnerHostConfigV1 = {
+  id: string
+  label: string
+  enabled: boolean
+  /** Reference to SSH config host alias (e.g. '~/.ssh/config' entry). */
+  endpointRef: string
+  /** Optional username reference handle. */
+  usernameRef?: string
+  /** Credential storage policy — never stores raw secrets. */
+  credentialStorage: {
+    kind: 'none' | 'os-keychain' | 'ssh-agent' | 'secret-manager'
+    credentialRef?: string
+    exportsRawSecret: false
+  }
+  /** Host key verification policy. */
+  hostKeyPolicy: 'known-hosts' | 'pinned-fingerprint-ref' | 'manual-confirm'
+  /** Current connection status. */
+  connectionStatus: RemoteRunnerConnectionStatus
+  /** Last capability handshake result. */
+  lastHandshake?: {
+    issuedAt: string
+    shell: { os: string; shell: string }
+    gitAvailable: boolean
+    toolPolicy: Record<string, string>
+  } | null
+  /** Last handshake error (if any). */
+  lastHandshakeError?: string | null
+  /** Trusted workspace paths (per host+path). */
+  trustedPaths: RemoteRunnerTrustedPathV1[]
+}
+
+export type RemoteRunnerTrustedPathV1 = {
+  path: string
+  label: string
+  trustedAt: string
+  /** Audit id for the trust grant. */
+  auditId: string
+}
+
+export type RemoteRunnerAuditEntryV1 = {
+  id: string
+  timestamp: string
+  runnerId: string
+  runId?: string
+  actor: 'host' | 'remote-client' | 'policy' | 'runner'
+  action: string
+  outcome: 'requested' | 'allowed' | 'denied' | 'blocked' | 'completed' | 'failed'
+  payloadRedaction: 'metadata' | 'summary' | 'selected_excerpt' | 'explicit_full'
+  consentId?: string
+  reason?: string
+}
+
+export type RemoteRunnerSettingsV1 = {
+  /** Whether remote runner UI is visible. */
+  enabled: boolean
+  /** Configured SSH hosts. */
+  hosts: RemoteRunnerHostConfigV1[]
+  /** Data egress policy for remote execution. */
+  dataPolicy: {
+    defaultAllowed: string[]
+    consentRequired: string[]
+    never: string[]
+  }
+  /** Audit log entries. */
+  auditLog: RemoteRunnerAuditEntryV1[]
+  /** Maximum audit log entries. */
+  maxAuditEntries: number
+}
+
+export type KunRemoteRunnersSettingsV1 = RemoteRunnerSettingsV1
+
+export type KunRemoteRunnersSettingsPatchV1 = Partial<Omit<RemoteRunnerSettingsV1, 'hosts' | 'auditLog'>> & {
+  hosts?: Array<Partial<RemoteRunnerHostConfigV1>>
+  auditLog?: RemoteRunnerAuditEntryV1[]
+}
+
+/**
+ * Compatibility shell kept because persisted settings still use the
+ * `agents.kun` envelope. Prefer operating on the contained
+ * `KunRuntimeSettingsV1` directly in new code.
+ */
 export type KunSettingsEnvelopeV1 = {
   kun: KunRuntimeSettingsV1
 }
@@ -418,6 +504,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     | 'terminal'
     | 'checkpoints'
     | 'hooks'
+    | 'remoteRunners'
   >
 > & {
   mcpSearch?: Partial<KunMcpSearchSettingsV1>
@@ -446,6 +533,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     goal?: Partial<KunGoalAutomationSettingsV1>
     loop?: Partial<KunLoopAutomationSettingsV1>
   }
+  remoteRunners?: KunRemoteRunnersSettingsPatchV1
 }
 
 export type KunSettingsEnvelopePatchV1 = {

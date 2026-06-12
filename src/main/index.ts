@@ -74,6 +74,14 @@ import {
 import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
 import { getTerminalService, resetTerminalService } from './services/terminal-service'
+import { RemoteRunnerService } from './services/remote-runner-service'
+import {
+  localizedApprovalTitle,
+  localizedApprovalMessage,
+  localizedApprovalDetail,
+  localizedApprovalButtons,
+  resolveAppLocale
+} from '../shared/remote-approval-locale'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APP_USER_MODEL_ID = 'app.opencodex.desktop'
@@ -187,6 +195,7 @@ let managedRuntimesStopPromise: Promise<void> | null = null
 let appBehavior: AppBehaviorConfigV1 = normalizeAppBehaviorSettings()
 let tray: Tray | null = null
 let isQuitting = false
+let remoteRunnerService: RemoteRunnerService | null = null
 
 type GuiUpdaterModule = typeof import('./gui-updater')
 
@@ -981,6 +990,9 @@ app.whenReady().then(async () => {
     queueRuntimeSettingsApply(prev, saved)
     scheduleRuntime?.sync(saved)
     clawRuntime?.sync(saved)
+    if (remoteRunnerService) {
+      remoteRunnerService.updateSettings(getKunRuntimeSettings(saved).remoteRunners)
+    }
     syncWeixinBridgeRuntime(saved)
     syncLoginItemSettings(saved)
     syncTray(saved)
@@ -995,6 +1007,74 @@ app.whenReady().then(async () => {
 
   // Ensure terminal service is initialized before IPC handlers register it
   getTerminalService()
+
+  // Initialize remote runner service from current settings.
+  // Approval callback uses a localized native dialog as the visible approval surface.
+  // The renderer also receives the approval event for future React-based UI.
+  const initRemoteRunner = () => {
+    const rrSettings = getKunRuntimeSettings(initial).remoteRunners
+
+    remoteRunnerService = new RemoteRunnerService(rrSettings, {
+      onApprovalRequired: async (request) => {
+        const win = mainWindow
+
+        // Forward to renderer for future React-based approval UI
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('remote-runner:approval-required', {
+            approvalId: request.approvalId,
+            runnerId: request.runnerId,
+            hostLabel: request.hostLabel,
+            command: request.command,
+            cwd: request.cwd,
+            requestedAt: request.requestedAt,
+            requireRemoteLabel: request.requireRemoteLabel
+          })
+        }
+
+        // Read the current locale for every approval prompt so it reflects
+        // the latest persisted setting, not a stale snapshot.
+        const currentLocale = resolveAppLocale((await store.load()).locale)
+        const hostIdentity = request.hostLabel || request.runnerId
+        const [denyLabel, allowLabel] = localizedApprovalButtons(currentLocale)
+
+        const dialogResult = await dialog.showMessageBox({
+          type: 'warning',
+          title: localizedApprovalTitle(currentLocale),
+          message: localizedApprovalMessage(currentLocale, hostIdentity),
+          detail: localizedApprovalDetail(currentLocale, {
+            host: hostIdentity,
+            hostId: request.runnerId,
+            command: request.command,
+            cwd: request.cwd,
+            time: request.requestedAt
+          }),
+          buttons: [denyLabel, allowLabel],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        })
+
+        const decision = dialogResult.response === 1 ? 'allow' : 'deny'
+
+        // Notify renderer of decision for any pending UI state
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('remote-runner:approval-decision', {
+            approvalId: request.approvalId,
+            runnerId: request.runnerId,
+            decision
+          })
+        }
+
+        return decision
+      },
+      onAudit: () => {
+        // Audit entries are stored in-memory by the service and surfaced
+        // through svc.getAuditLog() via the IPC status/audit-log handlers.
+      },
+      onEgressPolicyViolation: () => {}
+    })
+  }
+  void initRemoteRunner()
 
   registerAppIpcHandlers({
     store,
@@ -1023,6 +1103,7 @@ app.whenReady().then(async () => {
     resolveLogDirectory,
     logError,
     getTerminalService: () => getTerminalService(),
+    getRemoteRunnerService: () => remoteRunnerService,
     getActiveProjectDir: async () => {
       const settings = await store.load()
       const workspaceRoot = settings.workspaceRoot?.trim()

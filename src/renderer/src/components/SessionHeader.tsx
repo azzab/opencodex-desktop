@@ -6,6 +6,7 @@ import { useChatStore } from '../store/chat-store'
 import { formatRelativeTime } from '../lib/format-relative-time'
 import { workspaceLabelFromPath } from '../lib/workspace-label'
 import { formatCompactNumber, formatCost, formatPercent, useThreadUsage } from '../hooks/use-thread-usage'
+import { ThreadHostBadge, type ThreadHostStatus } from './chat/ThreadHostBadge'
 
 type Props = {
   compact?: boolean
@@ -232,6 +233,61 @@ export function SessionHeader({ compact = false, className = '' }: Props): React
           {t('running')}
         </span>
       ) : null}
+      <RemoteHostBadge />
     </div>
+  )
+}
+
+function RemoteHostBadge(): ReactElement | null {
+  const [remoteActive, setRemoteActive] = useState<boolean>(false)
+  const [hostLabel, setHostLabel] = useState<string>('')
+  const [hostStatus, setHostStatus] = useState<ThreadHostStatus>('idle')
+  const [hostId, setHostId] = useState<string>('')
+
+  useEffect(() => {
+    if (typeof window.dsGui?.remoteRunnerStatus !== 'function') return
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const poll = async (): Promise<void> => {
+      if (cancelled) return
+      try {
+        const result = await window.dsGui.remoteRunnerStatus()
+        if (cancelled) return
+        const connectedHost = result.hosts.find(
+          (h) => h.connectionStatus === 'connected' || h.connectionStatus === 'executing'
+        )
+        if (connectedHost) {
+          setRemoteActive(true)
+          setHostLabel(connectedHost.label)
+          setHostStatus(connectedHost.connectionStatus as ThreadHostStatus)
+          setHostId(connectedHost.id)
+        } else {
+          setRemoteActive(false)
+        }
+      } catch {
+        if (!cancelled) setRemoteActive(false)
+      }
+      if (!cancelled) {
+        timer = setTimeout(poll, 5_000)
+      }
+    }
+
+    void poll()
+    return () => {
+      cancelled = true
+      if (timer !== null) clearTimeout(timer)
+    }
+  }, [])
+
+  return (
+    <ThreadHostBadge
+      active={remoteActive}
+      hostLabel={hostLabel}
+      status={hostStatus}
+      hostId={hostId}
+      className="ml-2"
+    />
   )
 }

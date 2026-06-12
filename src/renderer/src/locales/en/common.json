@@ -1642,5 +1642,13 @@
   "automationLoopDefaultModel": "Default loop model",
   "automationLoopMaxConcurrent": "Max concurrent loops",
   "automationLoopMinInterval": "Min interval (minutes)",
-  "automationLoopRequireProject": "Require project ID"
+  "automationLoopRequireProject": "Require project ID",
+  "remoteApprovalDialogTitle": "REMOTE — Command Approval Required",
+  "remoteApprovalDialogMessage": "REMOTE host \"{{host}}\" wants to execute a command.",
+  "remoteApprovalDialogDetail": "Host:       {{host}}\nHost ID:    {{hostId}}\nCommand:    {{command}}\nDirectory:  {{cwd}}\nTime:       {{time}}\n\n⚠️  This command will run on a REMOTE machine, not your local computer.\nOnly allow commands you fully trust on this remote host.",
+  "remoteApprovalAllow": "Allow",
+  "remoteApprovalDeny": "Deny",
+  "remoteApprovalLabelRemote": "REMOTE",
+  "remoteApprovalTrustContext": "Trust Context",
+  "remoteApprovalErrorNoCallback": "Remote execution denied: no approval callback is configured. A visible approval surface is required for remote commands."
 }

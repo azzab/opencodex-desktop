@@ -47,7 +47,8 @@ export const AppServerNotificationCategorySchema = z.enum([
   'goal',
   'loop',
   'subagent',
-  'automation'
+  'automation',
+  'remote_runner'
 ])
 export type AppServerNotificationCategory = z.infer<typeof AppServerNotificationCategorySchema>
 
@@ -63,7 +64,8 @@ export const AppServerProjectSchema = z.object({
     usage: z.boolean(),
     events: z.boolean(),
     attachments: z.boolean(),
-    automation: z.boolean()
+    automation: z.boolean(),
+    remoteRunners: z.boolean()
   }).strict()
 }).strict()
 export type AppServerProject = z.infer<typeof AppServerProjectSchema>
@@ -239,6 +241,10 @@ export const AppServerHealthResponseSchema = z.object({
   auth: z.object({
     loopbackOnly: z.boolean(),
     tokenRequired: z.boolean()
+  }).strict(),
+  remoteRunners: z.object({
+    available: z.boolean(),
+    enabled: z.boolean()
   }).strict()
 }).strict()
 export type AppServerHealthResponse = z.infer<typeof AppServerHealthResponseSchema>
@@ -284,3 +290,190 @@ export const AppServerThreadStartResponseSchema = z.object({
   }).strict().optional()
 }).strict()
 export type AppServerThreadStartResponse = z.infer<typeof AppServerThreadStartResponseSchema>
+
+/* ------------------------------------------------------------------ */
+/*  Remote Runner App-Server Protocol Schemas (Phase H10)             */
+/*                                                                     */
+/*  These schemas expose metadata-only remote-runner status and       */
+/*  operation results to H9 clients (CLI, IDE, browser, mobile,       */
+/*  remote-relay) through the app-server bridge. No raw credentials,  */
+/*  secret material, endpoint refs, or credential refs are exposed.   */
+/* ------------------------------------------------------------------ */
+
+export const AppServerRemoteRunnerConnectionStatusSchema = z.enum([
+  'disconnected',
+  'connecting',
+  'handshaking',
+  'connected',
+  'error'
+])
+export type AppServerRemoteRunnerConnectionStatus = z.infer<
+  typeof AppServerRemoteRunnerConnectionStatusSchema
+>
+
+export const AppServerRemoteRunnerHandshakeSummarySchema = z.object({
+  issuedAt: isoDateSchema,
+  shell: z.object({ os: z.string(), shell: z.string() }).strict(),
+  gitAvailable: z.boolean(),
+  toolPolicy: z.record(z.string(), z.string())
+}).strict()
+export type AppServerRemoteRunnerHandshakeSummary = z.infer<
+  typeof AppServerRemoteRunnerHandshakeSummarySchema
+>
+
+export const AppServerRemoteRunnerHostSummarySchema = z.object({
+  id: idSchema,
+  label: labelSchema,
+  enabled: z.boolean(),
+  connectionStatus: AppServerRemoteRunnerConnectionStatusSchema,
+  lastHandshake: AppServerRemoteRunnerHandshakeSummarySchema.nullable(),
+  lastError: z.string().nullable(),
+  trustedPathCount: z.number().int().nonnegative()
+}).strict()
+export type AppServerRemoteRunnerHostSummary = z.infer<
+  typeof AppServerRemoteRunnerHostSummarySchema
+>
+
+export const AppServerRemoteRunnerAuditEntrySchema = z.object({
+  id: idSchema,
+  timestamp: isoDateSchema,
+  runnerId: idSchema,
+  action: z.string().trim().min(1).max(256),
+  outcome: z.string().trim().min(1).max(64),
+  reason: z.string().trim().max(1000).nullable().optional()
+}).strict()
+export type AppServerRemoteRunnerAuditEntry = z.infer<
+  typeof AppServerRemoteRunnerAuditEntrySchema
+>
+
+export const AppServerRemoteRunnerStatusResponseSchema = z.object({
+  hosts: z.array(AppServerRemoteRunnerHostSummarySchema).max(50),
+  enabled: z.boolean(),
+  auditLog: z.array(AppServerRemoteRunnerAuditEntrySchema).max(500)
+}).strict()
+export type AppServerRemoteRunnerStatusResponse = z.infer<
+  typeof AppServerRemoteRunnerStatusResponseSchema
+>
+
+export const AppServerRemoteRunnerActionKindSchema = z.enum([
+  'connect',
+  'disconnect',
+  'reconnect',
+  'handshake'
+])
+export type AppServerRemoteRunnerActionKind = z.infer<
+  typeof AppServerRemoteRunnerActionKindSchema
+>
+
+export const AppServerRemoteRunnerActionRequestSchema = z.object({
+  hostId: idSchema,
+  action: AppServerRemoteRunnerActionKindSchema
+}).strict()
+export type AppServerRemoteRunnerActionRequest = z.input<
+  typeof AppServerRemoteRunnerActionRequestSchema
+>
+
+export const AppServerRemoteRunnerActionResponseSchema = z.object({
+  ok: z.boolean(),
+  hostId: idSchema,
+  message: z.string().trim().max(1000).optional()
+}).strict()
+export type AppServerRemoteRunnerActionResponse = z.infer<
+  typeof AppServerRemoteRunnerActionResponseSchema
+>
+
+export const AppServerRemoteRunnerTrustKindSchema = z.enum(['trust', 'revoke'])
+export type AppServerRemoteRunnerTrustKind = z.infer<
+  typeof AppServerRemoteRunnerTrustKindSchema
+>
+
+export const AppServerRemoteRunnerTrustRequestSchema = z.object({
+  hostId: idSchema,
+  action: AppServerRemoteRunnerTrustKindSchema,
+  path: pathSchema,
+  label: z.string().trim().max(200).optional()
+}).strict()
+export type AppServerRemoteRunnerTrustRequest = z.input<
+  typeof AppServerRemoteRunnerTrustRequestSchema
+>
+
+export const AppServerRemoteRunnerTrustResponseSchema = z.object({
+  ok: z.boolean(),
+  hostId: idSchema,
+  path: pathSchema,
+  message: z.string().trim().max(1000).optional()
+}).strict()
+export type AppServerRemoteRunnerTrustResponse = z.infer<
+  typeof AppServerRemoteRunnerTrustResponseSchema
+>
+
+export const AppServerRemoteRunnerExecRequestSchema = z.object({
+  hostId: idSchema,
+  command: textSchema.max(100_000),
+  cwd: z.string().trim().max(4096).optional(),
+  timeoutMs: z.number().int().positive().max(86_400_000).optional(),
+  maxOutputBytes: z.number().int().positive().max(10_000_000).optional()
+}).strict()
+export type AppServerRemoteRunnerExecRequest = z.input<
+  typeof AppServerRemoteRunnerExecRequestSchema
+>
+
+export const AppServerRemoteRunnerExecResponseSchema = z.object({
+  ok: z.boolean(),
+  runId: idSchema.optional(),
+  output: z.string().max(200_000).optional(),
+  exitCode: z.number().int().nullable().optional(),
+  message: z.string().trim().max(2000).optional()
+}).strict()
+export type AppServerRemoteRunnerExecResponse = z.infer<
+  typeof AppServerRemoteRunnerExecResponseSchema
+>
+
+export const AppServerRemoteRunnerStopRequestSchema = z.object({
+  hostId: idSchema
+}).strict()
+export type AppServerRemoteRunnerStopRequest = z.input<
+  typeof AppServerRemoteRunnerStopRequestSchema
+>
+
+export const AppServerRemoteRunnerStopResponseSchema = z.object({
+  ok: z.boolean(),
+  hostId: idSchema,
+  wasRunning: z.boolean(),
+  message: z.string().trim().max(1000).optional()
+}).strict()
+export type AppServerRemoteRunnerStopResponse = z.infer<
+  typeof AppServerRemoteRunnerStopResponseSchema
+>
+
+export const AppServerRemoteRunnerResumeRequestSchema = z.object({
+  hostId: idSchema
+}).strict()
+export type AppServerRemoteRunnerResumeRequest = z.input<
+  typeof AppServerRemoteRunnerResumeRequestSchema
+>
+
+export const AppServerRemoteRunnerResumeResponseSchema = z.object({
+  ok: z.boolean(),
+  hostId: idSchema,
+  runId: idSchema.nullable().optional(),
+  restored: z.boolean(),
+  message: z.string().trim().max(1000).optional()
+}).strict()
+export type AppServerRemoteRunnerResumeResponse = z.infer<
+  typeof AppServerRemoteRunnerResumeResponseSchema
+>
+
+export const AppServerRemoteRunnerAuditRequestSchema = z.object({
+  limit: z.number().int().positive().max(500).optional()
+}).strict()
+export type AppServerRemoteRunnerAuditRequest = z.input<
+  typeof AppServerRemoteRunnerAuditRequestSchema
+>
+
+export const AppServerRemoteRunnerAuditResponseSchema = z.object({
+  entries: z.array(AppServerRemoteRunnerAuditEntrySchema).max(500)
+}).strict()
+export type AppServerRemoteRunnerAuditResponse = z.infer<
+  typeof AppServerRemoteRunnerAuditResponseSchema
+>
