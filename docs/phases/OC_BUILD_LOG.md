@@ -528,3 +528,10 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `/Users/mohamedazab/.pidev-orchestrator/oc-h9-clients/run-20260612T160310.log`
   and
   `/Users/mohamedazab/.pidev-orchestrator/oc-h10-ssh/run-20260612T160439.log`.
+- 2026-06-12: H9 worker smoke command incident: the worker started a Kun
+  smoke with `TMPDIR=$(mktemp -d) ... &` and later ran `rm -rf "$TMPDIR"`,
+  which expanded to the macOS temp root (`/var/folders/.../T/`) rather than
+  the mktemp directory. Orchestrator terminated the active `rm -rf` subprocess
+  and the leftover Kun server on port `18999`; port 18999 was confirmed clear.
+  H9 remains unverified and must not merge without a clean-room smoke proof and
+  source review that no broad temp deletion is encoded in tracked scripts/docs.
