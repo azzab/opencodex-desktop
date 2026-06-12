@@ -84,7 +84,11 @@ module.exports = {
     '**/node_modules/bindings/**/*',
     '**/node_modules/file-uri-to-path/**/*'
   ],
-  npmRebuild: true,
+  // npmRebuild is disabled in favour of the targeted electron-rebuild-native.cjs
+  // which rebuilds only better-sqlite3 and node-pty, avoiding cpu-features
+  // (dep of ssh2) whose nan 2.27.0 dependency is not yet compatible with
+  // Electron 42's V8 14.8 ExternalPointerTypeTag API.
+  npmRebuild: false,
   directories: {
     output: process.env.OPENCODEX_DESKTOP_DIST_DIR || process.env.DEEPSEEK_GUI_DIST_DIR || 'dist'
   },
