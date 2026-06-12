@@ -30,7 +30,7 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 |---|-------|------------|--------------|--------|------------------------------|----------|--------------|-------|
 | M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | ✅ | $0.8769 total: initial stalled $0.6039 / in 590,648 out 221,918 cacheRead 42,452,480 cache 98.6%; recovery $0.2730 / in 383,460 out 86,491 cacheRead 8,532,736 cache 95.7% | Merged to `main`; post-merge full gate green (root 150 files/1184 tests, Kun 58 files passed / 1 skipped and 658 tests passed / 4 skipped); full audit 0; corrected Kun SSE smoke green before and after Electron 42; clean-room install gate green; DMG Electron `42.4.0`; PTY/native ABI proof | `11c4ab6` | Lane commit `aa0b660`; report `docs/PHASE_M1_ELECTRON_42_REPORT.md`; first post-merge gate was infrastructure-failed by ENOSPC during Electron extraction/temp repo creation, then generated artifacts were removed, Electron reinstalled, and the full gate reran green |
 | M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ✅ | Orchestrator only; no pidev cost | Version bumped to `0.3.1-beta`; release notes written; `npm run dist:mac` green; unsigned x64+arm64 DMG/zip artifacts built; arm64 packaged app proves version `0.3.1-beta` and Electron `42.4.0`; packaged app opened from `dist/mac-arm64/OpenCodex Desktop.app`; VS Code client typecheck/tests/package green and VSIX installed into Cursor (`undefined_publisher.opencodex-vscode@0.1.0`) because Visual Studio Code was not installed | `e90e083` | Artifacts: `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.zip`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.zip`, `dist/latest-mac.yml`; no Apple signing/notary credentials detected, so `dist:mac:signed`, `verify:apple`, upload, publish, tag, and update-channel mutation were not run |
-| M2 | Provider Auth & Model Discovery | `oc-m2-providers` | dsv4-pro max | 🔵 | initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation pending | Initial worker READY rejected by orchestrator security/source review; remediation running; verification pending | — | Worktree `../ocx-m2`; initial log `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`; OAuth PKCE + safeStorage; Kilo-Code-style connect UX |
+| M2 | Provider Auth & Model Discovery | `oc-m2-providers`; retry `oc-m2-providers-r2` | dsv4-pro max | 🔵 | initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation1 no-tree-change $0.3687 / in=544,068 out=108,062 cacheRead=10,493,952 cache 95.1%; retry running | Initial worker READY rejected by orchestrator security/source review; remediation1 full gate on existing dirty tree passed but source review rejected unsafe provider fallback validation and unused `endpointFormat`; no-tree-change remediation report rejected; fresh retry running; verification pending | — | Worktree `../ocx-m2`; initial log `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260612T225807.log`; remediation1 log `/Users/mohamedazab/.pidev-orchestrator/oc-m2-providers/run-20260613T000402.log`; retry id `oc-m2-providers-r2` |
 | M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
 | M4a | Mobile Pairing Host | `oc-m4a-pairing` | dsv4-pro max | ⬜ | — | — | — | Opt-in TLS LAN listener, QR pairing, device scopes |
 | M4b | Mobile Companion App | `oc-m4b-mobile` | dsv4-pro high | ⬜ | — | — | — | Expo/RN, depends on M4a |
@@ -1143,3 +1143,16 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   `code` CLI was absent, so the VSIX was installed into the available
   VS Code-compatible Cursor host as `undefined_publisher.opencodex-vscode@0.1.0`
   and the `clients/vscode` workspace was opened there.
+- 2026-06-12: M2 remediation1 under `oc-m2-providers` cost `$0.3687`
+  (in 544,068 / out 108,062 / cacheRead 10,493,952 / cache 95.1%) but was
+  rejected. The existing dirty M2 tree independently passed the full gate
+  (`typecheck`, `lint`, root tests 153 files / 1244 passed / 1 skipped, Kun
+  tests 58 files passed / 1 skipped and 658 tests passed / 4 skipped, build,
+  `git diff --check`) plus the no-echoed-keys grep. Source review still found
+  `provider-validation-service.ts` accepted unsafe non-401/403 fallback
+  responses as valid keys and ignored the passed `endpointFormat`. A same-id
+  remediation then produced a `READY` report claiming rewrites and 40 tests,
+  but `pidev wait` flagged `NO_TREE_CHANGES`; the worktree showed no changes
+  to the provider validation files, so that report is untrusted. Per recovery
+  rules, one fresh retry was dispatched as `oc-m2-providers-r2` on the dirty
+  `../ocx-m2` tree with `--max --allow-dirty`.
