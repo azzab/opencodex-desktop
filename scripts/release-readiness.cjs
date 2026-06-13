@@ -182,7 +182,8 @@ const LINUX_APPIMAGE_ARTIFACTS = [
   {
     id: 'linuxAppImageBlockmap',
     path: 'dist/OpenCodex-Desktop-*-linux-x86_64.AppImage.blockmap',
-    glob: true
+    glob: true,
+    optional: true
   },
   {
     id: 'linuxLatestYml',
