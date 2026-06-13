@@ -36,6 +36,11 @@ import {
   SERVE_USAGE,
   ServeExitCode
 } from '../src/cli/serve.js'
+import {
+  KunServeConfigSchema,
+  ProviderKeyConfigSchema,
+  type ProviderKeyConfig
+} from '../src/config/kun-config.js'
 
 describe('contracts', () => {
   it('round-trips a thread creation payload through zod', () => {
@@ -749,5 +754,194 @@ describe('cli', () => {
   it('flags unknown enum values through the schema', () => {
     const result = ApprovalPolicySchema.safeParse('mystery')
     expect(result.success).toBe(false)
+  })
+})
+
+// ── M2.5 provider-key ephemeral injection security tests ────────────────
+
+describe('provider key ephemeral injection (M2.5 security)', () => {
+  // ── Gate 1: KunServeConfigSchema rejects providerKeys ──────────────────
+
+  it('KunServeConfigSchema rejects providerKeys in persisted config (fails fast, no silent strip)', () => {
+    // .strict() rejects unknown keys — providerKeys must never appear in config.json
+    const parsed = KunServeConfigSchema.safeParse({
+      host: '127.0.0.1',
+      port: 18999,
+      dataDir: '/tmp/kun',
+      providerKeys: {
+        deepseek: { apiKey: 'sk-real-key-should-be-rejected' },
+        openai: { apiKey: 'sk-openai-real-key-rejected' }
+      }
+    })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      const messages = parsed.error.issues.map((i) => i.message).join(' ')
+      expect(messages).toContain('providerKeys')
+    }
+  })
+
+  it('KunServeConfigSchema accepts valid config without providerKeys', () => {
+    const parsed = KunServeConfigSchema.safeParse({
+      host: '127.0.0.1',
+      port: 18999,
+      dataDir: '/tmp/kun',
+      model: 'deepseek-v4-pro',
+      approvalPolicy: 'auto'
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) {
+      expect(parsed.data).not.toHaveProperty('providerKeys')
+      expect(parsed.data.host).toBe('127.0.0.1')
+    }
+  })
+
+  // ── Gate 2: providerKeys from env var reach the parsed options ─────────
+
+  it('parseServeOptions injects providerKeys from KUN_PROVIDER_KEYS_JSON env var', () => {
+    const providerKeysJson = JSON.stringify({
+      openai: {
+        apiKey: 'sk-test-fixture-openai-key-12345',
+        baseUrl: 'https://api.openai.com/v1',
+        endpointFormat: 'chat_completions'
+      },
+      anthropic: {
+        apiKey: 'sk-ant-test-fixture-key-67890',
+        endpointFormat: 'messages'
+      }
+    })
+    const parsed = parseServeOptions(
+      ['--data-dir', '/tmp/kun-provider-test'],
+      { KUN_PROVIDER_KEYS_JSON: providerKeysJson }
+    )
+    expect(parsed.providerKeys).toBeDefined()
+    expect(Object.keys(parsed.providerKeys)).toHaveLength(2)
+    expect(parsed.providerKeys['openai']?.apiKey).toBe('sk-test-fixture-openai-key-12345')
+    expect(parsed.providerKeys['openai']?.baseUrl).toBe('https://api.openai.com/v1')
+    expect(parsed.providerKeys['openai']?.endpointFormat).toBe('chat_completions')
+    expect(parsed.providerKeys['anthropic']?.apiKey).toBe('sk-ant-test-fixture-key-67890')
+    expect(parsed.providerKeys['anthropic']?.endpointFormat).toBe('messages')
+  })
+
+  it('parseServeOptions returns empty providerKeys without env var', () => {
+    const parsed = parseServeOptions(
+      ['--data-dir', '/tmp/kun-no-provider-test']
+    )
+    expect(parsed.providerKeys).toEqual({})
+  })
+
+  it('parseServeOptions gracefully handles invalid KUN_PROVIDER_KEYS_JSON', () => {
+    const parsed = parseServeOptions(
+      ['--data-dir', '/tmp/kun-bad-json-test'],
+      { KUN_PROVIDER_KEYS_JSON: 'not-valid-json{' }
+    )
+    expect(parsed.providerKeys).toEqual({})
+  })
+
+  it('parseServeOptions drops invalid provider entries from KUN_PROVIDER_KEYS_JSON', () => {
+    const providerKeysJson = JSON.stringify({
+      valid: { apiKey: 'sk-valid' },
+      invalid: { badField: true } // missing required apiKey
+    })
+    const parsed = parseServeOptions(
+      ['--data-dir', '/tmp/kun-partial-test'],
+      { KUN_PROVIDER_KEYS_JSON: providerKeysJson }
+    )
+    expect(Object.keys(parsed.providerKeys)).toEqual(['valid'])
+    expect(parsed.providerKeys['valid']?.apiKey).toBe('sk-valid')
+    expect(parsed.providerKeys['invalid']).toBeUndefined()
+  })
+
+  // ── Gate 3: config.json with stale providerKeys is rejected ────────────
+
+  it('config.json with providerKeys in serve section throws a parse error (fails fast)', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'kun-provider-config-'))
+    try {
+      // Write a config.json that has providerKeys in serve (legacy insecure format)
+      await writeFile(join(dataDir, 'config.json'), JSON.stringify({
+        serve: {
+          baseUrl: 'https://api.deepseek.com/beta',
+          model: 'deepseek-v4-flash',
+          providerKeys: {
+            openai: { apiKey: 'sk-stale-key-should-not-surface' }
+          }
+        }
+      }), 'utf8')
+
+      // Must throw because KunServeConfigSchema is .strict() and rejects unrecognized keys
+      expect(() => parseServeOptions(['--data-dir', dataDir]))
+        .toThrow(/providerKeys|Invalid Kun config/)
+    } finally {
+      await rm(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  // ── Gate 4: ProviderKeyConfig schema validation ────────────────────────
+
+  it('ProviderKeyConfigSchema validates correct provider key configs', () => {
+    const valid = ProviderKeyConfigSchema.safeParse({
+      apiKey: 'sk-valid-key',
+      baseUrl: 'https://api.example.com/v1',
+      endpointFormat: 'chat_completions'
+    })
+    expect(valid.success).toBe(true)
+  })
+
+  it('ProviderKeyConfigSchema rejects missing apiKey', () => {
+    const invalid = ProviderKeyConfigSchema.safeParse({
+      baseUrl: 'https://api.example.com/v1'
+    })
+    expect(invalid.success).toBe(false)
+  })
+
+  it('ProviderKeyConfigSchema rejects empty apiKey', () => {
+    const invalid = ProviderKeyConfigSchema.safeParse({
+      apiKey: ''
+    })
+    expect(invalid.success).toBe(false)
+  })
+
+  it('ProviderKeyConfigSchema normalizes endpointFormat values', () => {
+    // normalizeModelEndpointFormat preprocesses values
+    const withOpenaiFormat = ProviderKeyConfigSchema.safeParse({
+      apiKey: 'sk-test',
+      endpointFormat: '/v1/chat/completions'
+    })
+    expect(withOpenaiFormat.success).toBe(true)
+    if (withOpenaiFormat.success) {
+      expect(withOpenaiFormat.data.endpointFormat).toBe('chat_completions')
+    }
+
+    const withAnthropicFormat = ProviderKeyConfigSchema.safeParse({
+      apiKey: 'sk-test',
+      endpointFormat: '/v1/messages'
+    })
+    expect(withAnthropicFormat.success).toBe(true)
+    if (withAnthropicFormat.success) {
+      expect(withAnthropicFormat.data.endpointFormat).toBe('messages')
+    }
+  })
+
+  // ── Gate 5: Multiple providers coexist ─────────────────────────────────
+
+  it('validateServeOptions supports multiple provider keys for per-task routing', () => {
+    const parsed = validateServeOptions({
+      host: '127.0.0.1',
+      port: 8899,
+      dataDir: '/srv/ca',
+      runtimeToken: '',
+      model: 'deepseek-chat',
+      approvalPolicy: 'on-request',
+      sandboxMode: 'workspace-write',
+      insecure: false,
+      providerKeys: {
+        deepseek: { apiKey: 'sk-ds-fixture' },
+        openai: { apiKey: 'sk-oai-fixture', endpointFormat: 'chat_completions' },
+        anthropic: { apiKey: 'sk-ant-fixture', endpointFormat: 'messages' }
+      }
+    })
+    expect(Object.keys(parsed.providerKeys)).toHaveLength(3)
+    expect(parsed.providerKeys['deepseek']?.apiKey).toBe('sk-ds-fixture')
+    expect(parsed.providerKeys['openai']?.endpointFormat).toBe('chat_completions')
+    expect(parsed.providerKeys['anthropic']?.endpointFormat).toBe('messages')
   })
 })

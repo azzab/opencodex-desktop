@@ -46,8 +46,10 @@ import {
   normalizeClawComposerModel,
   optimisticUserModelLabel,
   persistComposerModel,
+  persistComposerProviderId,
   readCodeWorkspaceRoots,
   readStoredComposerModel,
+  readStoredComposerProviderId,
   rememberCodeWorkspaceRoots,
   rememberTurnModel
 } from './chat-store-helpers'
@@ -152,6 +154,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   composerModel: '',
   composerPickList: mergeComposerPickList(false, []),
   composerModelGroups: [],
+  composerProviderId: '',
   queuedMessages: [],
   watchTurnCompletion: {},
   unreadThreadIds: {},
@@ -187,6 +190,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     setComposerModelLoadPromise: (promise) => {
       composerModelLoadPromise = promise
     },
+    persistComposerProviderId,
+    readStoredComposerProviderId,
     applyTheme,
     applyUiFontScale,
     applyDocumentLocale,

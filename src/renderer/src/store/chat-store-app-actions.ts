@@ -12,6 +12,8 @@ type CreateAppActionsOptions = {
   mergeComposerPickList: (upstreamOk: boolean, upstreamIds: string[]) => string[]
   getComposerModelLoadPromise: () => Promise<void> | null
   setComposerModelLoadPromise: (promise: Promise<void> | null) => void
+  persistComposerProviderId: (providerId: string) => void
+  readStoredComposerProviderId: () => string
   applyTheme: (theme: AppSettingsV1['theme']) => void
   applyUiFontScale: (scale: AppSettingsV1['uiFontScale']) => void
   applyDocumentLocale: (locale: AppSettingsV1['locale']) => void
@@ -23,6 +25,7 @@ export function createAppActions(options: CreateAppActionsOptions): Pick<
   ChatState,
   | 'setError'
   | 'setComposerModel'
+  | 'setComposerProviderId'
   | 'loadComposerModels'
   | 'setRoute'
   | 'openWrite'
@@ -45,6 +48,8 @@ export function createAppActions(options: CreateAppActionsOptions): Pick<
     mergeComposerPickList,
     getComposerModelLoadPromise,
     setComposerModelLoadPromise,
+    persistComposerProviderId,
+    readStoredComposerProviderId,
     applyTheme,
     applyUiFontScale,
     applyDocumentLocale,
@@ -58,6 +63,11 @@ export function createAppActions(options: CreateAppActionsOptions): Pick<
     setComposerModel: (modelId) => {
       persistComposerModel(modelId)
       set({ composerModel: modelId })
+    },
+
+    setComposerProviderId: (providerId) => {
+      persistComposerProviderId(providerId)
+      set({ composerProviderId: providerId })
     },
 
     loadComposerModels: async () => {

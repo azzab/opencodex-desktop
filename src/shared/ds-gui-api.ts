@@ -177,6 +177,33 @@ export type ModelProviderModelGroup = {
   label: string
   modelIds: string[]
 }
+
+/** Local provider detection result from main process. */
+export type LocalProviderDetectResult =
+  | { ok: true; providerId: string; providerName: string; models: string[]; latencyMs: number; version?: string; local: true }
+  | { ok: false; providerId: string; message: string }
+
+/** Test provider connection result with latency. */
+export type ProviderTestConnectionPayload = {
+  providerId: string
+  key?: string
+  baseUrl?: string
+  endpointFormat?: string
+}
+
+export type ProviderTestConnectionResult =
+  | { ok: true; providerId: string; latencyMs: number; message: string }
+  | { ok: false; providerId: string; latencyMs: number; message: string }
+
+/** Toggle favorite for a model. */
+export type ModelFavoriteTogglePayload = {
+  providerId: string
+  modelId: string
+}
+
+export type ModelFavoriteToggleResult =
+  | { ok: true; favorited: boolean }
+  | { ok: false; message: string }
 export type ClawImInstallQrResult =
   | { ok: true; url: string; deviceCode: string; userCode: string; interval: number; expireIn: number }
   | { ok: false; message: string }
@@ -552,4 +579,10 @@ export type DsGuiApi = {
   revokeAllMobileAccessDevices: () => Promise<{ ok: boolean; count: number }>
   /** Mobile access — get live status including listener state, devices, and audit log. */
   getMobileAccessStatus: () => Promise<MobileAccessStatusResult>
+  /** Detect local providers (Ollama, LM Studio) on default ports. */
+  detectLocalProviders: () => Promise<LocalProviderDetectResult[]>
+  /** Test connection to a provider with latency measurement. */
+  testProviderConnection: (payload: ProviderTestConnectionPayload) => Promise<ProviderTestConnectionResult>
+  /** Toggle a model as favorite. */
+  toggleModelFavorite: (payload: ModelFavoriteTogglePayload) => Promise<ModelFavoriteToggleResult>
 }

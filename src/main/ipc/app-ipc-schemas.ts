@@ -238,7 +238,24 @@ const modelProviderPatchSchema = z.object({
         recommendedUse: z.array(z.string().trim().min(1).max(40)).max(20)
       }).strict()
     }).strict()).max(500).optional()
-  }).strict()).max(50).optional()
+  }).strict()).max(50).optional(),
+  perTaskModel: z.object({
+    enabled: z.boolean().optional(),
+    assignments: z.array(z.object({
+      role: z.string().trim().min(1).max(40),
+      providerId: z.string().trim().max(128).optional(),
+      modelId: z.string().trim().max(256).optional(),
+      enabled: z.boolean().optional()
+    }).strict()).max(20).optional()
+  }).strict().optional(),
+  modelPicker: z.object({
+    freeOnly: z.boolean().optional(),
+    favorites: z.array(z.object({
+      providerId: z.string().trim().min(1).max(128),
+      modelId: z.string().trim().min(1).max(256),
+      addedAt: z.string().trim().max(64).optional()
+    }).strict()).max(500).optional()
+  }).strict().optional()
 }).strict()
 
 export const modelProviderCatalogPayloadSchema = z.object({

@@ -642,6 +642,73 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     }
   })
 
+  // ── Local provider auto-detection (Ollama, LM Studio) ──
+  ipcMain.handle('provider:detect-local', async (): Promise<import('../../shared/ds-gui-api').LocalProviderDetectResult[]> => {
+    const { scanLocalProviders } = await import('../services/ollama-lmstudio-detect')
+    const raw = await scanLocalProviders()
+    return raw.map((r) => {
+      if (r.ok) {
+        return {
+          ok: true as const,
+          providerId: r.provider.id,
+          providerName: r.provider.name,
+          models: r.models,
+          latencyMs: r.latencyMs,
+          version: r.version,
+          local: true as const
+        }
+      }
+      return { ok: false as const, providerId: r.providerId, message: r.message }
+    })
+  })
+
+  // ── Test connection to any provider with latency ──
+  ipcMain.handle('provider:test-connection', async (_event, payload: unknown): Promise<import('../../shared/ds-gui-api').ProviderTestConnectionResult> => {
+    const request = parseIpcPayload('provider:test-connection', z.object({
+      providerId: z.string().trim().min(1).max(64),
+      key: z.string().trim().max(MAX_BODY_BYTES).optional(),
+      baseUrl: z.string().trim().max(MAX_URL_LENGTH).optional(),
+      endpointFormat: z.string().trim().max(32).optional()
+    }).strict(), payload)
+    const start = Date.now()
+    const key = request.key ?? credentialStore?.getKeySync(request.providerId) ?? ''
+    const baseUrl = request.baseUrl ?? 'https://api.deepseek.com'
+    const { validateProviderKey } = await import('../services/provider-validation-service')
+    const result = await validateProviderKey(request.providerId, key, baseUrl, request.endpointFormat as import('../../../kun/src/contracts/model-endpoint-format').ModelEndpointFormat | undefined)
+    const latencyMs = Date.now() - start
+    if (result.ok) {
+      return { ok: true, providerId: request.providerId, latencyMs, message: `Connected in ${latencyMs}ms` }
+    }
+    return { ok: false, providerId: request.providerId, latencyMs, message: result.message }
+  })
+
+  // ── Toggle model favorite ──
+  ipcMain.handle('model:favorite-toggle', async (_event, payload: unknown): Promise<import('../../shared/ds-gui-api').ModelFavoriteToggleResult> => {
+    const request = parseIpcPayload('model:favorite-toggle', z.object({
+      providerId: z.string().trim().min(1).max(128),
+      modelId: z.string().trim().min(1).max(256)
+    }).strict(), payload)
+    const settings = await store.load()
+    const modelPicker = settings.provider.modelPicker
+    const existing = modelPicker.favorites.findIndex(
+      (f) => f.providerId === request.providerId && f.modelId === request.modelId
+    )
+    let favorited = false
+    if (existing >= 0) {
+      modelPicker.favorites.splice(existing, 1)
+      favorited = false
+    } else {
+      modelPicker.favorites.push({
+        providerId: request.providerId,
+        modelId: request.modelId,
+        addedAt: new Date().toISOString()
+      })
+      favorited = true
+    }
+    await applySettingsPatch({ provider: { modelPicker } } as any)
+    return { ok: true, favorited }
+  })
+
   ipcMain.handle('claw:status', async (): Promise<ClawRuntimeStatus> =>
     getClawRuntime()?.status() ?? {
       imServerRunning: false,

@@ -9,6 +9,7 @@ export function createTurnRecord(input: {
   threadId: string
   prompt: string
   model?: string
+  providerId?: string
   reasoningEffort?: TurnReasoningEffort
   attachmentIds?: string[]
   guiPlan?: GuiPlanContextJson
@@ -17,6 +18,7 @@ export function createTurnRecord(input: {
   status?: TurnStatus
 }): TurnEntity {
   const model = input.model?.trim()
+  const providerId = input.providerId?.trim()
   const reasoningEffort = normalizeReasoningEffort(input.reasoningEffort)
   return {
     id: input.id,
@@ -29,6 +31,7 @@ export function createTurnRecord(input: {
     activeSkillIds: [],
     injectedMemoryIds: [],
     ...(model ? { model } : {}),
+    ...(providerId ? { providerId } : {}),
     ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(input.guiPlan ? { guiPlan: input.guiPlan } : {}),
     ...(input.mode ? { mode: input.mode } : {}),

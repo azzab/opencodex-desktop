@@ -240,6 +240,8 @@ export type AgentLoopOptions = {
   approvalGate: ApprovalGate
   userInputGate: UserInputGate
   model: ModelClient
+  /** Per-turn model client resolver for multi-provider routing (M2.5). */
+  resolveTurnModelClient?: (providerId?: string | null) => ModelClient
   toolHost: ToolHost
   usage: UsageService
   events: RuntimeEventRecorder
@@ -319,6 +321,16 @@ export class AgentLoop {
 
   constructor(opts: AgentLoopOptions) {
     this.opts = opts
+  }
+
+  /**
+   * Resolve the model client for a given turn. Uses the turn's providerId
+   * to pick the right provider's API key when per-task routing is active.
+   * Falls back to the default client when no provider assignment or no
+   * resolver is configured.
+   */
+  private modelClientForTurn(turn?: { providerId?: string } | null): ModelClient {
+    return this.opts.resolveTurnModelClient?.(turn?.providerId) ?? this.opts.model
   }
 
   /**
@@ -880,7 +892,7 @@ export class AgentLoop {
     await this.recordPipelineStage(threadId, turnId, 'post_send', {
       model: request.model
     })
-    for await (const chunk of this.opts.model.stream(request)) {
+    for await (const chunk of this.modelClientForTurn(turn).stream(request)) {
       if (signal.aborted) return 'aborted'
       switch (chunk.kind) {
         case 'assistant_text_delta':

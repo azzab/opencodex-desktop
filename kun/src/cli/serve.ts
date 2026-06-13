@@ -10,7 +10,9 @@ import {
   kunConfigPathForDataDir,
   readKunConfigFile,
   readOptionalKunConfigFile,
-  type LoadedKunConfig
+  type LoadedKunConfig,
+  ProviderKeyConfigSchema,
+  type ProviderKeyConfig
 } from '../config/kun-config.js'
 
 /**
@@ -140,7 +142,8 @@ export function parseServeOptions(
     contextCompaction: loadedConfig?.config.contextCompaction,
     runtime: loadedConfig?.config.runtime,
     capabilities: loadedConfig?.config.capabilities ?? DEFAULT_SERVE_OPTIONS.capabilities,
-    hookSettings: loadedConfig?.config.hooks as KunHookSettingsV1 | undefined
+    hookSettings: loadedConfig?.config.hooks as KunHookSettingsV1 | undefined,
+    providerKeys: resolveProviderKeysFromEnv(env)
   }
   return ServeOptionsSchema.parse(merged)
 }
@@ -290,4 +293,32 @@ function envBoolean(value: string | undefined): boolean | undefined {
     return false
   }
   return true
+}
+
+/**
+ * Resolve provider API keys from the ephemeral KUN_PROVIDER_KEYS_JSON
+ * environment variable. This is the only injection path for per-provider
+ * keys at process spawn time — they are never read from config.json.
+ * Returns an empty record on missing/invalid JSON (never throws).
+ */
+function resolveProviderKeysFromEnv(
+  env: Record<string, string | undefined>
+): Record<string, ProviderKeyConfig> {
+  const raw = env.KUN_PROVIDER_KEYS_JSON?.trim()
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const record = parsed as Record<string, unknown>
+    const result: Record<string, ProviderKeyConfig> = {}
+    for (const [providerId, value] of Object.entries(record)) {
+      const parsed = ProviderKeyConfigSchema.safeParse(value)
+      if (parsed.success) {
+        result[providerId] = parsed.data
+      }
+    }
+    return result
+  } catch {
+    return {}
+  }
 }

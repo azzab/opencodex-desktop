@@ -183,6 +183,19 @@ export const DEFAULT_STORAGE_CONFIG: StorageConfig = {
   backend: 'hybrid'
 }
 
+export const ProviderKeyConfigSchema = z
+  .object({
+    apiKey: z.string().min(1),
+    baseUrl: z.string().optional(),
+    endpointFormat: z.preprocess(
+      normalizeModelEndpointFormat,
+      z.enum(MODEL_ENDPOINT_FORMATS)
+    ).default(DEFAULT_MODEL_ENDPOINT_FORMAT).optional()
+  })
+  .strict()
+
+export type ProviderKeyConfig = z.infer<typeof ProviderKeyConfigSchema>
+
 export const KunServeConfigSchema = z
   .object({
     host: z.string().optional(),
@@ -201,7 +214,7 @@ export const KunServeConfigSchema = z
     tokenEconomyMode: z.boolean().optional(),
     tokenEconomy: TokenEconomyConfigSchema.optional(),
     insecure: z.boolean().optional(),
-    storage: StorageConfigSchema.optional()
+    storage: StorageConfigSchema.optional(),
   })
   .strict()
 

@@ -56,6 +56,8 @@ export const TurnSchema = z.object({
   status: TurnStatus,
   prompt: z.string(),
   model: z.string().optional(),
+  /** Per-task provider ID (M2.5). When set, routes this turn to a non-default provider. */
+  providerId: z.string().optional(),
   reasoningEffort: TurnReasoningEffortSchema.optional(),
   /** Steered text queued by the user mid-turn. Cleared on completion. */
   steering: z.array(z.string()).default([]),
@@ -85,6 +87,13 @@ export const StartTurnRequest = z.object({
   prompt: z.string().min(1),
   displayText: z.string().optional(),
   model: z.string().optional(),
+  /**
+   * Optional provider ID for per-task model routing.
+   * When set, Kun resolves the model client for this provider instead
+   * of using the default serve provider. Paired with `model` to form
+   * a complete provider+model assignment (M2.5 per-task routing).
+   */
+  providerId: z.string().optional(),
   reasoningEffort: TurnReasoningEffortSchema.optional(),
   approvalPolicy: ApprovalPolicySchema.optional(),
   sandboxMode: SandboxModeSchema.optional(),

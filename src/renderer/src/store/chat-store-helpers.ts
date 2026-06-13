@@ -19,6 +19,7 @@ import {
 import { readBrowserStorageItem, writeBrowserStorageItem } from '../lib/browser-storage'
 
 const COMPOSER_MODEL_STORAGE_KEY = 'opencodex.composerModel'
+const COMPOSER_PROVIDER_STORAGE_KEY = 'opencodex.composerProviderId'
 const TURN_MODEL_STORAGE_KEY = 'opencodex.turnModelLabel'
 const CODE_WORKSPACE_ROOTS_STORAGE_KEY = 'opencodex.codeWorkspaceRoots.v1'
 export const MAX_CODE_WORKSPACE_ROOTS = 30
@@ -36,6 +37,15 @@ export function readStoredComposerModel(allowedIds: readonly string[]): string {
 
 export function persistComposerModel(model: string): void {
   writeBrowserStorageItem(COMPOSER_MODEL_STORAGE_KEY, model)
+}
+
+export function readStoredComposerProviderId(): string {
+  const raw = readBrowserStorageItem(COMPOSER_PROVIDER_STORAGE_KEY)
+  return raw ?? ''
+}
+
+export function persistComposerProviderId(providerId: string): void {
+  writeBrowserStorageItem(COMPOSER_PROVIDER_STORAGE_KEY, providerId)
 }
 
 export function compactCodeWorkspaceRoots(workspaceRoots: readonly (string | undefined | null)[]): string[] {

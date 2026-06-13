@@ -229,6 +229,8 @@ export class KunRuntimeProvider implements AgentProvider {
     options?: {
       mode?: KunThreadMode
       model?: string
+      /** Per-task provider ID for multi-provider routing (M2.5). */
+      providerId?: string
       reasoningEffort?: string
       displayText?: string
       guiPlan?: {
@@ -249,6 +251,9 @@ export class KunRuntimeProvider implements AgentProvider {
       model: options?.model,
       approvalPolicy: runtime.approvalPolicy,
       sandboxMode: runtime.sandboxMode
+    }
+    if (options?.providerId?.trim()) {
+      body.providerId = options.providerId.trim()
     }
     if (options?.reasoningEffort?.trim()) {
       body.reasoningEffort = options.reasoningEffort.trim()
@@ -295,11 +300,14 @@ export class KunRuntimeProvider implements AgentProvider {
   async reviewThread(
     threadId: string,
     target: ReviewTarget,
-    options?: { model?: string }
+    options?: { model?: string; providerId?: string }
   ): Promise<{ turnId: string; threadId: string; userMessageItemId?: string; reviewItemId?: string }> {
     const body: Record<string, unknown> = { target }
     if (options?.model?.trim()) {
       body.model = options.model.trim()
+    }
+    if (options?.providerId?.trim()) {
+      body.providerId = options.providerId.trim()
     }
     const response = await rendererRuntimeClient.runtimeRequest(
       kunThreadReviewPath(threadId),

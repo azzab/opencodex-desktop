@@ -6,14 +6,24 @@ import {
   OPENROUTER_PROVIDER_ID,
   STORED_ENCRYPTED_MARKER,
   type AppSettingsV1,
+  type FavoritedModel,
   type KunRuntimeSettingsV1,
+  type ModelPickerSettings,
   type ModelProviderCatalogModelV1,
   type ModelProviderProfilePatchV1,
   type ModelProviderProfileV1,
   type ModelProviderSettingsPatchV1,
   type ModelProviderSettingsV1,
+  type ModelTaskRole,
+  type PerTaskModelAssignment,
+  type PerTaskModelSettings,
   type ProviderCredentialStatus
 } from './app-settings-types'
+
+export type ResolvedSendModel = {
+  providerId?: string
+  modelId?: string
+}
 import { normalizeModelEndpointFormat } from './app-settings-types'
 import { getKunRuntimeSettings } from './app-settings-kun'
 import { normalizeDeepseekBaseUrl } from './app-settings-normalizers'
@@ -29,8 +39,18 @@ export function defaultModelProviderSettings(): ModelProviderSettingsV1 {
   return {
     apiKey: defaultProvider.apiKey,
     baseUrl: defaultProvider.baseUrl,
-    providers: [defaultProvider, openRouterProvider]
+    providers: [defaultProvider, openRouterProvider],
+    perTaskModel: { enabled: false, assignments: [] },
+    modelPicker: { freeOnly: false, favorites: [] }
   }
+}
+
+export function defaultPerTaskModelSettings(): PerTaskModelSettings {
+  return { enabled: false, assignments: [] }
+}
+
+export function defaultModelPickerSettings(): ModelPickerSettings {
+  return { freeOnly: false, favorites: [] }
 }
 
 export function normalizeModelProviderSettings(
@@ -59,11 +79,46 @@ export function normalizeModelProviderSettings(
       : provider)
   }
   const providers = [...providersById.values()]
+  const perTaskModel = normalizePerTaskModelSettings(input?.perTaskModel)
+  const modelPicker = normalizeModelPickerSettings(input?.modelPicker)
   return {
     apiKey,
     baseUrl,
-    providers
+    providers,
+    perTaskModel,
+    modelPicker
   }
+}
+
+function normalizePerTaskModelSettings(
+  input: Partial<PerTaskModelSettings> | undefined
+): PerTaskModelSettings {
+  const defaults = defaultPerTaskModelSettings()
+  const enabled = typeof input?.enabled === 'boolean' ? input.enabled : defaults.enabled
+  const assignments: PerTaskModelAssignment[] = Array.isArray(input?.assignments)
+    ? input.assignments.filter((a) => a && typeof a.role === 'string').map((a) => ({
+        role: a.role as ModelTaskRole,
+        providerId: typeof a.providerId === 'string' ? normalizeProviderId(a.providerId) : '',
+        modelId: typeof a.modelId === 'string' ? a.modelId.trim() : '',
+        enabled: typeof a.enabled === 'boolean' ? a.enabled : true
+      }))
+    : defaults.assignments
+  return { enabled, assignments }
+}
+
+function normalizeModelPickerSettings(
+  input: Partial<ModelPickerSettings> | undefined
+): ModelPickerSettings {
+  const defaults = defaultModelPickerSettings()
+  const freeOnly = typeof input?.freeOnly === 'boolean' ? input.freeOnly : defaults.freeOnly
+  const favorites: FavoritedModel[] = Array.isArray(input?.favorites)
+    ? input.favorites.filter((f) => f && typeof f.providerId === 'string' && typeof f.modelId === 'string').map((f) => ({
+        providerId: normalizeProviderId(f.providerId),
+        modelId: f.modelId.trim(),
+        addedAt: typeof f.addedAt === 'string' ? f.addedAt : new Date().toISOString()
+      }))
+    : defaults.favorites
+  return { freeOnly, favorites }
 }
 
 export function mergeModelProviderSettings(
@@ -328,4 +383,75 @@ function normalizeProviderId(value: unknown): string {
   return typeof value === 'string'
     ? value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64)
     : ''
+}
+
+/**
+ * Map a thread mode (or similar context hint) to a task role for
+ * per-task model assignment lookups (M2.5).
+ */
+export function threadModeToTaskRole(mode?: string): ModelTaskRole {
+  switch (mode) {
+    case 'plan':
+      return 'plan'
+    case 'review':
+      return 'review'
+    case 'agent':
+    default:
+      return 'code'
+  }
+}
+
+/**
+ * Resolve a per-task model assignment for the given settings and role.
+ * Returns empty when per-task routing is disabled or no assignment matches.
+ */
+export function resolvePerTaskAssignment(
+  settings: AppSettingsV1,
+  role: ModelTaskRole
+): ResolvedSendModel {
+  const perTask = getModelProviderSettings(settings).perTaskModel
+  if (!perTask.enabled) return {}
+  const assignment = perTask.assignments.find(
+    (a) => a.enabled && a.role === role
+  )
+  if (!assignment) return {}
+  const providerId = assignment.providerId.trim()
+  const modelId = assignment.modelId.trim()
+  if (!providerId && !modelId) return {}
+  return {
+    ...(providerId ? { providerId } : {}),
+    ...(modelId ? { modelId } : {})
+  }
+}
+
+/**
+ * Resolve the effective send model for a turn by merging:
+ * 1. Explicit overrides (composer quick-switch / direct override)
+ * 2. Per-task assignment (if enabled and role matches)
+ * Returns the resolved { providerId, modelId } to use.
+ */
+export function resolveSendModel(
+  settings: AppSettingsV1,
+  options?: {
+    mode?: string
+    explicitProviderId?: string
+    explicitModelId?: string
+    role?: ModelTaskRole
+  }
+): ResolvedSendModel {
+  // Explicit overrides take highest priority
+  if (options?.explicitProviderId?.trim() || options?.explicitModelId?.trim()) {
+    return {
+      ...(options.explicitProviderId?.trim() ? { providerId: options.explicitProviderId.trim() } : {}),
+      ...(options.explicitModelId?.trim() ? { modelId: options.explicitModelId.trim() } : {})
+    }
+  }
+  // Per-task assignment
+  if (options?.role) {
+    return resolvePerTaskAssignment(settings, options.role)
+  }
+  if (options?.mode) {
+    return resolvePerTaskAssignment(settings, threadModeToTaskRole(options.mode))
+  }
+  return {}
 }

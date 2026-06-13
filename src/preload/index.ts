@@ -23,6 +23,12 @@ const api = {
     ipcRenderer.invoke('provider:delete-key', providerId),
   providerGetMaskedKey: (providerId) =>
     ipcRenderer.invoke('provider:masked-key', providerId),
+  detectLocalProviders: () =>
+    ipcRenderer.invoke('provider:detect-local'),
+  testProviderConnection: (payload) =>
+    ipcRenderer.invoke('provider:test-connection', payload),
+  toggleModelFavorite: (payload) =>
+    ipcRenderer.invoke('model:favorite-toggle', payload),
   getClawStatus: () => ipcRenderer.invoke('claw:status'),
   runClawTask: (taskId) =>
     ipcRenderer.invoke('claw:task:run', taskId),

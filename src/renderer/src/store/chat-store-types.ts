@@ -146,6 +146,8 @@ export type ChatState = {
   composerModel: string
   composerPickList: string[]
   composerModelGroups: ModelProviderModelGroup[]
+  /** Per-thread quick-switch provider for multi-provider routing (M2.5). */
+  composerProviderId: string
   queuedMessages: QueuedUserMessage[]
   watchTurnCompletion: Record<string, boolean>
   unreadThreadIds: Record<string, boolean>
@@ -160,6 +162,7 @@ export type ChatState = {
   appendLocalClawTurn: (userText: string, replyText: string) => void
   setError: (message: string | null) => void
   setComposerModel: (modelId: string) => void
+  setComposerProviderId: (providerId: string) => void
   loadComposerModels: () => Promise<void>
   setRoute: (r: AppRoute) => void
   openWrite: () => Promise<void>

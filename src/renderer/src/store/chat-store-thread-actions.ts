@@ -21,7 +21,7 @@ import {
 } from '../lib/thread-fork-registry'
 import { workspaceLabelFromPath } from '../lib/workspace-label'
 import { isInternalTemporaryWorkspace, normalizeWorkspaceRoot } from '../lib/workspace-path'
-import { buildClawRuntimePrompt, buildCodeRuntimePrompt, getActiveAgentApiKey } from '@shared/app-settings'
+import { buildClawRuntimePrompt, buildCodeRuntimePrompt, getActiveAgentApiKey, resolveSendModel } from '@shared/app-settings'
 import type { ChatState, ChatStoreGet, ChatStoreSet } from './chat-store-types'
 import {
   activeClawChannel,
@@ -575,9 +575,16 @@ export function createThreadActions(
         runtimeText = buildCodeRuntimePrompt(settings, trimmedText)
       }
       const runtimeDisplayText = channel ? displayText : (userDisplayText ?? trimmedText)
+      // Resolve per-task model assignment (M2.5): composer quick-switch provider > per-task routing > default
+      const sendModel = resolveSendModel(settings, {
+        mode,
+        explicitProviderId: get().composerProviderId.trim() || undefined,
+        explicitModelId: composerModel || undefined
+      })
       const { turnId, userMessageItemId } = await p.sendUserMessage(activeThreadId, runtimeText, {
         mode,
-        ...(composerModel ? { model: composerModel } : {}),
+        ...(sendModel.modelId ? { model: sendModel.modelId } : composerModel ? { model: composerModel } : {}),
+        ...(sendModel.providerId ? { providerId: sendModel.providerId } : {}),
         ...(reasoningEffort ? { reasoningEffort } : {}),
         ...(runtimeDisplayText ? { displayText: runtimeDisplayText } : {}),
         ...((queued?.guiPlan ?? overrides?.guiPlan) ? { guiPlan: queued?.guiPlan ?? overrides?.guiPlan } : {}),
@@ -719,8 +726,8 @@ export function createThreadActions(
     }
     let activeThreadId = get().activeThreadId
     try {
+      const settings = await rendererRuntimeClient.getSettings()
       if (!activeThreadId) {
-        const settings = await rendererRuntimeClient.getSettings()
         const workspaceRoot = normalizeWorkspaceRoot(settings.workspaceRoot)
         if (!workspaceRoot) {
           set({ error: i18n.t('common:workspaceRequiredToCreateThread') })
@@ -771,8 +778,15 @@ export function createThreadActions(
         currentTurnId: null,
         currentTurnUserId: null
       })
+      // Resolve per-task assignment for review (M2.5)
+      const reviewSendModel = resolveSendModel(settings, {
+        role: 'review',
+        explicitProviderId: get().composerProviderId.trim() || undefined,
+        explicitModelId: composerModel || undefined
+      })
       const { turnId, userMessageItemId } = await p.reviewThread(activeThreadId, target, {
-        ...(composerModel ? { model: composerModel } : {})
+        ...(reviewSendModel.modelId ? { model: reviewSendModel.modelId } : composerModel ? { model: composerModel } : {}),
+        ...(reviewSendModel.providerId ? { providerId: reviewSendModel.providerId } : {})
       })
       if (userMessageItemId && userModelChip) {
         rememberTurnModel(activeThreadId, userMessageItemId, userModelChip)

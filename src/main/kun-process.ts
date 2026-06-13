@@ -86,6 +86,7 @@ type KunChildLogCapture = {
   captureStdout: (chunk: Buffer | string) => void
   captureStderr: (chunk: Buffer | string) => void
   logLifecycle: (message: string) => void
+  setRedactValues: (values: string[]) => void
   close: () => Promise<void>
 }
 
@@ -117,10 +118,25 @@ function createKunChildLogCapture(pid: number | undefined): KunChildLogCapture {
   let stderrRemainder = ''
   let closed = false
   let pending = Promise.resolve()
+  let redactValues: string[] = []
+
+  const redact = (text: string): string => {
+    if (redactValues.length === 0) return text
+    let result = text
+    for (const value of redactValues) {
+      if (!value) continue
+      // Split-based replace to avoid regex escaping issues
+      while (result.includes(value)) {
+        result = result.replace(value, '<redacted>')
+      }
+    }
+    return result
+  }
 
   const writeLine = (stream: KunLogStream, message: string): void => {
+    const redacted = redact(message)
     pending = pending
-      .then(() => appendManagedLogLine('kun', formatKunLogLine(stream, pid, message)))
+      .then(() => appendManagedLogLine('kun', formatKunLogLine(stream, pid, redacted)))
       .catch(() => undefined)
   }
 
@@ -153,6 +169,9 @@ function createKunChildLogCapture(pid: number | undefined): KunChildLogCapture {
     logLifecycle(message) {
       if (closed) return
       writeLine('lifecycle', message)
+    },
+    setRedactValues(values) {
+      redactValues = values
     },
     async close() {
       if (closed) {
@@ -216,6 +235,21 @@ export async function startKunChild(
     )
   }
   const dataDir = resolveKunDataDir(runtime)
+  // Build provider key map from credential store for multi-provider routing (M2.5)
+  const providerKeys: Record<string, { apiKey: string; baseUrl?: string; endpointFormat?: string }> = {}
+  if (opts?.credentialStore) {
+    const providerSettings = getModelProviderSettings(settings)
+    for (const provider of providerSettings.providers) {
+      const key = opts.credentialStore.getKeySync(provider.id)
+      if (key) {
+        providerKeys[provider.id] = {
+          apiKey: key,
+          ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
+          ...(provider.endpointFormat ? { endpointFormat: provider.endpointFormat } : {})
+        }
+      }
+    }
+  }
   await syncGuiManagedKunConfig(dataDir, runtime, {
     settings,
     scheduleMcp: {
@@ -243,6 +277,9 @@ export async function startKunChild(
     tokenEconomyMode: runtime.tokenEconomyMode,
     insecure: isKunRuntimeInsecure(runtime)
   })
+  const providerKeysJson = Object.keys(providerKeys).length > 0
+    ? JSON.stringify(providerKeys)
+    : undefined
   child = spawn(resolution.command, args, {
     env: {
       ...process.env,
@@ -251,7 +288,8 @@ export async function startKunChild(
       DEEPSEEK_API_KEY: runtime.apiKey
         || opts?.credentialStore?.getKeySync(runtime.providerId || 'deepseek')
         || process.env.DEEPSEEK_API_KEY
-        || ''
+        || '',
+      ...(providerKeysJson ? { KUN_PROVIDER_KEYS_JSON: providerKeysJson } : {})
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false
@@ -259,6 +297,13 @@ export async function startKunChild(
   const startedChild = child
   const startedLogCapture = createKunChildLogCapture(startedChild.pid)
   childLogCapture = startedLogCapture
+  // Redact any provider API key values that might leak through child stdout/stderr
+  const keyValuesToRedact = Object.values(providerKeys)
+    .map((pk) => pk.apiKey)
+    .filter((k): k is string => typeof k === 'string' && k.length > 0)
+  if (keyValuesToRedact.length > 0) {
+    startedLogCapture.setRedactValues(keyValuesToRedact)
+  }
   startedLogCapture.logLifecycle(`spawned on port ${runtime.port} using data dir ${dataDir}`)
   startedChild.stdout?.on('data', startedLogCapture.captureStdout)
   startedChild.stderr?.on('data', startedLogCapture.captureStderr)
@@ -339,7 +384,7 @@ export async function syncGuiManagedKunConfig(
       ...serve,
       endpointFormat: runtime.endpointFormat,
       storage,
-      tokenEconomy: tokenEconomyConfigForRuntime(runtime.tokenEconomy, existingTokenEconomy)
+      tokenEconomy: tokenEconomyConfigForRuntime(runtime.tokenEconomy, existingTokenEconomy),
     },
     models: modelConfigForRuntime(existingModels, options?.settings),
     contextCompaction: contextCompactionConfigForRuntime(runtime.contextCompaction, existingContextCompaction),

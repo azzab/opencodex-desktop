@@ -10,6 +10,7 @@ import {
   DEFAULT_KUN_MODEL,
   DEFAULT_STORAGE_CONFIG,
   ModelConfigSchema,
+  ProviderKeyConfigSchema,
   RuntimeTuningConfigSchema,
   StorageConfigSchema,
   TokenEconomyConfigSchema
@@ -59,7 +60,9 @@ export const ServeOptionsSchema = z.object({
   contextCompaction: ContextCompactionConfigSchema.optional(),
   runtime: RuntimeTuningConfigSchema.optional(),
   capabilities: KunCapabilitiesConfig.default(DEFAULT_KUN_CAPABILITIES_CONFIG),
-  hookSettings: KunHookSettingsConfigSchema.optional()
+  hookSettings: KunHookSettingsConfigSchema.optional(),
+  /** Multi-provider API keys for per-task model routing (M2.5). */
+  providerKeys: z.record(z.string().min(1), ProviderKeyConfigSchema).default({})
 })
 export type ServeOptions = z.infer<typeof ServeOptionsSchema>
 
@@ -77,5 +80,6 @@ export const DEFAULT_SERVE_OPTIONS: ServeOptions = {
   tokenEconomyMode: false,
   insecure: false,
   storage: DEFAULT_STORAGE_CONFIG,
-  capabilities: DEFAULT_KUN_CAPABILITIES_CONFIG
+  capabilities: DEFAULT_KUN_CAPABILITIES_CONFIG,
+  providerKeys: {}
 }

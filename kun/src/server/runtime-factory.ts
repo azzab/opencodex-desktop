@@ -10,6 +10,7 @@ import { InMemoryEventBus } from '../adapters/in-memory-event-bus.js'
 import { FileSessionStore, FileThreadStore, FileCheckpointStore, FileLoopStore } from '../adapters/file/index.js'
 import { HybridSessionStore, HybridThreadStore } from '../adapters/hybrid/index.js'
 import { DeepseekCompatModelClient } from '../adapters/model/deepseek-compat-model-client.js'
+import type { ModelClient } from '../ports/model-client.js'
 import type { ModelEndpointFormat } from '../contracts/model-endpoint-format.js'
 import type { ModelPricingUsdPerMillion } from '../adapters/model/model-pricing.js'
 import { CapabilityRegistry } from '../adapters/tool/capability-registry.js'
@@ -43,7 +44,8 @@ import {
   DEFAULT_STORAGE_CONFIG,
   expandHomePath,
   type RuntimeTuningConfig,
-  type StorageConfig
+  type StorageConfig,
+  type ProviderKeyConfig
 } from '../config/kun-config.js'
 import { InflightTracker } from '../loop/inflight-tracker.js'
 import { SteeringQueue } from '../loop/steering-queue.js'
@@ -99,6 +101,8 @@ export type KunServeRuntimeOptions = {
   contextCompaction?: ContextCompactionConfig
   runtime?: RuntimeTuningConfig
   storage?: StorageConfig
+  /** Multi-provider API keys for per-task model routing (M2.5). */
+  providerKeys?: Record<string, ProviderKeyConfig>
   capabilities?: KunCapabilitiesConfig
   /** Optional lifecycle hook settings for PreToolUse, PostToolUse, etc. */
   hookSettings?: KunHookSettingsV1
@@ -184,6 +188,26 @@ export async function createKunServeRuntime(
     endpointFormat: options.endpointFormat,
     modelPricingUsdPerMillion: modelPricingForProfiles(modelProfiles)
   })
+
+  /** Multi-provider model client factory for per-task provider routing (M2.5). */
+  const resolveModelClient = (providerId?: string | null): ModelClient => {
+    if (providerId && options.providerKeys?.[providerId]) {
+      const pk = options.providerKeys[providerId]
+      return new DeepseekCompatModelClient({
+        baseUrl: pk.baseUrl || options.baseUrl,
+        apiKey: pk.apiKey,
+        model: options.model,
+        endpointFormat: pk.endpointFormat || options.endpointFormat,
+        modelPricingUsdPerMillion: modelPricingForProfiles(modelProfiles)
+      })
+    }
+    return modelClient
+  }
+
+  /** Per-turn model client resolution. */
+  const resolveTurnModelClient = (turnProviderId?: string | null): ModelClient => {
+    return resolveModelClient(turnProviderId)
+  }
   const reviewService = new ReviewService({
     threadStore,
     turns: turnService,
@@ -396,6 +420,7 @@ export async function createKunServeRuntime(
     approvalGate,
     userInputGate,
     model: modelClient,
+    resolveTurnModelClient,
     toolHost,
     usage: usageService,
     events,

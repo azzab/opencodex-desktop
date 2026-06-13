@@ -96,6 +96,45 @@ export type ModelProviderCatalogModelV1 = {
 }
 export type ProviderCredentialStatus = 'connected' | 'invalid' | 'unvalidated'
 
+/**
+ * Task roles for per-task model assignment.
+ * Maps to Kilo/Cline "modes" pattern: each role can be routed to a specific provider+model.
+ */
+export type ModelTaskRole = 'plan' | 'code' | 'review' | 'cheap-subagent' | 'vision' | 'long-context'
+
+export const MODEL_TASK_ROLES: ModelTaskRole[] = ['plan', 'code', 'review', 'cheap-subagent', 'vision', 'long-context']
+
+export type PerTaskModelAssignment = {
+  /** The task role this assignment targets. */
+  role: ModelTaskRole
+  /** Provider ID to use (empty = use default). */
+  providerId: string
+  /** Model ID to use (empty = use default). */
+  modelId: string
+  /** Whether this assignment is enabled. */
+  enabled: boolean
+}
+
+export type PerTaskModelSettings = {
+  /** Whether per-task model assignment is enabled. */
+  enabled: boolean
+  /** Per-role assignments. Roles not present use the default model. */
+  assignments: PerTaskModelAssignment[]
+}
+
+export type FavoritedModel = {
+  providerId: string
+  modelId: string
+  addedAt: string
+}
+
+export type ModelPickerSettings = {
+  /** Free-only model filter (OpenRouter :free models). */
+  freeOnly: boolean
+  /** Favorited model IDs for quick access in the picker. */
+  favorites: FavoritedModel[]
+}
+
 export type ModelProviderProfileV1 = {
   id: string
   name: string
@@ -121,13 +160,23 @@ export type ModelProviderSettingsV1 = {
   apiKey: string
   baseUrl: string
   providers: ModelProviderProfileV1[]
+  /** Per-task model assignment settings. */
+  perTaskModel: PerTaskModelSettings
+  /** Model picker UI preferences. */
+  modelPicker: ModelPickerSettings
 }
 
 export type ModelProviderProfilePatchV1 = Partial<ModelProviderProfileV1>
 export type ModelProviderSettingsPatchV1 = Partial<
-  Omit<ModelProviderSettingsV1, 'providers'>
+  Omit<ModelProviderSettingsV1, 'providers' | 'perTaskModel' | 'modelPicker'>
 > & {
   providers?: ModelProviderProfilePatchV1[]
+  perTaskModel?: Partial<PerTaskModelSettings> & {
+    assignments?: Array<Partial<PerTaskModelAssignment>>
+  }
+  modelPicker?: Partial<ModelPickerSettings> & {
+    favorites?: FavoritedModel[]
+  }
 }
 
 export type UserAgentStackSkillRootScopeV1 = 'project' | 'user' | 'plugin'
