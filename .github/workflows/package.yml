@@ -169,15 +169,17 @@ jobs:
       - name: Build Linux AppImage
         run: npm run dist:linux
 
+      - name: Run release:readiness (linux platform, artifact-only strict)
+        run: npm run release:readiness -- --platform linux --artifact-only --strict --json
+
       - name: Restore Node ABI (for smoke)
         run: node ./scripts/electron-rebuild-native.cjs node
 
       - name: Run release smoke (headless via xvfb)
         run: xvfb-run --auto-servernum npm run smoke:release
+        env:
+          ELECTRON_NO_SANDBOX: '1'
         timeout-minutes: 3
-
-      - name: Run release:readiness (linux platform, artifact-only strict)
-        run: npm run release:readiness -- --platform linux --artifact-only --strict --json
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4

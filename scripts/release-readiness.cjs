@@ -298,14 +298,19 @@ function globArtifactExists(resolvedRoot, pattern, artifactExistsFn) {
     }
   }
 
-  // Fallback: check if the directory exists and try a simple readdir match
+  // Fallback: check if the directory exists and try a simple readdir match.
+  // The pattern may include a directory prefix (e.g. "dist/").  readdirSync
+  // returns bare filenames, so we strip the dir prefix from the pattern and
+  // match only the basename against directory entries.
   const { readdirSync, existsSync: fsExistsSync } = require('node:fs')
+  const { basename } = require('node:path')
   const dirPath = resolve(resolvedRoot, 'dist')
   if (!fsExistsSync(dirPath)) return false
   try {
     const entries = readdirSync(dirPath)
+    const namePattern = basename(pattern)
     // Convert glob to regex: escape dots, convert * to .*, support platform patterns
-    const escaped = pattern
+    const escaped = namePattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
       .replace(/\*/g, '.*')
     const re = new RegExp('^' + escaped + '$')
