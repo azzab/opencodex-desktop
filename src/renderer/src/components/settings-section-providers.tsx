@@ -68,6 +68,7 @@ export function ProvidersSettingsSection({ ctx }: { ctx: Record<string, any> }):
   const providers = form?.provider?.providers ?? []
   const [cardStates, setCardStates] = useState<Record<string, ProviderCardState>>({})
   const [oauthBusy, setOauthBusy] = useState(false)
+  const [oauthError, setOauthError] = useState<string | null>(null)
 
   const [customFormMode, setCustomFormMode] = useState<CustomProviderFormMode>({ mode: 'closed' })
   const [customForm, setCustomForm] = useState<CustomProviderFormState>({
@@ -139,12 +140,20 @@ export function ProvidersSettingsSection({ ctx }: { ctx: Record<string, any> }):
 
   const handleOAuth = async (): Promise<void> => {
     setOauthBusy(true)
+    setOauthError(null)
+    updateCardState(OPENROUTER_PROVIDER_ID, { error: null, notice: null })
     try {
       const result = await window.dsGui.providerOAuthStart()
       if (!result.ok) {
+        const msg = result.message || t('providerOAuthErrorGeneric')
+        const isCancel = /cancel|denied|refused/i.test(msg)
+        const noticeMsg = isCancel
+          ? (/denied/i.test(msg) ? t('providerOAuthDenied') : t('providerOAuthCancelled'))
+          : msg
+        setOauthError(msg)
         updateCardState(OPENROUTER_PROVIDER_ID, {
-          error: result.message,
-          notice: { tone: 'error', message: result.message }
+          error: msg,
+          notice: { tone: isCancel ? 'info' : 'error', message: noticeMsg }
         })
         return
       }
@@ -168,19 +177,22 @@ export function ProvidersSettingsSection({ ctx }: { ctx: Record<string, any> }):
         }
       })
 
+      setOauthError(null)
       setTimeout(() => {
         void handleDiscoverModels(OPENROUTER_PROVIDER_ID)
       }, 500)
 
       updateCardState(OPENROUTER_PROVIDER_ID, {
         notice: { tone: 'success', message: t('providerOAuthSuccess').replace('{{label}}', result.keyLabel) },
-        showKeyInput: false
+        showKeyInput: false,
+        error: null
       })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
+      setOauthError(msg)
       updateCardState(OPENROUTER_PROVIDER_ID, {
         error: msg,
-        notice: { tone: 'error', message: msg }
+        notice: { tone: 'error', message: t('providerOAuthError').replace('{{message}}', msg) }
       })
     } finally {
       setOauthBusy(false)
@@ -645,20 +657,26 @@ export function ProvidersSettingsSection({ ctx }: { ctx: Record<string, any> }):
 
         {/* Actions */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {/* OAuth button for OpenRouter */}
-          {isOpenRouter && !hasKey ? (
+          {/* OAuth button for OpenRouter — always visible and prominent */}
+          {isOpenRouter ? (
             <button
               type="button"
               onClick={() => void handleOAuth()}
               disabled={oauthBusy}
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-accent/90 disabled:opacity-60"
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-[13px] font-medium shadow-sm transition disabled:opacity-60 ${
+                hasKey
+                  ? 'border border-ds-border bg-ds-card text-ds-ink hover:bg-ds-hover'
+                  : 'bg-accent text-white hover:bg-accent/90'
+              }`}
             >
               {oauthBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Link className="h-4 w-4" />
               )}
-              {oauthBusy ? t('providerOAuthSigningIn') : t('providerOAuthSignIn')}
+              {oauthBusy
+                ? (hasKey ? t('providerOAuthReconnecting') : t('providerOAuthSigningIn'))
+                : (hasKey ? t('providerOAuthReconnect') : t('providerOAuthSignIn'))}
             </button>
           ) : null}
 

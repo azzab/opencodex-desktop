@@ -735,3 +735,238 @@ describe('ProvidersSettingsSection — custom provider UI copy (M2 remediation)'
     }
   })
 })
+
+describe('ProvidersSettingsSection — OpenRouter OAuth button visibility (M2 remediation)', () => {
+  afterEach(() => {
+    cleanup()
+    delete (window as any).dsGui
+  })
+
+  it('shows OAuth Sign-in button when OpenRouter has no stored key (unvalidated)', () => {
+    installDsGuiMock()
+    const ctx = buildCtx()
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    // The OAuth sign-in button must be visible and prominent
+    const signInBtn = screen.getByText('providerOAuthSignIn')
+    expect(signInBtn).toBeInTheDocument()
+    // When no key, it should be the primary accent style
+    expect(signInBtn.className).toContain('bg-accent')
+  })
+
+  it('shows OAuth Reconnect button when OpenRouter has a masked stored key', () => {
+    installDsGuiMock()
+    const providersWithKey = [
+      {
+        id: 'deepseek',
+        name: 'DeepSeek',
+        apiKey: '',
+        baseUrl: 'https://api.deepseek.com',
+        endpointFormat: 'chat_completions' as const,
+        models: ['deepseek-v4-pro'],
+        catalogModels: [],
+        credentialStatus: 'unvalidated' as const
+      },
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        apiKey: '',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        endpointFormat: 'chat_completions' as const,
+        models: [],
+        catalogModels: [],
+        credentialStatus: 'connected' as const,
+        credentialMaskedPreview: 'sk-or-…abc4',
+        credentialLabel: 'My OR Key'
+      }
+    ]
+    const ctx = buildCtx({
+      form: {
+        version: 1,
+        provider: {
+          providers: providersWithKey,
+          apiKey: '',
+          baseUrl: 'https://api.deepseek.com'
+        }
+      }
+    })
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    // OAuth button should still be visible — now as "Reconnect"
+    const reconnectBtn = screen.getByText('providerOAuthReconnect')
+    expect(reconnectBtn).toBeInTheDocument()
+    // When a key exists, it should be the secondary outline style (not primary accent)
+    expect(reconnectBtn.className).not.toContain('bg-accent')
+    expect(reconnectBtn.className).toContain('border')
+  })
+
+  it('clicking OAuth button calls providerOAuthStart', async () => {
+    const oauthFn = vi.fn().mockResolvedValue({
+      ok: true,
+      providerId: 'openrouter',
+      maskedPreview: 'sk-or-…xyz9',
+      keyLabel: 'Test OR Key',
+      keyLimit: 50,
+      keyUsage: 10
+    })
+    const updateFn = vi.fn()
+    const refreshCatalogFn = vi.fn().mockResolvedValue(undefined)
+    installDsGuiMock({ providerOAuthStart: oauthFn })
+    const ctx = buildCtx({ update: updateFn, refreshModelProviderCatalog: refreshCatalogFn })
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    const signInBtn = screen.getByText('providerOAuthSignIn')
+    fireEvent.click(signInBtn)
+
+    await waitFor(() => {
+      expect(oauthFn).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('OAuth success updates only masked metadata and triggers catalog refresh', async () => {
+    const oauthFn = vi.fn().mockResolvedValue({
+      ok: true,
+      providerId: 'openrouter',
+      maskedPreview: 'sk-or-…xyz9',
+      keyLabel: 'Test OR Key',
+      keyLimit: 50,
+      keyUsage: 10
+    })
+    const updateFn = vi.fn()
+    const refreshCatalogFn = vi.fn().mockResolvedValue(undefined)
+    installDsGuiMock({ providerOAuthStart: oauthFn })
+    const ctx = buildCtx({ update: updateFn, refreshModelProviderCatalog: refreshCatalogFn })
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    const signInBtn = screen.getByText('providerOAuthSignIn')
+    fireEvent.click(signInBtn)
+
+    await waitFor(() => {
+      expect(updateFn).toHaveBeenCalledTimes(1)
+    })
+
+    // Verify only masked metadata — never raw key
+    const updateCall = updateFn.mock.calls[0][0]
+    const savedState = JSON.stringify(updateCall)
+    expect(savedState).toContain('sk-or-…xyz9')
+    expect(savedState).not.toContain('sk-or-v1-')
+    // Catalog refresh must be triggered
+    await waitFor(() => {
+      expect(refreshCatalogFn).toHaveBeenCalledWith('openrouter')
+    }, { timeout: 1000 })
+  })
+
+  it('OAuth error/cancel state is visible to the user', async () => {
+    const oauthFn = vi.fn().mockResolvedValue({
+      ok: false,
+      message: 'OAuth error: access_denied'
+    })
+    installDsGuiMock({ providerOAuthStart: oauthFn })
+    const ctx = buildCtx()
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    const signInBtn = screen.getByText('providerOAuthSignIn')
+    fireEvent.click(signInBtn)
+
+    await waitFor(() => {
+      expect(oauthFn).toHaveBeenCalledTimes(1)
+    })
+
+    // Error notice must be visible in the DOM
+    await waitFor(() => {
+      // When denied, the translated key for denied should appear
+      const deniedMsg = screen.getByText('providerOAuthDenied')
+      expect(deniedMsg).toBeInTheDocument()
+    })
+  })
+
+  it('OAuth generic cancel message shows cancelled notice', async () => {
+    const oauthFn = vi.fn().mockResolvedValue({
+      ok: false,
+      message: 'User cancelled the OAuth flow.'
+    })
+    installDsGuiMock({ providerOAuthStart: oauthFn })
+    const ctx = buildCtx()
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    const signInBtn = screen.getByText('providerOAuthSignIn')
+    fireEvent.click(signInBtn)
+
+    await waitFor(() => {
+      expect(oauthFn).toHaveBeenCalledTimes(1)
+    })
+
+    await waitFor(() => {
+      const cancelledMsg = screen.getByText('providerOAuthCancelled')
+      expect(cancelledMsg).toBeInTheDocument()
+    })
+  })
+
+  it('OpenRouter provider card always has an OAuth button (RTL-safe)', () => {
+    installDsGuiMock()
+    const ctx = buildCtx()
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    // The OpenRouter card has dir="auto" for RTL safety
+    const orCard = screen.getByText('OpenRouter').closest('[dir]')
+    expect(orCard).toBeInTheDocument()
+    // OAuth button should be a child of the card
+    if (orCard) {
+      const oauthBtn = orCard.querySelector('button')
+      expect(oauthBtn).toBeInTheDocument()
+      expect(oauthBtn?.textContent).toMatch(/Sign|Reconnect|sign|reconnect|providerOAuth/i)
+    }
+  })
+
+  it('provider settings never include raw key material after OAuth', async () => {
+    const oauthFn = vi.fn().mockResolvedValue({
+      ok: true,
+      providerId: 'openrouter',
+      maskedPreview: 'sk-or-…safe1',
+      keyLabel: 'Safe Key',
+      keyLimit: null,
+      keyUsage: 0
+    })
+    const updateFn = vi.fn()
+    installDsGuiMock({ providerOAuthStart: oauthFn })
+    const ctx = buildCtx({ update: updateFn })
+    render(React.createElement(ProvidersSettingsSection, { ctx }))
+
+    fireEvent.click(screen.getByText('providerOAuthSignIn'))
+
+    await waitFor(() => {
+      expect(updateFn).toHaveBeenCalledTimes(1)
+    })
+
+    const updateCall = updateFn.mock.calls[0][0]
+    const savedState = JSON.stringify(updateCall)
+    // Must contain the masked preview
+    expect(savedState).toContain('sk-or-…safe1')
+    // Must NEVER contain raw key patterns
+    expect(savedState).not.toMatch(/sk-or-v1-[a-zA-Z0-9]{20,}/)
+    expect(savedState).not.toContain('api_key')
+  })
+
+  it('en+zh+ar i18n keys exist for OAuth reconnect and error states', async () => {
+    const en = await import('../locales/en/settings.json')
+    const ar = await import('../locales/ar/settings.json')
+    const zh = await import('../locales/zh/settings.json')
+
+    const requiredKeys = [
+      'providerOAuthReconnect',
+      'providerOAuthReconnecting',
+      'providerOAuthCancelled',
+      'providerOAuthDenied',
+      'providerOAuthError',
+      'providerOAuthErrorGeneric'
+    ] as const
+
+    for (const locale of [en.default, ar.default, zh.default]) {
+      for (const key of requiredKeys) {
+        expect(locale[key]).toBeDefined()
+        expect(typeof locale[key]).toBe('string')
+        expect(locale[key].length).toBeGreaterThan(0)
+      }
+    }
+  })
+})
