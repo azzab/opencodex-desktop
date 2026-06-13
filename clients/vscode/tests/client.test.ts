@@ -1,7 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import { OpenCodexVsCodeClient } from '../src/client.js'
 
-// Mock global fetch
 const originalFetch = globalThis.fetch
 
 function mockFetch(responses: Record<string, { ok: boolean; status: number; body: string }>): void {
@@ -126,6 +125,27 @@ describe('OpenCodexVsCodeClient', () => {
     })
   })
 
+  it('sends a turn with context attachments', async () => {
+    mockFetch({
+      '/v1/threads/t1/turns': {
+        ok: true,
+        status: 202,
+        body: JSON.stringify({ threadId: 't1', turnId: 'turn_c1' })
+      }
+    })
+    const client = new OpenCodexVsCodeClient('127.0.0.1', 18999, '')
+    const result = await client.sendTurn('t1', 'Fix this', 'agent', {
+      context: [{ type: 'file', path: 'src/index.ts', content: 'console.log("hi")' }]
+    })
+    expect(result.ok).toBe(true)
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:18999/v1/threads/t1/turns',
+      expect.objectContaining({
+        body: expect.stringContaining('"context"')
+      })
+    )
+  })
+
   it('lists approvals', async () => {
     mockFetch({
       '/v1/approvals': {
@@ -155,5 +175,34 @@ describe('OpenCodexVsCodeClient', () => {
     const client = new OpenCodexVsCodeClient('127.0.0.1', 18999, '')
     const result = await client.respondApproval('a1', 'allow')
     expect(result).toEqual({ ok: true, value: { ok: true } })
+  })
+
+  it('approves a file change', async () => {
+    mockFetch({
+      '/v1/threads/t1/turns/turn_1/changes/change_1': {
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ ok: true })
+      }
+    })
+    const client = new OpenCodexVsCodeClient('127.0.0.1', 18999, '')
+    const result = await client.approveFileChange('t1', 'turn_1', 'change_1', 'allow')
+    expect(result).toEqual({ ok: true, value: { ok: true } })
+  })
+
+  it('fetches model state', async () => {
+    mockFetch({
+      '/v1/state': {
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ model: 'deepseek-v4-pro', provider: 'deepseek', mode: 'agent' })
+      }
+    })
+    const client = new OpenCodexVsCodeClient('127.0.0.1', 18999, '')
+    const result = await client.getModelState()
+    expect(result).toEqual({
+      ok: true,
+      value: { model: 'deepseek-v4-pro', provider: 'deepseek', mode: 'agent' }
+    })
   })
 })

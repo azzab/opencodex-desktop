@@ -48,6 +48,26 @@ export type VsCodeSseEvent = {
   data: string
 }
 
+export type VsCodeContextItem = {
+  type: 'file' | 'selection' | 'terminal'
+  path?: string
+  content: string
+  language?: string
+  startLine?: number
+  endLine?: number
+}
+
+export type VsCodeFileChange = {
+  eventId: string
+  threadId: string
+  turnId: string
+  toolName: string
+  relativePath: string
+  original: string
+  proposed: string
+  approved: boolean
+}
+
 export class OpenCodexVsCodeClient {
   private baseUrl: string
   private token: string
@@ -193,12 +213,19 @@ export class OpenCodexVsCodeClient {
   async sendTurn(
     threadId: string,
     prompt: string,
-    mode: 'agent' | 'plan' = 'agent'
+    mode: 'agent' | 'plan' = 'agent',
+    opts?: {
+      context?: VsCodeContextItem[]
+      checkpointId?: string
+    }
   ): Promise<VsCodeCliResult<VsCodeTurn>> {
+    const body: Record<string, unknown> = { prompt, mode }
+    if (opts?.context && opts.context.length > 0) body.context = opts.context
+    if (opts?.checkpointId) body.checkpointId = opts.checkpointId
     const response = await this.request(
       'POST',
       `/v1/threads/${encodeURIComponent(threadId)}/turns`,
-      { prompt, mode }
+      body
     )
     if (!response.ok) return { ok: false, status: response.status, message: response.body }
     try {
@@ -272,6 +299,64 @@ export class OpenCodexVsCodeClient {
         status: 0,
         message: error instanceof Error ? error.message : String(error)
       }
+    }
+  }
+
+  /** Approve or deny a file change event through the desktop. */
+  async approveFileChange(
+    threadId: string,
+    turnId: string,
+    eventId: string,
+    decision: 'allow' | 'deny'
+  ): Promise<VsCodeCliResult<{ ok: true }>> {
+    const response = await this.request(
+      'POST',
+      `/v1/threads/${encodeURIComponent(threadId)}/turns/${encodeURIComponent(turnId)}/changes/${encodeURIComponent(eventId)}`,
+      { decision, reason: `IDE ${decision}` }
+    )
+    if (!response.ok) return { ok: false, status: response.status, message: response.body }
+    return { ok: true, value: { ok: true } }
+  }
+
+  /** Fetch workspace file list for @-mention picker. */
+  async listWorkspaceFiles(
+    workspaceRoot: string,
+    query?: string
+  ): Promise<VsCodeCliResult<string[]>> {
+    const params = new URLSearchParams()
+    params.set('root', workspaceRoot)
+    if (query) params.set('q', query)
+    const response = await this.request('GET', `/v1/files?${params.toString()}`)
+    if (!response.ok) return { ok: false, status: response.status, message: response.body }
+    try {
+      const data = JSON.parse(response.body) as Record<string, unknown>
+      const files = Array.isArray(data.files) ? data.files.map(String) : []
+      return { ok: true, value: files }
+    } catch {
+      return { ok: false, status: response.status, message: 'Invalid response' }
+    }
+  }
+
+  /** Get current model/provider state for status bar display. */
+  async getModelState(): Promise<VsCodeCliResult<{
+    model: string
+    provider: string
+    mode: 'agent' | 'plan'
+  }>> {
+    const response = await this.request('GET', '/v1/state')
+    if (!response.ok) return { ok: false, status: response.status, message: response.body }
+    try {
+      const data = JSON.parse(response.body) as Record<string, unknown>
+      return {
+        ok: true,
+        value: {
+          model: String(data.model ?? 'auto'),
+          provider: String(data.provider ?? ''),
+          mode: data.mode === 'plan' ? 'plan' : 'agent'
+        }
+      }
+    } catch {
+      return { ok: false, status: response.status, message: 'Invalid response' }
     }
   }
 }
