@@ -1260,3 +1260,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   M8 must list M-PROOF items as open operator gates. Lanes that fail after
   recovery rules are marked ❌ with evidence and skipped; all independent
   work continues — maximize overnight progress, never idle on a human.
+- 2026-06-13: The uncommitted operator-session setup was committed as a
+  logical series before resuming M2/M-B: M-series evidence-gated docs
+  `f57515c`, valid VS Code extension identity/packaging `37532e9`, and
+  workspace-bound VS Code sidebar/thread behavior `a53ee4e`. Pre-commit gate
+  was green: root typecheck/lint/tests, Kun typecheck/tests, root build,
+  VS Code typecheck/tests/package, and `git diff --check`.
