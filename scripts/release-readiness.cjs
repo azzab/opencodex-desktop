@@ -139,8 +139,8 @@ const MAC_ARM64_ARTIFACTS = [
 /**
  * Windows NSIS installer artifacts (checked on Windows or when the .exe is present).
  * The glob-style path means any matching installer counts.
- * The yml artifact uses a wildcard because electron-builder names it after the
- * update channel (latest.yml for stable, beta.yml for -beta, alpha.yml for -alpha).
+ * The yml artifacts use individual patterns because brace expansion
+ * ({latest,beta,alpha}) is not supported by all glob/minimatch versions.
  */
 const WIN_NSIS_ARTIFACTS = [
   {
@@ -155,15 +155,23 @@ const WIN_NSIS_ARTIFACTS = [
   },
   {
     id: 'winLatestYml',
-    path: 'dist/{latest,beta,alpha}.yml',
-    glob: true
+    path: 'dist/latest.yml',
+    glob: true,
+    optional: true,
+    ymlGroup: 'win'
+  },
+  {
+    id: 'winBetaYml',
+    path: 'dist/beta.yml',
+    glob: true,
+    optional: true,
+    ymlGroup: 'win'
   }
 ]
 
 /**
  * Linux AppImage artifacts (checked on Linux or when the .AppImage is present).
- * The yml artifact uses a wildcard to match the update-channel-based name
- * (latest-linux.yml for stable, beta-linux.yml for pre-release, etc.).
+ * Individual yml patterns avoid brace-expansion compatibility issues.
  */
 const LINUX_APPIMAGE_ARTIFACTS = [
   {
@@ -178,8 +186,17 @@ const LINUX_APPIMAGE_ARTIFACTS = [
   },
   {
     id: 'linuxLatestYml',
-    path: 'dist/{latest,beta,alpha}-linux.yml',
-    glob: true
+    path: 'dist/latest-linux.yml',
+    glob: true,
+    optional: true,
+    ymlGroup: 'linux'
+  },
+  {
+    id: 'linuxBetaYml',
+    path: 'dist/beta-linux.yml',
+    glob: true,
+    optional: true,
+    ymlGroup: 'linux'
   }
 ]
 
@@ -347,14 +364,19 @@ function artifactStatus(root, artifactExists = defaultArtifactExists, platform) 
       const absolutePath = resolve(resolvedRoot, artifact.path)
       present = Boolean(artifactExists(absolutePath, artifact))
     }
+    // Optional artifacts (e.g. beta.yml when latest.yml is present) are
+    // reported but don't generate blockers.
+    const optional = Boolean(artifact.optional)
     return {
       id: artifact.id,
       path: artifact.path,
       executable: Boolean(artifact.executable),
       glob: Boolean(artifact.glob),
+      optional,
+      ymlGroup: artifact.ymlGroup || undefined,
       present,
       platform: platform || undefined,
-      blocker: present ? undefined : `missing_artifact:${artifact.id}`
+      blocker: present || optional ? undefined : `missing_artifact:${artifact.id}`
     }
   })
 }
@@ -511,9 +533,33 @@ function createReleaseReadinessReport(options = {}) {
 
   if (artifactOnly) {
     // In artifact-only mode, readiness is purely about artifact presence.
-    const missingArtifacts = checks.artifacts.filter((a) => !a.present)
-    report.status = missingArtifacts.length === 0 ? 'ready' : 'blocked'
-    report.blockers = missingArtifacts.map((a) => a.blocker).filter(Boolean)
+    // Optional artifacts are reported but don't block individually.
+    // Groups: if any group has all-optional artifacts and none is present,
+    // that's a blocker.
+    const missingRequired = checks.artifacts.filter((a) => !a.present && !a.optional)
+
+    // Grouped optional checks: e.g. winLatestYml + winBetaYml are both optional,
+    // but at least one must exist.  Group by the ymlGroup property.
+    const ymlGroups = new Map()
+    for (const a of checks.artifacts) {
+      if (a.ymlGroup) {
+        if (!ymlGroups.has(a.ymlGroup)) ymlGroups.set(a.ymlGroup, [])
+        ymlGroups.get(a.ymlGroup).push(a)
+      }
+    }
+    const groupBlockers = []
+    for (const [group, artifacts] of ymlGroups) {
+      if (artifacts.every((a) => a.optional) && artifacts.every((a) => !a.present)) {
+        groupBlockers.push(`missing_yml_group:${group}`)
+      }
+    }
+
+    report.status =
+      missingRequired.length === 0 && groupBlockers.length === 0 ? 'ready' : 'blocked'
+    report.blockers = [
+      ...missingRequired.map((a) => a.blocker).filter(Boolean),
+      ...groupBlockers
+    ]
   } else {
     const classification = classifyReleaseReadiness(report)
     report.status = classification.status
