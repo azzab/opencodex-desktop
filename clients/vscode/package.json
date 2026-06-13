@@ -1,5 +1,7 @@
 {
   "name": "opencodex-vscode",
+  "publisher": "opencodex",
+  "type": "module",
   "displayName": "OpenCodex",
   "description": "OpenCodex IDE companion — thin app-server protocol adapter for Kun runtime",
   "version": "0.1.0",

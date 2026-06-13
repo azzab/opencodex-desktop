@@ -26,6 +26,8 @@ release.local.env
 #Template for AL projects for Dynamics 365 Business Central
 #launch.json folder
 .vscode/
+!clients/vscode/.vscode/
+!clients/vscode/.vscode/extensions.json
 #Cache folder
 .alcache/
 #Symbols folder
