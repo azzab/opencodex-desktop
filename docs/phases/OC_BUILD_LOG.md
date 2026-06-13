@@ -31,7 +31,9 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
 | M1 | Electron 42 Retry | `oc-m1-electron42` | dsv4-pro max | ✅ | $0.8769 total: initial stalled $0.6039 / in 590,648 out 221,918 cacheRead 42,452,480 cache 98.6%; recovery $0.2730 / in 383,460 out 86,491 cacheRead 8,532,736 cache 95.7% | Merged to `main`; post-merge full gate green (root 150 files/1184 tests, Kun 58 files passed / 1 skipped and 658 tests passed / 4 skipped); full audit 0; corrected Kun SSE smoke green before and after Electron 42; clean-room install gate green; DMG Electron `42.4.0`; PTY/native ABI proof | `11c4ab6` | Lane commit `aa0b660`; report `docs/PHASE_M1_ELECTRON_42_REPORT.md`; first post-merge gate was infrastructure-failed by ENOSPC during Electron extraction/temp repo creation, then generated artifacts were removed, Electron reinstalled, and the full gate reran green |
 | M1.5 | Test Release Prep (0.3.1-beta) | — (orchestrator) | gpt-5.5 high | ✅ | Orchestrator only; no pidev cost | Version bumped to `0.3.1-beta`; release notes written; `npm run dist:mac` green; unsigned x64+arm64 DMG/zip artifacts built; arm64 packaged app proves version `0.3.1-beta` and Electron `42.4.0`; packaged app opened from `dist/mac-arm64/OpenCodex Desktop.app`; VS Code client typecheck/tests/package green and VSIX installed into Cursor (`undefined_publisher.opencodex-vscode@0.1.0`) because Visual Studio Code was not installed | `e90e083` | Artifacts: `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-arm64.zip`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.dmg`, `dist/OpenCodex-Desktop-0.3.1-beta-mac-x64.zip`, `dist/latest-mac.yml`; no Apple signing/notary credentials detected, so `dist:mac:signed`, `verify:apple`, upload, publish, tag, and update-channel mutation were not run |
 | M2 | Provider Auth & Model Discovery | `oc-m2-providers`; retry `oc-m2-providers-r2` | dsv4-pro max | ❌ | $4.2374 total: initial $0.9801 / in=693,450 out=329,545 cacheRead=108,061,184 cache 99.4%; remediation1 no-tree-change $0.3687 / in=544,068 out=108,062 cacheRead=10,493,952 cache 95.1%; retry $0.2603 / in=272,730 out=130,584 cacheRead=7,742,848 cache 96.6%; fixture scrub $0.3857 / in=281,748 out=180,828 cacheRead=29,192,448 cache 99.0%; narrow cleanup $0.2005 / in=298,525 out=55,981 cacheRead=6,047,872 cache 95.3%; custom-provider remediation $0.6220 / in=680,471 out=194,292 cacheRead=43,301,888 cache 98.5%; OAuth remediation $0.2809 / in=250,073 out=168,213 cacheRead=7,108,480 cache 96.6%; safeStorage migration remediation $0.3744 / in=416,948 out=122,243 cacheRead=23,923,072 cache 98.3%; custom-provider catalog remediation $0.4637 / in=567,341 out=151,502 cacheRead=23,482,496 cache 97.6%; UI copy remediation $0.3011 / in=412,913 out=82,831 cacheRead=13,640,832 cache 97.1% | Automated gates green in `../ocx-m2`: focused M2 tests 7 files/183 tests; full gate `typecheck`, `lint` (0 errors, 7 warnings), root tests 154 files/1308 tests, Kun typecheck/tests 58 files passed / 1 skipped and 658 passed / 4 skipped, build, `git diff --check`; no untracked whitespace; no hardcoded/echoed key findings beyond definitions/flows. Source review accepted fail-closed safeStorage, OAuth callback tests, custom provider save→refresh, en/zh/ar copy. Blocked only on M2 manual proof. | — | Lane commit `39e0be4`; worktree `../ocx-m2`; not merged. Operator-only proof required before merge: real OpenRouter OAuth sign-in connects/lists models, pasted DeepSeek key validates, both masked in UI, and `config.json` contains no key material. |
-| M3 | IDE Everywhere | `oc-m3-ide` | dsv4-pro high | ⬜ | — | — | — | Antigravity/fork compat + Open VSX/Marketplace prep |
+| M-B.0 | Evidence Packs (providers + ide) | — (orchestrator) | gpt-5.5 high | ⬜ | — | — | — | Screenshot/behavior packs per REFERENCE_EVIDENCE_PLAYBOOK.md; blocks M2.5/M3 dispatch |
+| M2.5 | Provider Experience Parity | `oc-m2-5-provider-ux` | dsv4-pro max | ⬜ | — | — | — | Added 2026-06-13 after operator feedback; Kilo Code/Cline-class breadth + per-task model assignment; depends on M2 merge |
+| M3 | IDE Experience Parity | `oc-m3-ide` | dsv4-pro max | ⬜ | — | — | — | Upgraded 2026-06-13: chat panel, context attach, diff review, approvals, Antigravity hang root-cause; fork compat + publishing prep retained |
 | M4a | Mobile Pairing Host | `oc-m4a-pairing` | dsv4-pro max | ⬜ | — | — | — | Opt-in TLS LAN listener, QR pairing, device scopes |
 | M4b | Mobile Companion App | `oc-m4b-mobile` | dsv4-pro high | ⬜ | — | — | — | Expo/RN, depends on M4a |
 | M5 | Win/Linux Packaging | `oc-m5-packaging` | dsv4-pro high | ⬜ | — | — | — | CI proof on win+linux runners |
@@ -1230,3 +1232,31 @@ Status legend: ✅ merged · 🟡 in progress · 🔵 dispatched · ❌ blocked 
   in the untracked worker report. A narrow cleanup order was issued to restore
   the phase doc, localize a generic placeholder in en/zh/ar, and delete or
   neutralize the stale report without touching broad unrelated tests further.
+- 2026-06-13: Operator live-testing feedback after the M2 block and ad-hoc
+  VS Code session: (1) the v0.1.0 extension works but is "less than basic" —
+  M3 is upgraded to IDE Experience Parity (chat panel, context attach, diff
+  review, approvals) and raised to `--max`; (2) provider integration is
+  "nowhere near Kilo Code/Hermes class" — new Phase M2.5 Provider Experience
+  Parity added after M2; (3) evidence-first rule adopted: parity phases now
+  require committed screenshot/behavior packs per
+  docs/phases/REFERENCE_EVIDENCE_PLAYBOOK.md before dispatch (orchestrator
+  gathers via web + locally installed apps). (4) The 2026-06-13 operator
+  session produced uncommitted, tested VS Code fixes on main (publisher id,
+  type:module, workspace-awareness, project-bound threads) — commit them as
+  a logical series before Wave M-B. (5) Antigravity extension-host hang is
+  an M3 root-cause item. M2 remains blocked on operator-only proof (real
+  OAuth connect, key paste, masked UI, clean config.json).
+- 2026-06-13: Operator ran the M2 lane dev app: Providers section renders but
+  NO visible OpenRouter OAuth sign-in control exists in the UI — failed proof
+  item; same-id remediation required to surface the PKCE flow (button →
+  system browser → loopback callback → encrypted key → models listed).
+- 2026-06-13: Operator authorized an OVERNIGHT autonomous run: after the
+  OAuth-UI remediation passes automated gates (mocked PKCE integration test,
+  masked-rendering tests, zero key material in config.json/exports), M2 may
+  merge WITHOUT the live operator proof. All operator-only proof items are
+  deferred to a mandatory "M-PROOF" checkpoint (live OAuth connect lists
+  models; real DeepSeek key validates; masked UI; clean config.json; physical-
+  device mobile smoke) that must be completed before v0.4.0 release claims —
+  M8 must list M-PROOF items as open operator gates. Lanes that fail after
+  recovery rules are marked ❌ with evidence and skipped; all independent
+  work continues — maximize overnight progress, never idle on a human.

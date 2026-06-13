@@ -47,8 +47,10 @@ upstream ports, and coding-loop quality. Same wave protocol and ledger.
 | M2 | [Provider Auth & Model Discovery](./PHASE_M2_PROVIDER_AUTH_MODEL_DISCOVERY.md) | pidev | `--max` | `oc-m2-providers` | `../ocx-m2` | H12 | OAuth PKCE + safeStorage proofs; no key material outside encrypted store |
 | **Wave M-A.5 — orchestrator checkpoint** | | | | | | | |
 | M1.5 | Test Release Prep (0.3.1-beta) | orchestrator | gpt-5.5 high | — | main | M1 merged | release notes written; mac DMG artifacts built on Electron 42 (signed if `MAC_SIGN` creds present, else unsigned-beta with unquarantine notes); artifact paths reported to operator; NO upload/publish |
-| **Wave M-B — parallel ×2** | | | | | | | |
-| M3 | [IDE Everywhere](./PHASE_M3_IDE_EVERYWHERE.md) | pidev | `--thinking high` | `oc-m3-ide` | `../ocx-m3` | M1.5 done | .vsix installs in a real fork; cross-client session parity proven |
+| **Wave M-B — evidence packs, then parallel ×3** | | | | | | | |
+| M-B.0 | Evidence packs: `docs/reference-evidence/{providers,ide}/` per [REFERENCE_EVIDENCE_PLAYBOOK.md](./REFERENCE_EVIDENCE_PLAYBOOK.md) | orchestrator | gpt-5.5 high | — | main | M-A merged | EVIDENCE.md + screenshots committed for both areas; P1 rows defined |
+| M2.5 | [Provider Experience Parity](./PHASE_M2_5_PROVIDER_EXPERIENCE_PARITY.md) | pidev | `--max` | `oc-m2-5-provider-ux` | `../ocx-m2-5` | M2 merged + evidence | P1 coverage table; 3-provider live proof; per-task routing proven |
+| M3 | [IDE Experience Parity](./PHASE_M3_IDE_EVERYWHERE.md) | pidev | `--max` | `oc-m3-ide` | `../ocx-m3` | M1.5 done + evidence | P1 coverage; chat-panel live smoke; .vsix installs in a real fork; parity test green |
 | M4a | [Mobile Pairing Host](./PHASE_M4A_MOBILE_PAIRING_HOST.md) | pidev | `--max` | `oc-m4a-pairing` | `../ocx-m4a` | M-A merged | default-off lsof proof; pairing/scope/revoke negative tests green |
 | **Wave M-C — parallel ×2** | | | | | | | |
 | M4b | [Mobile Companion App](./PHASE_M4B_MOBILE_APP.md) | pidev | `--thinking high` | `oc-m4b-mobile` | `../ocx-m4b` | M4a merged | device smoke: pair, stream, approve, revoke-kill |
