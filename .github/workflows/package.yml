@@ -197,14 +197,12 @@ jobs:
     needs: [build-macos, build-windows, build-linux]
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true') ||
-      (github.event_name == 'push' && env.OPERATOR_RELEASE_GATE == '1')
-    env:
-      OPERATOR_RELEASE_GATE: ${{ vars.OPERATOR_RELEASE_GATE || '0' }}
+      (github.event_name == 'push' && vars.OPERATOR_RELEASE_GATE == '1')
     steps:
       - name: Operator gate check
         run: |
-          echo "OPERATOR_RELEASE_GATE = ${OPERATOR_RELEASE_GATE}"
-          if [[ "${OPERATOR_RELEASE_GATE}" != "1" ]]; then
+          echo "OPERATOR_RELEASE_GATE = ${{ vars.OPERATOR_RELEASE_GATE || '0' }}"
+          if [[ "${{ vars.OPERATOR_RELEASE_GATE || '0' }}" != "1" ]]; then
             echo "::notice::Publish is gated behind OPERATOR_RELEASE_GATE=1. Skipping."
             exit 0
           fi
