@@ -153,7 +153,7 @@ jobs:
             libfuse2t64 \
             xvfb \
             libgtk-3-0t64 \
-            libnotify4t64 \
+            libnotify4 \
             libnss3 \
             libxss1 \
             libxtst6 \

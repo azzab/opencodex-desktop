@@ -27,10 +27,11 @@ if (rebuildResult.status !== 0) {
 }
 
 // Step 2: Run electron-builder
-console.log('[run-electron-builder] Step 2/3: electron-builder package')
-const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx'
+// On Windows, npx is a .cmd batch file which spawnSync cannot execute
+// directly (EINVAL).  Use shell:true on win32 so cmd.exe handles it.
+const isWin = process.platform === 'win32'
 const result = spawnSync(
-  npxCmd,
+  isWin ? 'npx.cmd' : 'npx',
   ['--yes', 'electron-builder@26.8.1', ...process.argv.slice(2)],
   {
     cwd: root,
@@ -39,7 +40,8 @@ const result = spawnSync(
       ELECTRON_BUILDER_CACHE: electronBuilderCache,
       ELECTRON_CACHE: electronCache
     },
-    stdio: 'inherit'
+    stdio: 'inherit',
+    shell: isWin
   }
 )
 
