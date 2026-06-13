@@ -7,14 +7,14 @@ const readiness = require('../../scripts/release-readiness.cjs')
 function readyEnv(): Record<string, string> {
   return {
     CSC_LINK: '/private/certs/developer-id.p12',
-    CSC_KEY_PASSWORD: 'super-secret-cert-password',
+    CSC_KEY_PASSWORD: 'fixture-cert-password',
     APPLE_API_KEY: '/private/certs/AuthKey_ABC123.p8',
     APPLE_API_KEY_ID: 'ABC123',
-    APPLE_API_ISSUER: 'issuer-secret',
+    APPLE_API_ISSUER: 'fixture-issuer-value',
     R2_BUCKET: 'opencodex-desktop',
     R2_ENDPOINT: 'https://example.invalid',
-    R2_ACCESS_KEY_ID: 'access-secret',
-    R2_SECRET_ACCESS_KEY: 'secret-secret',
+    R2_ACCESS_KEY_ID: 'fixture-access-value',
+    R2_SECRET_ACCESS_KEY: 'fixture-r2-value',
     R2_PUBLIC_BASE_URL: 'https://downloads.example.invalid',
     OPENCODEX_RELEASE_OPERATOR_APPROVED: '1',
     OPENCODEX_RELEASE_MAC_SIGNING_DECISION: 'signed-notarized',
@@ -54,11 +54,11 @@ describe('release readiness report', () => {
 
     expect(serialized).toContain('"CSC_LINK"')
     expect(serialized).toContain('"present":true')
-    expect(serialized).not.toContain('super-secret')
-    expect(serialized).not.toContain('access-secret')
-    expect(serialized).not.toContain('secret-secret')
+    expect(serialized).not.toContain('fixture-cert')
+    expect(serialized).not.toContain('fixture-access')
+    expect(serialized).not.toContain('fixture-r2-value')
     expect(serialized).not.toContain('/private/certs')
-    expect(serialized).not.toContain('issuer-secret')
+    expect(serialized).not.toContain('fixture-issuer')
   })
 
   it('blocks release authorization when operator-only gates are missing', () => {

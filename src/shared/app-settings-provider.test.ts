@@ -28,7 +28,7 @@ function settings(): AppSettingsV1 {
         {
           id: 'custom',
           name: 'Custom Provider',
-          apiKey: 'sk-custom',
+          apiKey: 'pk-fixture-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: 'responses',
           models: ['custom-model'],
@@ -80,7 +80,7 @@ describe('model provider settings', () => {
   it('resolves Kun runtime credentials from the selected provider', () => {
     const runtime = resolveKunRuntimeSettings(settings())
 
-    expect(runtime.apiKey).toBe('sk-custom')
+    expect(runtime.apiKey).toBe('pk-fixture-custom')
     expect(runtime.baseUrl).toBe('https://custom.example/v1')
     expect(runtime.endpointFormat).toBe('responses')
   })
@@ -121,7 +121,7 @@ describe('model provider settings', () => {
       providers: [{
         id: OPENROUTER_PROVIDER_ID,
         name: 'OpenRouter',
-        apiKey: 'sk-or-secret',
+        apiKey: 'pk-fixture-sentinel',
         baseUrl: DEFAULT_OPENROUTER_BASE_URL,
         endpointFormat: 'chat_completions',
         models: ['openai/gpt-4.1-mini'],
@@ -171,6 +171,6 @@ describe('model provider settings', () => {
         })
       })
     ])
-    expect(JSON.stringify(openRouter?.catalogModels)).not.toContain('sk-or-secret')
+    expect(JSON.stringify(openRouter?.catalogModels)).not.toContain('pk-fixture-sentinel')
   })
 })

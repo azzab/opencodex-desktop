@@ -85,7 +85,7 @@ describe('claw schedule MCP config', () => {
   })
 
   it('writes the gui_schedule server to the Kun MCP JSON config shape', () => {
-    const settings = createSettings({ port: 9787, secret: 'top-secret' })
+    const settings = createSettings({ port: 9787, secret: 'top-fixture' })
     const synced = buildSyncedClawScheduleMcpJson(
       {
         timeouts: { connect_timeout: 1 },
@@ -114,7 +114,7 @@ describe('claw schedule MCP config', () => {
           '--base-url',
           'http://127.0.0.1:9787',
           '--secret',
-          'top-secret'
+          'top-fixture'
         ],
         env: {
           ELECTRON_RUN_AS_NODE: '1'

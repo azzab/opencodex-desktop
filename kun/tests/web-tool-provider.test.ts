@@ -200,7 +200,7 @@ describe('Web tool provider', () => {
         'https://blocked.example.test/page': {
           url: 'https://blocked.example.test/page',
           finalUrl: 'https://blocked.example.test/page',
-          text: 'secret'
+          text: 'sensitive-fixture-content'
         }
       }
     })

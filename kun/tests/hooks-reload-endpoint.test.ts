@@ -120,7 +120,7 @@ describe('POST /v1/runtime/hooks/reload endpoint', () => {
   it('returns 401 when unauthorized', async () => {
     const runtime = await createKunServeRuntime({
       ...makeRuntimeOptions(dataDir),
-      runtimeToken: 'secret-token',
+      runtimeToken: 'fixture-token',
       insecure: false
     })
     try {

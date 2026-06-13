@@ -354,18 +354,18 @@ describe('app-ipc-schemas', () => {
   it('accepts partial provider profiles in settings patches', () => {
     const payload = settingsPatchSchema.parse({
       provider: {
-        apiKey: 'sk-updated',
+        apiKey: 'pk-fixture-updated',
         providers: [{
           id: 'deepseek',
-          apiKey: 'sk-updated'
+          apiKey: 'pk-fixture-updated'
         }]
       }
     })
 
-    expect(payload.provider?.apiKey).toBe('sk-updated')
+    expect(payload.provider?.apiKey).toBe('pk-fixture-updated')
     expect(payload.provider?.providers?.[0]).toEqual({
       id: 'deepseek',
-      apiKey: 'sk-updated'
+      apiKey: 'pk-fixture-updated'
     })
   })
 

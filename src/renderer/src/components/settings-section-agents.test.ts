@@ -483,7 +483,7 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(html).toContain('Ready CLI')
     expect(html).toContain('Missing CLI')
     expect(html).toContain('&lt;redacted&gt;')
-    expect(html).not.toContain('ghp_secret')
+    expect(html).not.toContain('token_fixture_value')
   })
 
   it('renders pure JSONL as a selectable storage backend', () => {
@@ -566,7 +566,7 @@ describe('AgentsSettingsSection Kun diagnostics smoke', () => {
     expect(html).toContain('Reasoning')
     expect(html).toContain('Tools')
     expect(html).toContain('$0.40')
-    expect(html).not.toContain('sk-openrouter-secret')
+    expect(html).not.toContain('pk-fixture-sentinel')
   })
 
   it('renders subagent enablement, cheap child model, budgets, and workflow presets', () => {

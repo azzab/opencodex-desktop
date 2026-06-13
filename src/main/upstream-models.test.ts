@@ -34,7 +34,7 @@ function settings(dataDir: string, model = 'settings-model'): AppSettingsV1 {
         {
           id: 'custom-provider',
           name: 'Custom Provider',
-          apiKey: 'sk-custom',
+          apiKey: 'pk-fixture-custom',
           baseUrl: 'https://custom.example/v1',
           endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
           models: ['custom-provider-model'],
@@ -218,7 +218,7 @@ describe('upstream model picker list', () => {
       provider: {
         id: 'openrouter',
         name: 'OpenRouter',
-        apiKey: 'sk-openrouter-secret',
+        apiKey: 'pk-fixture-sentinel',
         baseUrl: 'https://openrouter.ai/api/v1',
         endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
         models: []
@@ -246,14 +246,14 @@ describe('upstream model picker list', () => {
       url: 'https://openrouter.ai/api/v1/models',
       headers: expect.objectContaining({
         accept: 'application/json',
-        authorization: 'Bearer sk-openrouter-secret'
+        authorization: 'Bearer pk-fixture-sentinel'
       })
     }])
   })
 
   it('redacts provider secrets from catalog fetch errors', async () => {
     const fetchImpl = async (): Promise<Response> =>
-      new Response('Authorization: Bearer sk-openrouter-secret token=sk-openrouter-secret', {
+      new Response('Authorization: Bearer pk-fixture-sentinel token=pk-fixture-sentinel', {
         status: 401,
         headers: { 'content-type': 'text/plain' }
       })
@@ -262,7 +262,7 @@ describe('upstream model picker list', () => {
       provider: {
         id: 'openrouter',
         name: 'OpenRouter',
-        apiKey: 'sk-openrouter-secret',
+        apiKey: 'pk-fixture-sentinel',
         baseUrl: 'https://openrouter.ai/api/v1',
         endpointFormat: DEFAULT_MODEL_ENDPOINT_FORMAT,
         models: []
@@ -273,7 +273,7 @@ describe('upstream model picker list', () => {
     expect(result).toMatchObject({ ok: false, providerId: 'openrouter' })
     if (!result.ok) {
       expect(result.message).toContain('<redacted>')
-      expect(result.message).not.toContain('sk-openrouter-secret')
+      expect(result.message).not.toContain('pk-fixture-sentinel')
     }
   })
 })

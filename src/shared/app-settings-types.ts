@@ -70,6 +70,8 @@ export const DEFAULT_KUN_PORT = 18999
 export const DEFAULT_WEIXIN_BRIDGE_RPC_URL = 'http://127.0.0.1:18790/api/v1/admin/rpc'
 export const DEFAULT_MODEL_PROVIDER_ID = 'deepseek'
 export const OPENROUTER_PROVIDER_ID = 'openrouter'
+/** Marker stored in config.json instead of a plaintext key. */
+export const STORED_ENCRYPTED_MARKER = '<stored-encrypted>'
 export type ModelProviderPricingUsdPerMillionV1 = {
   input: number
   output: number
@@ -92,9 +94,12 @@ export type ModelProviderCatalogModelV1 = {
   pricingUsdPerMillion?: ModelProviderPricingUsdPerMillionV1
   capabilities: ModelProviderCapabilityMetadataV1
 }
+export type ProviderCredentialStatus = 'connected' | 'invalid' | 'unvalidated'
+
 export type ModelProviderProfileV1 = {
   id: string
   name: string
+  /** Plaintext key in memory only; persisted as <stored-encrypted> marker when credential store is active. */
   apiKey: string
   baseUrl: string
   endpointFormat: ModelEndpointFormat
@@ -102,6 +107,15 @@ export type ModelProviderProfileV1 = {
   catalogUpdatedAt?: string
   catalogError?: string
   catalogModels: ModelProviderCatalogModelV1[]
+  /** Credential status for UI display. */
+  credentialStatus?: ProviderCredentialStatus
+  /** Human-readable key label (e.g. "My OpenRouter Key"). */
+  credentialLabel?: string
+  /** Masked key preview for UI (e.g. "pk-fi…7890"). Never contains the full key. */
+  credentialMaskedPreview?: string
+  /** Key usage quota info (when available). */
+  credentialLimit?: number | null
+  credentialUsage?: number
 }
 export type ModelProviderSettingsV1 = {
   apiKey: string

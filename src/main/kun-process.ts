@@ -197,7 +197,10 @@ export function isKunChildRunning(): boolean {
   return child !== null && child.exitCode === null && child.signalCode === null
 }
 
-export async function startKunChild(settings: AppSettingsV1): Promise<void> {
+export async function startKunChild(
+  settings: AppSettingsV1,
+  opts?: { credentialStore?: { getKeySync(providerId: string): string } | null }
+): Promise<void> {
   const runtime = resolveKunRuntimeSettings(settings)
   if (isKunChildRunning()) return
   if (!runtime.autoStart) return
@@ -245,7 +248,10 @@ export async function startKunChild(settings: AppSettingsV1): Promise<void> {
       ...process.env,
       ELECTRON_RUN_AS_NODE: '1',
       KUN_RUNTIME_TOKEN: runtime.runtimeToken,
-      DEEPSEEK_API_KEY: runtime.apiKey || process.env.DEEPSEEK_API_KEY || ''
+      DEEPSEEK_API_KEY: runtime.apiKey
+        || opts?.credentialStore?.getKeySync(runtime.providerId || 'deepseek')
+        || process.env.DEEPSEEK_API_KEY
+        || ''
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false

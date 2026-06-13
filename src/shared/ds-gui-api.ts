@@ -142,6 +142,36 @@ export type ModelProviderCatalogRefreshResult =
       settings: AppSettingsV1
     }
   | { ok: false; message: string }
+/** OAuth result returned to the renderer. The raw API key is NEVER included —
+ *  it is stored inside the credential store in the main process before this
+ *  result is returned. The renderer receives only masked metadata. */
+export type ProviderOAuthResult =
+  | { ok: true; providerId: string; maskedPreview: string; keyLabel: string; keyLimit: number | null; keyUsage: number }
+  | { ok: false; message: string }
+export type ProviderKeyValidationPayload = {
+  providerId: string
+  key: string
+  baseUrl?: string
+  endpointFormat?: string
+}
+export type ProviderKeyValidationResult =
+  | { ok: true; providerId: string; keyLabel?: string; keyLimit?: number | null; keyUsage?: number }
+  | { ok: false; message: string }
+export type ProviderModelDiscoveryPayload = {
+  providerId: string
+}
+export type ProviderModelDiscoveryResult =
+  | { ok: true; catalogModels: ModelProviderCatalogModelV1[]; provider: ModelProviderProfileV1; settings: AppSettingsV1 }
+  | { ok: false; message: string }
+export type ProviderKeySaveResult =
+  | { ok: true; providerId: string; maskedPreview: string; persisted: boolean }
+  | { ok: false; message: string }
+export type ProviderKeyDeleteResult =
+  | { ok: true; providerId: string }
+  | { ok: false; message: string }
+export type ProviderMaskedKeyResult =
+  | { ok: true; providerId: string; maskedPreview: string; hasKey: boolean }
+  | { ok: false; message: string }
 export type ModelProviderModelGroup = {
   providerId: string
   label: string
@@ -468,4 +498,11 @@ export type DsGuiApi = {
   onRemoteRunnerApprovalDecision: (
     handler: (payload: RemoteRunnerApprovalDecisionPayload) => void
   ) => () => void
+  /** Provider OAuth / BYOK management. */
+  providerOAuthStart: () => Promise<ProviderOAuthResult>
+  providerValidateKey: (payload: ProviderKeyValidationPayload) => Promise<ProviderKeyValidationResult>
+  providerDiscoverModels: (payload: ProviderModelDiscoveryPayload) => Promise<ProviderModelDiscoveryResult>
+  providerSaveKey: (providerId: string, key: string) => Promise<ProviderKeySaveResult>
+  providerDeleteKey: (providerId: string) => Promise<ProviderKeyDeleteResult>
+  providerGetMaskedKey: (providerId: string) => Promise<ProviderMaskedKeyResult>
 }

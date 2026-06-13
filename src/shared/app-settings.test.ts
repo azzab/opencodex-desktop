@@ -675,7 +675,7 @@ describe('legacy Kun defaults migration', () => {
         binaryPath: '/usr/local/bin/deepseek',
         port: 8787,
         autoStart: false,
-        apiKey: 'sk-old',
+        apiKey: 'pk-fixture-old',
         baseUrl: 'https://api.deepseek.com',
         runtimeToken: 'old-token',
         extraCorsOrigins: [],
@@ -698,7 +698,7 @@ describe('legacy Kun defaults migration', () => {
       sandboxMode: 'read-only'
     }))
     expect(normalized.provider).toEqual(expect.objectContaining({
-      apiKey: 'sk-old',
+      apiKey: 'pk-fixture-old',
       baseUrl: 'https://api.deepseek.com'
     }))
     expect('agentProvider' in normalized).toBe(false)
@@ -792,14 +792,14 @@ describe('legacy Kun defaults migration', () => {
       ...settings(),
       agentProvider: 'deepseek-runtime',
       provider: {
-        apiKey: 'sk-default',
+        apiKey: 'pk-fixture-default',
         baseUrl: 'https://api.deepseek.com',
         providers: [
           ...defaultModelProviderSettings().providers,
           {
             id: 'custom-provider-2',
             name: 'Custom Provider',
-            apiKey: 'sk-custom',
+            apiKey: 'pk-fixture-custom',
             baseUrl: 'https://custom.example/v1',
             models: ['custom-model'],
             catalogModels: []
@@ -820,7 +820,7 @@ describe('legacy Kun defaults migration', () => {
         expect.objectContaining({
           id: 'custom-provider-2',
           name: 'Custom Provider',
-          apiKey: 'sk-custom',
+          apiKey: 'pk-fixture-custom',
           baseUrl: 'https://custom.example/v1',
           models: ['custom-model']
         })
@@ -829,7 +829,7 @@ describe('legacy Kun defaults migration', () => {
     expect(migrated.agents.kun.providerId).toBe('custom-provider-2')
     expect(resolveKunRuntimeSettings(migrated)).toEqual(
       expect.objectContaining({
-        apiKey: 'sk-custom',
+        apiKey: 'pk-fixture-custom',
         baseUrl: 'https://custom.example/v1'
       })
     )

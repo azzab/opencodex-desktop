@@ -51,15 +51,15 @@ describe('release readiness report', () => {
   it('reports secret key presence without exposing secret values', () => {
     const report = readiness.createReleaseReadinessReport({
       env: {
-        CSC_LINK: 'super-secret-cert',
-        CSC_KEY_PASSWORD: 'super-secret-password',
+        CSC_LINK: 'fixture-cert-value',
+        CSC_KEY_PASSWORD: 'fixture-password-value',
         APPLE_API_KEY: '/private/AuthKey_ABC.p8',
         APPLE_API_KEY_ID: 'ABC123',
-        APPLE_API_ISSUER: 'issuer-secret',
+        APPLE_API_ISSUER: 'fixture-issuer-value',
         R2_BUCKET: 'bucket-name',
         R2_ENDPOINT: 'https://example.invalid',
-        R2_ACCESS_KEY_ID: 'access-secret',
-        R2_SECRET_ACCESS_KEY: 'secret-secret',
+        R2_ACCESS_KEY_ID: 'fixture-access-value',
+        R2_SECRET_ACCESS_KEY: 'fixture-r2-value',
         R2_PUBLIC_BASE_URL: 'https://downloads.example.invalid'
       },
       artifactExists: () => true
@@ -68,9 +68,9 @@ describe('release readiness report', () => {
     const serialized = JSON.stringify(report)
     expect(serialized).toContain('"CSC_LINK"')
     expect(serialized).toContain('"present":true')
-    expect(serialized).not.toContain('super-secret')
-    expect(serialized).not.toContain('access-secret')
-    expect(serialized).not.toContain('secret-secret')
+    expect(serialized).not.toContain('fixture-cert')
+    expect(serialized).not.toContain('fixture-access')
+    expect(serialized).not.toContain('fixture-r2')
   })
 })
 ```

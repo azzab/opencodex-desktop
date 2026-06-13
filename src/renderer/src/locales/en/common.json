@@ -37,6 +37,7 @@
   "schedule": "Scheduled tasks",
   "loading": "Loading",
   "cancel": "Cancel",
+  "edit": "Edit",
   "confirm": "Confirm",
   "scheduleSubtitle": "Design scheduled tasks, or start them whenever you need.",
   "scheduleNewTask": "New task",

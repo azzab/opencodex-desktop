@@ -43,7 +43,7 @@ afterEach(() => {
 
 describe('rendererRuntimeClient', () => {
   it('caches settings reads until invalidated', async () => {
-    const getSettings = vi.fn(async () => settings('sk-1'))
+    const getSettings = vi.fn(async () => settings('pk-fixture-1'))
     vi.stubGlobal('window', {
       dsGui: {
         getSettings,
@@ -60,14 +60,14 @@ describe('rendererRuntimeClient', () => {
     const first = await rendererRuntimeClient.getSettings()
     const second = await rendererRuntimeClient.getSettings()
 
-    expect(first.agents.kun.apiKey).toBe('sk-1')
-    expect(second.agents.kun.apiKey).toBe('sk-1')
+    expect(first.agents.kun.apiKey).toBe('pk-fixture-1')
+    expect(second.agents.kun.apiKey).toBe('pk-fixture-1')
     expect(getSettings).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes the cache after setSettings', async () => {
-    const getSettings = vi.fn(async () => settings('sk-1'))
-    const setSettings = vi.fn(async () => settings('sk-2'))
+    const getSettings = vi.fn(async () => settings('pk-fixture-1'))
+    const setSettings = vi.fn(async () => settings('pk-fixture-2'))
     vi.stubGlobal('window', {
       dsGui: {
         getSettings,
@@ -85,8 +85,8 @@ describe('rendererRuntimeClient', () => {
     const next = await rendererRuntimeClient.setSettings({ workspaceRoot: '/tmp/next' })
     const cached = await rendererRuntimeClient.getSettings()
 
-    expect(next.agents.kun.apiKey).toBe('sk-2')
-    expect(cached.agents.kun.apiKey).toBe('sk-2')
+    expect(next.agents.kun.apiKey).toBe('pk-fixture-2')
+    expect(cached.agents.kun.apiKey).toBe('pk-fixture-2')
     expect(getSettings).toHaveBeenCalledTimes(1)
     expect(setSettings).toHaveBeenCalledTimes(1)
   })

@@ -335,7 +335,7 @@ describe('syncGuiManagedKunConfig', () => {
     const module = await import('./kun-process')
     const settings = createSettings('/tmp/fake-kun-child.js')
     settings.schedule.internal.port = 9788
-    settings.schedule.internal.secret = 'top-secret'
+    settings.schedule.internal.secret = 'top-fixture'
 
     await module.syncGuiManagedKunConfig(tempRoot, defaultKunRuntimeSettings(), {
       scheduleMcp: {
@@ -360,7 +360,7 @@ describe('syncGuiManagedKunConfig', () => {
         '--base-url',
         'http://127.0.0.1:9788',
         '--secret',
-        'top-secret'
+        'top-fixture'
       ],
       env: {
         ELECTRON_RUN_AS_NODE: '1'

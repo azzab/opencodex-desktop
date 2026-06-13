@@ -13,11 +13,11 @@ import { detectClawScheduledTaskRequest } from './claw-scheduled-task-detector'
 
 function settings(endpointFormat: ModelEndpointFormat): AppSettingsV1 {
   const provider = defaultModelProviderSettings()
-  provider.apiKey = 'sk-test'
+  provider.apiKey = 'pk-fixture-test'
   provider.baseUrl = 'https://model.example/v1'
   provider.providers[0] = {
     ...provider.providers[0],
-    apiKey: 'sk-test',
+    apiKey: 'pk-fixture-test',
     baseUrl: 'https://model.example/v1',
     endpointFormat
   }
@@ -104,8 +104,8 @@ describe('detectClawScheduledTaskRequest endpoint formats', () => {
       }
     })
     expect(calls[0]?.headers).toMatchObject({
-      Authorization: 'Bearer sk-test',
-      'x-api-key': 'sk-test',
+      Authorization: 'Bearer pk-fixture-test',
+      'x-api-key': 'pk-fixture-test',
       'anthropic-version': '2023-06-01'
     })
   })

@@ -120,7 +120,7 @@ describe('JsonSettingsStore', () => {
         version: 1,
         agents: {
           kun: {
-            apiKey: 'sk-existing',
+            apiKey: 'pk-fixture-existing',
             baseUrl: 'https://runtime.example/v1'
           }
         }
@@ -131,7 +131,7 @@ describe('JsonSettingsStore', () => {
     const store = new JsonSettingsStore(userDataDir)
     const loaded = await store.load()
 
-    expect(loaded.provider.apiKey).toBe('sk-existing')
+    expect(loaded.provider.apiKey).toBe('pk-fixture-existing')
     expect(loaded.provider.baseUrl).toBe('https://runtime.example/v1')
     expect(loaded.agents.kun.apiKey).toBe('')
     expect(loaded.agents.kun.baseUrl).toBe('')
@@ -149,7 +149,7 @@ describe('JsonSettingsStore', () => {
       JSON.stringify({
         version: 1,
         provider: {
-          apiKey: 'sk-legacy-provider'
+          apiKey: 'pk-fixture-legacy-provider'
         }
       }),
       'utf8'
@@ -158,8 +158,8 @@ describe('JsonSettingsStore', () => {
     const store = new JsonSettingsStore(currentUserDataDir)
     const loaded = await store.load()
 
-    expect(loaded.provider.apiKey).toBe('sk-legacy-provider')
-    expect(await readFile(currentSettingsPath, 'utf8')).toContain('sk-legacy-provider')
+    expect(loaded.provider.apiKey).toBe('pk-fixture-legacy-provider')
+    expect(await readFile(currentSettingsPath, 'utf8')).toContain('pk-fixture-legacy-provider')
   })
 
   it('creates the configured code workspace on load', async () => {

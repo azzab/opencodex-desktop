@@ -320,7 +320,7 @@ describe('DeepseekCompatModelClient', () => {
     }
     const client = new DeepseekCompatModelClient({
       baseUrl: 'https://anthropic.example/v1',
-      apiKey: 'sk-ant',
+      apiKey: 'pk-fixture-abc123',
       model: 'claude-4-sonnet',
       endpointFormat: 'messages',
       fetchImpl,
@@ -338,8 +338,8 @@ describe('DeepseekCompatModelClient', () => {
 
     expect(sentUrls[0]).toBe('https://anthropic.example/v1/messages')
     expect(sentHeaders[0]).toMatchObject({
-      Authorization: 'Bearer sk-ant',
-      'x-api-key': 'sk-ant',
+      Authorization: 'Bearer pk-fixture-abc123',
+      'x-api-key': 'pk-fixture-abc123',
       'anthropic-version': '2023-06-01'
     })
     expect(sentBodies[0]).toMatchObject({

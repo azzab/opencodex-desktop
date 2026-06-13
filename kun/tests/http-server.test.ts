@@ -96,7 +96,7 @@ describe('HTTP server', () => {
           kind: 'mcp',
           enabled: true,
           available: false,
-          reason: 'token=provider-secret'
+          reason: 'token=credential-fixture-value'
         }
       ],
       mcpServers: [
@@ -108,7 +108,7 @@ describe('HTTP server', () => {
           available: false,
           status: 'error',
           toolCount: 0,
-          lastError: 'Authorization: Bearer server-secret'
+          lastError: 'Authorization: Bearer server-fixture-token'
         }
       ],
       webProviders: [],
@@ -154,8 +154,8 @@ describe('HTTP server', () => {
       id: 'github',
       lastError: 'Authorization=<redacted>'
     })
-    expect(JSON.stringify(body)).not.toContain('provider-secret')
-    expect(JSON.stringify(body)).not.toContain('server-secret')
+    expect(JSON.stringify(body)).not.toContain('credential-fixture-value')
+    expect(JSON.stringify(body)).not.toContain('server-fixture-token')
   })
 
   it('requires auth for runtime tool diagnostics', async () => {
