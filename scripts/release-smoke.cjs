@@ -25,7 +25,13 @@ function cleanup() {
   rmSync(userDataDir, { recursive: true, force: true })
 }
 
-const child = spawn(electron, ['.'], {
+const electronArgs = ['.']
+if (process.platform === 'linux') {
+  // GitHub Actions runners can't set SUID on chrome-sandbox without root.
+  electronArgs.unshift('--no-sandbox')
+}
+
+const child = spawn(electron, electronArgs, {
   cwd: root,
   env: {
     ...process.env,
