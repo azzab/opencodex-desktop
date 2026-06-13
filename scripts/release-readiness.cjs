@@ -139,6 +139,8 @@ const MAC_ARM64_ARTIFACTS = [
 /**
  * Windows NSIS installer artifacts (checked on Windows or when the .exe is present).
  * The glob-style path means any matching installer counts.
+ * The yml artifact uses a wildcard because electron-builder names it after the
+ * update channel (latest.yml for stable, beta.yml for -beta, alpha.yml for -alpha).
  */
 const WIN_NSIS_ARTIFACTS = [
   {
@@ -153,12 +155,15 @@ const WIN_NSIS_ARTIFACTS = [
   },
   {
     id: 'winLatestYml',
-    path: 'dist/latest.yml'
+    path: 'dist/{latest,beta,alpha}.yml',
+    glob: true
   }
 ]
 
 /**
  * Linux AppImage artifacts (checked on Linux or when the .AppImage is present).
+ * The yml artifact uses a wildcard to match the update-channel-based name
+ * (latest-linux.yml for stable, beta-linux.yml for pre-release, etc.).
  */
 const LINUX_APPIMAGE_ARTIFACTS = [
   {
@@ -173,7 +178,8 @@ const LINUX_APPIMAGE_ARTIFACTS = [
   },
   {
     id: 'linuxLatestYml',
-    path: 'dist/latest-linux.yml'
+    path: 'dist/{latest,beta,alpha}-linux.yml',
+    glob: true
   }
 ]
 
@@ -309,9 +315,13 @@ function globArtifactExists(resolvedRoot, pattern, artifactExistsFn) {
   try {
     const entries = readdirSync(dirPath)
     const namePattern = basename(pattern)
-    // Convert glob to regex: escape dots, convert * to .*, support platform patterns
-    const escaped = namePattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    // Convert glob to regex:
+    // 1. Escape regex-special chars (except *, {, } which are glob operators)
+    // 2. Handle brace expansion: {a,b,c} → (a|b|c)
+    // 3. Convert glob * to regex .*
+    let escaped = namePattern
+      .replace(/[.+^$()|[\]\\]/g, '\\$&')
+      .replace(/\{([^{}]+)\}/g, (_, inner) => `(${inner.replace(/,/g, '|')})`)
       .replace(/\*/g, '.*')
     const re = new RegExp('^' + escaped + '$')
     return entries.some((entry) => re.test(entry))
