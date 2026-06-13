@@ -26,6 +26,13 @@ export type VsCodeTurn = {
   promptPreview: string
 }
 
+export type VsCodeCreateThreadRequest = {
+  workspaceRoot: string
+  title?: string
+  model?: string
+  mode?: 'agent' | 'plan'
+}
+
 export type VsCodeApproval = {
   id: string
   threadId: string
@@ -130,6 +137,38 @@ export class OpenCodexVsCodeClient {
 
   async getThread(threadId: string): Promise<VsCodeCliResult<VsCodeThread>> {
     const response = await this.request('GET', `/v1/threads/${encodeURIComponent(threadId)}`)
+    if (!response.ok) return { ok: false, status: response.status, message: response.body }
+    try {
+      const t = JSON.parse(response.body) as Record<string, unknown>
+      return {
+        ok: true,
+        value: {
+          id: String(t.id ?? ''),
+          title: String(t.title ?? ''),
+          workspaceRoot: String(t.workspace ?? t.workspaceRoot ?? ''),
+          model: String(t.model ?? ''),
+          mode: t.mode === 'plan' ? 'plan' as const : 'agent' as const,
+          status: (t.status === 'running' || t.status === 'archived' || t.status === 'deleted' ? t.status : 'idle') as VsCodeThread['status'],
+          createdAt: String(t.createdAt ?? ''),
+          updatedAt: String(t.updatedAt ?? '')
+        }
+      }
+    } catch {
+      return { ok: false, status: response.status, message: 'Invalid response' }
+    }
+  }
+
+  async createThread(request: VsCodeCreateThreadRequest): Promise<VsCodeCliResult<VsCodeThread>> {
+    const response = await this.request(
+      'POST',
+      '/v1/threads',
+      {
+        workspace: request.workspaceRoot,
+        title: request.title,
+        model: request.model ?? 'auto',
+        mode: request.mode ?? 'agent'
+      }
+    )
     if (!response.ok) return { ok: false, status: response.status, message: response.body }
     try {
       const t = JSON.parse(response.body) as Record<string, unknown>

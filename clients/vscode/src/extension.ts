@@ -6,6 +6,7 @@ import * as vscode from 'vscode'
 import { OpenCodexVsCodeClient } from './client.js'
 import { OpenCodexSidebarProvider } from './sidebar.js'
 import { OpenCodexStatusBar } from './status.js'
+import { filterThreadsForWorkspace } from './workspace.js'
 
 let statusBar: OpenCodexStatusBar | undefined
 let client: OpenCodexVsCodeClient | null = null
@@ -22,11 +23,15 @@ function getClient(): OpenCodexVsCodeClient | null {
   return client
 }
 
+function getWorkspaceRoot(): string {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? ''
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   client = buildClient()
 
   // Sidebar webview
-  const sidebarProvider = new OpenCodexSidebarProvider(getClient)
+  const sidebarProvider = new OpenCodexSidebarProvider(getClient, getWorkspaceRoot)
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('opencodex.sidebar', sidebarProvider)
   )
@@ -44,9 +49,11 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.window.showErrorMessage('OpenCodex: not connected')
         return
       }
+      const workspaceRoot = getWorkspaceRoot()
       const result = await c.listThreads()
       if (result.ok) {
-        const items = result.value.map((t) => ({
+        const threads = filterThreadsForWorkspace(result.value, workspaceRoot)
+        const items = threads.map((t) => ({
           label: t.title,
           description: `${t.status} · ${t.mode}`,
           detail: t.id
@@ -149,7 +156,14 @@ export function activate(context: vscode.ExtensionContext): void {
       if (e.affectsConfiguration('opencodex')) {
         client = buildClient()
         statusBar?.startPolling()
+        sidebarProvider.refresh()
       }
+    })
+  )
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      sidebarProvider.refresh()
     })
   )
 }

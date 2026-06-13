@@ -82,6 +82,34 @@ describe('OpenCodexVsCodeClient', () => {
     expect(result).toMatchObject({ ok: true, value: { id: 't1', mode: 'plan', status: 'running' } })
   })
 
+  it('creates a workspace-bound thread', async () => {
+    mockFetch({
+      '/v1/threads': {
+        ok: true,
+        status: 201,
+        body: JSON.stringify({ id: 't-new', title: 'New chat', workspace: '/repo', model: 'auto', mode: 'agent', status: 'idle', createdAt: '2026-01-01', updatedAt: '2026-01-01' })
+      }
+    })
+    const client = new OpenCodexVsCodeClient('127.0.0.1', 18999, '')
+    const result = await client.createThread({ workspaceRoot: '/repo', title: 'New chat' })
+    expect(result).toMatchObject({
+      ok: true,
+      value: { id: 't-new', workspaceRoot: '/repo', model: 'auto' }
+    })
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:18999/v1/threads',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          workspace: '/repo',
+          title: 'New chat',
+          model: 'auto',
+          mode: 'agent'
+        })
+      })
+    )
+  })
+
   it('sends a turn', async () => {
     mockFetch({
       '/v1/threads/t1/turns': {

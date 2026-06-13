@@ -3,6 +3,7 @@
  */
 import * as vscode from 'vscode'
 import { OpenCodexVsCodeClient } from './client.js'
+import { filterThreadsForWorkspace, workspaceLabel } from './workspace.js'
 
 /**
  * Parse a raw SSE chunk into a flat event record for the webview.
@@ -57,7 +58,8 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
   private activeStreamAbort: AbortController | null = null
 
   constructor(
-    private readonly getClient: () => OpenCodexVsCodeClient | null
+    private readonly getClient: () => OpenCodexVsCodeClient | null,
+    private readonly getWorkspaceRoot: () => string
   ) {}
 
   resolveWebviewView(
@@ -76,8 +78,13 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
     })
   }
 
-  refresh() {
-    this._view?.webview.postMessage({ command: 'threads', threads: [] })
+  refresh(): void {
+    this.postWorkspace()
+    const client = this.getClient()
+    if (client) {
+      void this.refreshThreads(client)
+      void this.refreshApprovals(client)
+    }
   }
 
   private async handleMessage(msg: Record<string, unknown>): Promise<void> {
@@ -89,6 +96,7 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
 
     switch (msg.command) {
       case 'ready':
+        this.postWorkspace()
         if (client) {
           this.refreshThreads(client)
           this.refreshApprovals(client)
@@ -99,6 +107,13 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
         const threadId = String(msg.threadId ?? '')
         if (client) {
           await this.loadThread(client, threadId)
+        }
+        break
+      }
+
+      case 'createThread': {
+        if (client) {
+          await this.createThread(client)
         }
         break
       }
@@ -126,8 +141,34 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
   private async refreshThreads(client: OpenCodexVsCodeClient): Promise<void> {
     const result = await client.listThreads()
     if (result.ok) {
-      this.post({ command: 'threads', threads: result.value })
+      const workspaceRoot = this.getWorkspaceRoot()
+      this.post({
+        command: 'threads',
+        threads: filterThreadsForWorkspace(result.value, workspaceRoot),
+        workspaceRoot,
+        workspaceLabel: workspaceLabel(workspaceRoot)
+      })
     }
+  }
+
+  private async createThread(client: OpenCodexVsCodeClient): Promise<void> {
+    const workspaceRoot = this.getWorkspaceRoot()
+    if (!workspaceRoot) {
+      this.post({ command: 'error', message: 'Open a project folder in VS Code before creating an OpenCodex thread.' })
+      return
+    }
+    const result = await client.createThread({
+      workspaceRoot,
+      title: workspaceLabel(workspaceRoot),
+      model: 'auto',
+      mode: 'agent'
+    })
+    if (!result.ok) {
+      this.post({ command: 'error', message: result.message })
+      return
+    }
+    this.post({ command: 'threadCreated', thread: result.value })
+    await this.refreshThreads(client)
   }
 
   private async refreshApprovals(client: OpenCodexVsCodeClient): Promise<void> {
@@ -240,6 +281,15 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage(message)
   }
 
+  private postWorkspace(): void {
+    const workspaceRoot = this.getWorkspaceRoot()
+    this.post({
+      command: 'workspace',
+      workspaceRoot,
+      workspaceLabel: workspaceLabel(workspaceRoot)
+    })
+  }
+
   private getHtmlContent(): string {
     // Inline the sidebar HTML (copied at build time via esbuild or direct read)
     return `<!DOCTYPE html>
@@ -259,6 +309,10 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
     .thread-item.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
     .thread-title { font-weight: 500; }
     .thread-meta { font-size: 11px; color: var(--vscode-descriptionForeground); }
+    .workspace-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .mini-btn { padding: 2px 7px; border: 1px solid var(--vscode-button-border); border-radius: 2px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); cursor: pointer; font-size: 11px; white-space: nowrap; }
+    .mini-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
     #transcript { max-height: 300px; overflow-y: auto; padding: 4px; border: 1px solid var(--vscode-sideBar-border); border-radius: 3px; font-size: 12px; }
     .transcript-item { padding: 2px 0; }
     .transcript-item .role { font-weight: 600; color: var(--vscode-textLink-foreground); }
@@ -281,6 +335,10 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
 <body>
   <div class="section">
     <div class="section-title">Threads</div>
+    <div class="workspace-row">
+      <div id="workspace-name" class="workspace-name">No folder open</div>
+      <button id="new-thread-btn" class="mini-btn" title="New project thread">New</button>
+    </div>
     <div id="thread-list"><div class="empty">Loading...</div></div>
   </div>
   <div class="section">
@@ -307,11 +365,10 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
       window.addEventListener('message', function(event) {
         const msg = event.data;
         switch (msg.command) {
-          case 'threads': renderThreads(msg.threads); break;
-          case 'threadDetail': document.getElementById('transcript').innerHTML =
-            '<div class="transcript-item"><span class="role">Thread: </span><span class="text">' + esc(msg.thread.title) + '</span></div>' +
-            '<div class="transcript-item" style="margin-top:4px"><span class="text" style="color:var(--vscode-descriptionForeground)">Workspace: ' + esc(msg.thread.workspaceRoot) + ' | ' + esc(msg.thread.model) + '</span></div>';
-            break;
+          case 'workspace': renderWorkspace(msg); break;
+          case 'threads': renderWorkspace(msg); renderThreads(msg.threads); break;
+          case 'threadCreated': activeThreadId = msg.thread.id; renderThreadDetail(msg.thread); break;
+          case 'threadDetail': renderThreadDetail(msg.thread); break;
           case 'transcript': renderTranscript(msg.threadId, msg.items); break;
           case 'approvals': renderApprovals(msg.approvals); break;
           case 'event': handleEvent(msg); break;
@@ -319,9 +376,22 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
         }
       });
 
+      function renderWorkspace(msg) {
+        const label = msg.workspaceLabel || 'No folder open';
+        const root = msg.workspaceRoot || '';
+        document.getElementById('workspace-name').textContent = root ? label : 'No folder open';
+        document.getElementById('workspace-name').title = root || 'Open a folder in VS Code';
+      }
+
       function renderThreads(threads) {
         const el = document.getElementById('thread-list');
-        if (!threads || threads.length === 0) { el.innerHTML = '<div class="empty">No threads</div>'; return; }
+        if (!threads || threads.length === 0) {
+          activeThreadId = null;
+          el.innerHTML = '<div class="empty">No threads for this project</div>';
+          document.getElementById('transcript').innerHTML = '<div class="empty">Create or select a project thread</div>';
+          return;
+        }
+        if (activeThreadId && !threads.some(function(t) { return t.id === activeThreadId; })) activeThreadId = null;
         el.innerHTML = threads.map(function(t) {
           return '<div class="thread-item' + (t.id === activeThreadId ? ' active' : '') + '" data-id="' + esc(t.id) + '"><div class="thread-title">' + esc(t.title) + '</div><div class="thread-meta">' + t.status + ' \u00b7 ' + t.mode + '</div></div>';
         }).join('');
@@ -332,6 +402,12 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
             renderThreads(threads);
           });
         });
+      }
+
+      function renderThreadDetail(thread) {
+        document.getElementById('transcript').innerHTML =
+          '<div class="transcript-item"><span class="role">Thread: </span><span class="text">' + esc(thread.title) + '</span></div>' +
+          '<div class="transcript-item" style="margin-top:4px"><span class="text" style="color:var(--vscode-descriptionForeground)">Workspace: ' + esc(thread.workspaceRoot) + ' | ' + esc(thread.model) + '</span></div>';
       }
 
       function renderTranscript(threadId, items) {
@@ -426,6 +502,10 @@ export class OpenCodexSidebarProvider implements vscode.WebviewViewProvider {
         if (!text || !activeThreadId) return;
         post('sendTurn', { threadId: activeThreadId, prompt: text });
         input.value = '';
+      });
+
+      document.getElementById('new-thread-btn').addEventListener('click', function() {
+        post('createThread', {});
       });
 
       document.getElementById('prompt-input').addEventListener('keydown', function(e) {
