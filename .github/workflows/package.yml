@@ -108,6 +108,14 @@ jobs:
         run: npm run dist:win
         shell: pwsh
 
+      - name: List dist artifacts (debug)
+        run: Get-ChildItem -Path dist -ErrorAction SilentlyContinue | Select-Object Name, Length || Write-Host "dist/ not found"
+        shell: pwsh
+
+      - name: Run release:readiness (win platform, artifact-only strict)
+        run: npm run release:readiness -- --platform win --artifact-only --strict --json
+        shell: pwsh
+
       - name: Restore Node ABI (for smoke)
         run: node ./scripts/electron-rebuild-native.cjs node
         shell: pwsh
