@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerSaveBlocker, Tray } from 'electron'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -77,6 +77,8 @@ import { webhookUrl } from './claw-runtime-helpers'
 import { isKunHealthResponseBody } from './kun-health'
 import { getTerminalService, resetTerminalService } from './services/terminal-service'
 import { RemoteRunnerService } from './services/remote-runner-service'
+import { MobilePairingService } from './services/mobile-pairing-service'
+import { MobileTlsListener } from './services/mobile-tls-listener'
 import {
   localizedApprovalTitle,
   localizedApprovalMessage,
@@ -205,6 +207,8 @@ let appBehavior: AppBehaviorConfigV1 = normalizeAppBehaviorSettings()
 let tray: Tray | null = null
 let isQuitting = false
 let remoteRunnerService: RemoteRunnerService | null = null
+let mobilePairingService: MobilePairingService | null = null
+let mobileAccessListener: MobileTlsListener | null = null
 
 type GuiUpdaterModule = typeof import('./gui-updater')
 
@@ -1053,6 +1057,7 @@ app.whenReady().then(async () => {
       configureLogger({ enabled: next.log.enabled, retentionDays: next.log.retentionDays })
     }
     const saved = await store.patch(partial)
+    cachedMobileAccessSettings = getKunRuntimeSettings(saved).mobileAccess
     await syncClawScheduleMcpConfig(saved, getClawScheduleMcpLaunchConfig()).catch((error) => {
       console.error('[claw-schedule-mcp] failed to sync config after settings change:', error)
     })
@@ -1148,6 +1153,51 @@ app.whenReady().then(async () => {
   }
   void initRemoteRunner()
 
+  // Initialize mobile pairing service — needed by IPC handlers
+  const mobileDataDir = join(app.getPath('userData'), 'mobile-access')
+  try { mkdirSync(mobileDataDir, { recursive: true }) } catch { /* ok */ }
+
+  // Cached reference updated on each settings load/apply
+  let cachedMobileAccessSettings = getKunRuntimeSettings(initial).mobileAccess
+
+  mobilePairingService = new MobilePairingService({
+    dataDir: mobileDataDir,
+    getSettings: () => cachedMobileAccessSettings,
+    saveSettings: async (ma) => {
+      cachedMobileAccessSettings = ma
+      await applySettingsPatch({ agents: { kun: { mobileAccess: ma } } })
+    }
+  })
+
+  // If mobile access is enabled on startup, start the TLS listener
+  const initialMa = getKunRuntimeSettings(initial).mobileAccess
+  if (initialMa.enabled) {
+    try {
+      const certDir = join(app.getPath('userData'), 'mobile-certs')
+      const newListener = new MobileTlsListener({
+        pairingService: mobilePairingService!,
+        port: initialMa.port,
+        host: initialMa.host,
+        certDir,
+        runtimeRequest: async (path, init) => {
+          const s = await store.load()
+          return runtimeRequest(s, path, init)
+        },
+        onAudit: (entry) => {
+          const currentMa = cachedMobileAccessSettings
+          const auditLog = [entry, ...currentMa.auditLog].slice(0, currentMa.maxAuditEntries)
+          cachedMobileAccessSettings = { ...cachedMobileAccessSettings, auditLog }
+          applySettingsPatch({ agents: { kun: { mobileAccess: { auditLog } as any } } }).catch(() => {})
+        }
+      })
+      await newListener.start()
+      mobileAccessListener = newListener
+      console.info('[opencodex-desktop] Mobile access TLS listener started on port', initialMa.port)
+    } catch (err) {
+      console.warn('[opencodex-desktop] Failed to start mobile access listener on startup:', err)
+    }
+  }
+
   registerAppIpcHandlers({
     store,
     credentialStore,
@@ -1177,6 +1227,9 @@ app.whenReady().then(async () => {
     logError,
     getTerminalService: () => getTerminalService(),
     getRemoteRunnerService: () => remoteRunnerService,
+    getMobilePairingService: () => mobilePairingService,
+    getMobileAccessListener: () => mobileAccessListener,
+    setMobileAccessListener: (listener) => { mobileAccessListener = listener },
     getActiveProjectDir: async () => {
       const settings = await store.load()
       const workspaceRoot = settings.workspaceRoot?.trim()

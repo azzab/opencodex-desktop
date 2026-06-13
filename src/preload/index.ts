@@ -243,6 +243,11 @@ const api = {
   remoteRunnerExec: (payload) => ipcRenderer.invoke('remote-runner:exec', payload),
   remoteRunnerStop: (hostId) => ipcRenderer.invoke('remote-runner:stop', hostId),
   remoteRunnerResume: (hostId) => ipcRenderer.invoke('remote-runner:resume', hostId),
+  getMobileAccessQrPayload: () => ipcRenderer.invoke('mobile-access:qr-payload'),
+  setMobileAccessEnabled: (enabled) => ipcRenderer.invoke('mobile-access:set-enabled', enabled),
+  revokeMobileAccessDevice: (deviceId) => ipcRenderer.invoke('mobile-access:revoke-device', deviceId),
+  revokeAllMobileAccessDevices: () => ipcRenderer.invoke('mobile-access:revoke-all'),
+  getMobileAccessStatus: () => ipcRenderer.invoke('mobile-access:status'),
   onRemoteRunnerApprovalRequired: (handler) => {
     const wrapped = (
       _: Electron.IpcRendererEvent,

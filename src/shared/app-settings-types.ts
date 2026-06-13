@@ -327,6 +327,8 @@ export type KunRuntimeSettingsV1 = {
   hooks: KunHookSettingsV1
   /** Remote runner hosts (SSH). Handshake status, trust management, and execution policy. */
   remoteRunners: KunRemoteRunnersSettingsV1
+  /** Opt-in TLS LAN listener for the mobile companion app. Default OFF. */
+  mobileAccess: MobileAccessSettingsV1
 }
 
 export type KunMcpSearchMode = 'direct' | 'search' | 'auto'
@@ -474,6 +476,51 @@ export type KunRemoteRunnersSettingsPatchV1 = Partial<Omit<RemoteRunnerSettingsV
   auditLog?: RemoteRunnerAuditEntryV1[]
 }
 
+export type MobileAccessDeviceV1 = {
+  id: string
+  name: string
+  tokenHash: string
+  createdAt: string
+  lastSeenAt: string
+}
+
+export type MobileAccessPairingCodeV1 = {
+  code: string
+  expiresAt: string
+}
+
+export type MobileAccessAuditEventV1 = {
+  id: string
+  timestamp: string
+  actor: 'host' | 'device' | 'system'
+  deviceId?: string
+  deviceName?: string
+  action: 'pairing_requested' | 'pairing_code_generated' | 'pairing_code_expired' | 'pairing_code_consumed' | 'device_paired' | 'device_revoked' | 'devices_revoked_all' | 'device_connected' | 'device_disconnected' | 'tls_listener_started' | 'tls_listener_stopped' | 'scope_denied' | 'token_invalid'
+  details?: string
+}
+
+export type MobileAccessHostCandidatesV1 = {
+  host: string
+  port: number
+}
+
+export type MobileAccessQrPayloadV1 = {
+  host: string
+  port: number
+  certFingerprint: string
+  pairingCode: string
+  expiresAt: string
+}
+
+export type MobileAccessSettingsV1 = {
+  enabled: boolean
+  port: number
+  host: string
+  devices: MobileAccessDeviceV1[]
+  auditLog: MobileAccessAuditEventV1[]
+  maxAuditEntries: number
+}
+
 /**
  * Compatibility shell kept because persisted settings still use the
  * `agents.kun` envelope. Prefer operating on the contained
@@ -548,6 +595,7 @@ export type KunRuntimeSettingsPatchV1 = Partial<
     loop?: Partial<KunLoopAutomationSettingsV1>
   }
   remoteRunners?: KunRemoteRunnersSettingsPatchV1
+  mobileAccess?: Partial<MobileAccessSettingsV1>
 }
 
 export type KunSettingsEnvelopePatchV1 = {

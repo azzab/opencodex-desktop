@@ -113,6 +113,9 @@ function registerOptions(overrides: Partial<Parameters<typeof import('./register
     getTerminalService: () => null,
     getRemoteRunnerService: () => null,
     getActiveProjectDir: async () => process.cwd(),
+    getMobilePairingService: () => null,
+    getMobileAccessListener: () => null,
+    setMobileAccessListener: () => {},
     ...overrides
   }
 }

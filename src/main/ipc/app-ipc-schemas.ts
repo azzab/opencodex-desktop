@@ -491,6 +491,42 @@ const kunRuntimePatchSchema = z.object({
       reason: z.string().max(MAX_CHANNEL_TEXT_LENGTH).optional()
     }).strict()).max(500).optional(),
     maxAuditEntries: z.number().int().positive().max(10_000).optional()
+  }).strict().optional(),
+  mobileAccess: z.object({
+    enabled: z.boolean().optional(),
+    port: z.number().int().positive().max(65535).optional(),
+    host: z.string().trim().min(1).max(256).optional(),
+    devices: z.array(z.object({
+      id: z.string().trim().min(1).max(MAX_ID_LENGTH),
+      name: z.string().trim().min(1).max(200),
+      tokenHash: z.string().trim().min(1).max(128),
+      createdAt: z.string().max(128),
+      lastSeenAt: z.string().max(128)
+    }).strict()).max(50).optional(),
+    auditLog: z.array(z.object({
+      id: z.string().min(1).max(MAX_ID_LENGTH),
+      timestamp: z.string().max(128),
+      actor: z.enum(['host', 'device', 'system']),
+      deviceId: z.string().max(MAX_ID_LENGTH).optional(),
+      deviceName: z.string().max(200).optional(),
+      action: z.enum([
+        'pairing_requested',
+        'pairing_code_generated',
+        'pairing_code_expired',
+        'pairing_code_consumed',
+        'device_paired',
+        'device_revoked',
+        'devices_revoked_all',
+        'device_connected',
+        'device_disconnected',
+        'tls_listener_started',
+        'tls_listener_stopped',
+        'scope_denied',
+        'token_invalid'
+      ]),
+      details: z.string().max(2000).optional()
+    }).strict()).max(500).optional(),
+    maxAuditEntries: z.number().int().positive().max(10_000).optional()
   }).strict().optional()
 }).strict()
 
@@ -1200,3 +1236,11 @@ export const remoteRunnerResumePayloadSchema = z
     hostId: z.string().trim().min(1).max(MAX_ID_LENGTH)
   })
   .strict()
+
+/* ------------------------------------------------------------------ */
+/*  Mobile Access IPC schemas                                         */
+/* ------------------------------------------------------------------ */
+
+export const mobileAccessDeviceIdSchema = z.string().trim().min(1).max(MAX_ID_LENGTH)
+
+export const mobileAccessEnabledSchema = z.boolean()

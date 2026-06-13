@@ -315,6 +315,43 @@ export type RemoteRunnerApprovalDecisionPayload = {
   decision: 'allow' | 'deny'
 }
 
+/* ------------------------------------------------------------------ */
+/*  Mobile Access                                                     */
+/* ------------------------------------------------------------------ */
+
+export type MobileAccessQrPayloadResult = {
+  ok: true
+  pairingCode: string
+  expiresAt: string
+  certFingerprint: string | null
+  hostCandidates: Array<{ host: string; port: number }>
+} | { ok: false; message: string }
+
+export type MobileAccessStatusResult = {
+  /** Whether the mobile access TLS listener is actively serving. */
+  listenerRunning: boolean
+  enabled: boolean
+  port: number
+  host: string
+  certFingerprint: string | null
+  hostCandidates: Array<{ host: string; port: number }>
+  devices: Array<{
+    id: string
+    name: string
+    createdAt: string
+    lastSeenAt: string
+  }>
+  auditLog: Array<{
+    id: string
+    timestamp: string
+    actor: string
+    deviceId?: string
+    deviceName?: string
+    action: string
+    details?: string
+  }>
+}
+
 export type DsGuiApi = {
   platform: string
   getSettings: () => Promise<AppSettingsV1>
@@ -505,4 +542,14 @@ export type DsGuiApi = {
   providerSaveKey: (providerId: string, key: string) => Promise<ProviderKeySaveResult>
   providerDeleteKey: (providerId: string) => Promise<ProviderKeyDeleteResult>
   providerGetMaskedKey: (providerId: string) => Promise<ProviderMaskedKeyResult>
+  /** Mobile access — QR pairing payload with real cert fingerprint + LAN host candidates. */
+  getMobileAccessQrPayload: () => Promise<MobileAccessQrPayloadResult>
+  /** Mobile access — set enabled and start/stop TLS listener. */
+  setMobileAccessEnabled: (enabled: boolean) => Promise<{ ok: boolean; message?: string }>
+  /** Mobile access — revoke a paired device via the pairing service. */
+  revokeMobileAccessDevice: (deviceId: string) => Promise<{ ok: boolean; deviceId: string }>
+  /** Mobile access — revoke all paired devices via the pairing service. */
+  revokeAllMobileAccessDevices: () => Promise<{ ok: boolean; count: number }>
+  /** Mobile access — get live status including listener state, devices, and audit log. */
+  getMobileAccessStatus: () => Promise<MobileAccessStatusResult>
 }

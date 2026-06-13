@@ -1,177 +1,132 @@
-# READY_FOR_ORCHESTRATOR_REVIEW — H11 8D Remediation
+# READY_FOR_ORCHESTRATOR_REVIEW — M4a Remediation (v3)
 
-**Branch:** `phase/h11-upstream`
-**Date:** 2026-06-12
-**Status:** ✅ All gates pass, remediation complete
-
----
-
-## 1. Remediation Summary
-
-The 8D port commit (0d1d2e7) claimed to port upstream 8e5da5d store/startup optimizations but only touched 4 lines
-in `hybrid-thread-store.ts` (added `rename` import, `Statement` type, and trivial refactors). The core 272-line
-upstream diff — usage backfill chunking, `usage_backfilled` flag, prepared-statement cache, thread-record cache,
-and metadata compaction — was entirely skipped.
-
-This remediation ports the safe subset of 8e5da5d that applies to our fork without changing the `ThreadStore`
-interface.
+**Branch:** `phase/m4a-pairing`
+**Date:** 2026-06-13
+**Status:** ✅ Full gate passes — real TLS integration tests + cert SAN fix
 
 ---
 
-## 2. Files Changed
+## Why v3 Was Needed
 
-```
-kun/src/adapters/hybrid/hybrid-thread-store.ts | 392 ++++++++++++++++++++-----
-scripts/postinstall.cjs                        |   5 +-
-2 files changed, 321 insertions(+), 76 deletions(-)
-```
+The v2 remediation was rejected: its "runtime proxy" tests called
+`mockRuntimeRequest` directly instead of driving requests through the real
+`MobileTlsListener` pipeline (authenticateDeviceToken → isRouteAllowed →
+handleRuntimeProxy). The tests were unit-level tests of helper functions,
+not integration tests of the listener.
 
-### 2.1 `hybrid-thread-store.ts` — Full Port of Safe Optimizations
+## v3 Remediation
 
-| Optimization | Status | Description |
-|---|---|---|
-| **Cached prepared statements** | ✅ Ported | `statementCache` Map + `cachedStatement()` method. Prevents better-sqlite3 from re-parsing SQL on every prepare() call in hot paths (`noteEventSeq`, `upsertIndexBestEffort`, `insertUsageEventsChunked`). |
-| **Thread record cache** | ✅ Ported | `threadRecordCache` Map (LRU, limit 8). Keys = file signatures (`size:mtimeMs`). Prevents re-reading multi-megabyte `messages.jsonl` on every `get()` call to the same thread. |
-| **Metadata compaction** | ✅ Ported | `maybeCompactMetadata()` rewrites `metadata.jsonl` into a single normalized snapshot when it exceeds 1MB. Uses atomic `tmp → fsync → rename`. Prevents quadratic growth (observed upstream: 4.4MB → 6.3KB for an 8-turn thread). |
-| **Usage events table + backfill** | ✅ Ported | `usage_events` table with indexes + `usage_backfilled` column (in-place migration via `addColumnIfMissing`). Chunked backfill (200 rows per transaction) with `yieldToEventLoop()` between chunks and between threads. Prevents synchronous better-sqlite3 from starving the event loop during startup. |
-| **Background backfill** | ✅ Ported (adapted) | `startBackfill()` initiates backfill in background. `ready()` awaits both init and backfill completion (our adaptation — upstream exposes a separate `waitForBackfill()` public method not in our `ThreadStore` interface). |
-| **`postinstall.cjs` fix** | ✅ Ported | `run()` function now accepts `options` parameter (was silently dropping `{ cwd: ... }`), needed for Electron-ABI better-sqlite3 prebuild fetch. |
+### 1. Real TLS Integration Tests (`mobile-tls-listener-integration.test.ts` — NEW)
 
-### 2.2 Preserved from 46e81b9 (SSE Batching)
+32 tests that start the actual `MobileTlsListener` on a loopback ephemeral port
+with a real `MobilePairingService`, issue a device token, send HTTPS requests
+(`rejectUnauthorized: false` for self-signed cert), and prove:
 
-The SSE batching from 46e81b9 (ported in 0d1d2e7) is preserved intact:
-- `src/shared/ds-gui-api.ts`: `SseEventPayload` uses `events[]`
-- `src/main/runtime-sse-ipc.ts`: batches events per network chunk
-- `src/renderer/src/agent/kun-mapper.ts`: `dispatchKunRuntimeEvents()` coalesces deltas
-- `src/renderer/src/agent/kun-runtime.ts`: batch-aware SSE handler with legacy fallback
-
----
-
-## 3. Exact Skipped Hunks (Non-Applicable to Our Fork)
-
-The following upstream 8e5da5d additions were **not** ported because they require
-interface changes not present in our `ThreadStore` port (`kun/src/ports/thread-store.ts`):
-
-| Upstream method | Reason for skipping | Code reference |
-|---|---|---|
-| `noteEvent(event: RuntimeEvent)` | Public method on `ThreadStore` interface — not in our port. Would record usage events in real-time via `usage_events` table. Our `SessionStore` (`hybrid-session-store.ts:31`) only calls `noteEventSeq`. | `ThreadStore` port lacks `noteEvent` |
-| `loadUsageRecords(options?)` | Public method on `ThreadStore` — not in our port. Returns `SessionUsageRecord[]`. Types `SessionUsageRecord` and `SessionLatestUsageSnapshot` do not exist in our fork. | `ThreadStore` port lacks this method |
-| `loadLatestUsageSnapshots(options?)` | Same as above — interface + type dependency gap. | `ThreadStore` port lacks this method |
-| `getEventSeqHighWater(threadId)` | Public method on `ThreadStore` — not in our port. | `ThreadStore` port lacks this method |
-| `waitForBackfill()` | Public method on `ThreadStore` — not in our port. We integrate backfill waiting into `ready()` instead. | `ThreadStore` port lacks this method |
-| `noteEventHighWater` / `noteEventHighWaterSync` | Redundant with our existing `noteEventSeq`/`noteEventSeqHighWaterSync`. Folded in. | Already covered |
-
-**Skipped helper functions** (no consumer): `usageRecordsFromRows`, `latestUsageSnapshotsFromRows`, `parseUsageSnapshot`, `diffUsage`, `diffNumber`, `diffOptionalNumber`, `hasUsage`.
-
-**Skipped types**: `SessionLatestUsageSnapshot`, `SessionUsageRecord`, `UsageRuntimeEvent` (extraneous — we use `RuntimeEvent & { kind: 'usage' }` inline in `scanEventsForBackfill`).
-
-**Kept but minimal**: `UsageRow` type and `usageRowFromEvent()` helper — needed for backfill serialization.
-
----
-
-## 4. Performance Numbers
-
-Benchmark: 20 threads × 10 turns each, cold-start = fresh index, warm-start = `usage_backfilled` flag set.
-
-| Metric | Before (0d1d2e7) | After (remediated) | Delta |
+| # | Requirement | Tests | Status |
 |---|---|---|---|
-| **Cold start** (20 threads) | 40ms avg | 63ms avg | +23ms (backfill overhead) |
-| **Warm start** (backfilled) | 113ms avg | 3.6ms avg | **31× faster** |
-| **List 20 threads** | 3.1ms | 2.4ms | 1.3× faster |
-| **Get 20 threads** | 25.8ms | 14.5ms | 1.8× faster |
-| **noteEventSeq** (1000 ops) | 35ms (28.5K/s) | 59ms (17K/s) | prepared stmt reparse saved |
+| (1) | GET /v1/threads → runtimeRequest with exact path/method/headers → proxied body/status | 3 | ✅ |
+| (2) | GET /v1/approvals/<id> → runtimeRequest (Bearer + X-Device-Token) | 2 | ✅ |
+| (3) | /v1/terminal, /v1/settings, /v1/credentials, /v1/files, /v1/runtime/hooks, /v1/runtime/tools → 403 BEFORE runtimeRequest called | 8 | ✅ |
+| (4) | /, /version, /api, /v1, /health (no token), /mobile/qr-payload → 401, runtimeRequest NEVER called | 8 | ✅ |
+| (5) | POST /mobile/pair: valid succeeds, reused/expired/invalid/missing/empty fail | 7 | ✅ |
+| — | Revoked token → 401 | 1 | ✅ |
+| — | Listener lifecycle (start/stop/refused) | 3 | ✅ |
 
-**Key takeaways:**
+**Key difference from v2:** every test sends a real HTTPS request through the
+TLS listener's request handler. The mock `runtimeRequest` is injected but the
+full auth → scope → proxy pipeline is exercised, including TLS handshake,
+CORS headers, device-id audit headers, and status-code proxying.
 
-1. **Warm start is 31× faster** — the `usage_backfilled` flag eliminates re-scanning `events.jsonl` on every boot. This is the primary startup readiness fix. For a real app with 50+ threads and large histories, this prevents the kun process from missing the GUI's 15s startup timeout.
+### 2. Cert SAN Fix (`mobile-tls-listener.ts` — MODIFIED)
 
-2. **Cold start is slightly slower** (+23ms) — this is the one-time cost of the chunked backfill with event-loop yields. Acceptable because cold start happens exactly once (or after index deletion/upgrade).
+The certificate now includes all current LAN IPs in the SAN.
 
-3. **Thread detail (`get`) is 1.8× faster** — the thread record cache avoids re-reading `messages.jsonl` files that haven't changed.
+**Problem:** The v2 cert had `subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0.0.0.0`.
+A physical device connecting to `192.168.1.x` would fail TLS validation because
+that IP wasn't in the SAN.
 
-4. **Stability** — chunked backfill (200 rows per transaction, yields between chunks and threads) prevents synchronous SQLite from monopolizing the event loop, which was the root cause of Kun missing its `KUN_READY` deadline.
+**Fix:**
+- New `buildSubjectAltName()` function dynamically collects LAN IPs via
+  `getLanAddresses()` and includes them as `IP:x.x.x.x` entries
+- Certificate is regenerated on every listener start so the SAN stays current
+  with DHCP/IP changes
+- Private key is reused across restarts for identity stability
+- `IP:0.0.0.0` removed (it's a bind address, not a valid connect target)
+
+### 3. Physical-Device Proof Queued (`docs/M-PROOF-physical-device-pairing.md` — NEW)
+
+The loopback integration tests prove the server-side pipeline. A true
+physical-device test requires actual mobile hardware on the same LAN.
+This is documented and queued — NOT faked.
 
 ---
 
-## 5. Test Results
+## Files Changed (v3)
 
-### Full Gate
+```
+src/main/services/mobile-tls-listener.ts                  | MODIFIED  (cert SAN — dynamic LAN IPs)
+src/main/services/mobile-tls-listener-integration.test.ts | NEW       (32 real integration tests)
+docs/M-PROOF-physical-device-pairing.md                   | NEW       (physical-device proof queue)
+```
+
+(All v2 files are preserved unchanged.)
+
+---
+
+## Full Gate Results
 
 | Check | Result |
 |---|---|
-| `npm run typecheck` | ✅ Pass |
-| `npm run lint` | ✅ Pass (0 errors, 7 pre-existing warnings) |
-| `npm test` | ✅ 150 files, 1183 tests pass |
+| `npm run typecheck` (node + web) | ✅ Pass |
+| `npm run lint` | ✅ Pass (0 errors, 9 pre-existing warnings) |
+| `npm test` | ✅ **158 files, 1433 tests pass** (+32 integration) |
 | `npm --prefix kun run typecheck` | ✅ Pass |
-| `npm --prefix kun run test` | ✅ 58 files, 658 tests pass (4 skipped, pre-existing) |
+| `npm --prefix kun run test` | ✅ **58 files, 658 tests pass** (4 skipped, pre-existing) |
 | `npm run build` | ✅ Pass |
 | `git diff --check` | ✅ Pass (no whitespace errors) |
 
-### Targeted Tests
+---
 
-| Test suite | Tests | Result |
-|---|---|---|
-| H4 Plan-mode denial (`tests/plan-mode-isolation.test.ts`) | 24/24 | ✅ Pass |
-| H5 Checkpoint restore (`tests/checkpoint-service.test.ts`) | 18/18 | ✅ Pass |
-| H5 Checkpoint loop integration (`tests/checkpoint-loop-integration.test.ts`) | 20/20 | ✅ Pass |
-| Hybrid store (`tests/hybrid-store.test.ts`) | 5/5 | ✅ Pass |
-| SSE batching (`kun-runtime.test.ts`) | 63/63 | ✅ Pass |
-| SSE mapper (`kun-mapper.test.ts`) | 7/7 | ✅ Pass |
-| Terminal SSE panel (`TerminalPanel.test.ts`) | 5/5 | ✅ Pass |
+## Security Properties (unchanged from v2)
 
-All 142 targeted tests pass.
+| Property | Status |
+|---|---|
+| Mobile access default OFF | ✅ `enabled: false` in defaults |
+| QR payload IPC-only (removed from LAN) | ✅ Confirmed by integration tests |
+| Device token scope enforcement | ✅ 8 tests prove 403 for blocked routes |
+| Revoked token immediate rejection | ✅ 1 wire test + existing unit tests |
+| No unauthenticated surface/version banner | ✅ 8 tests prove 401 for all paths |
+| Pairing single-use code enforcement | ✅ 7 tests prove consumed/expired/invalid rejection |
+| SAN includes actual LAN IPs | ✅ `buildSubjectAltName()` — NEW in v3 |
 
 ---
 
-## 6. OpenCodex Guardrails Verified
-
-- ✅ **workspace-write default** — preserved (no change to sandbox defaults)
-- ✅ **No looser upstream sandbox default** — no upstream sandbox defaults imported
-- ✅ **Kun-only runtime** — no new runtime backends introduced
-
----
-
-## 7. Commits
-
-Remediation commit:
-
-1. `e718f9e remediate(8D): port upstream 8e5da5d hybrid-thread-store optimizations`
-
-Commit contents:
-
-1. `kun/src/adapters/hybrid/hybrid-thread-store.ts` — port 8e5da5d safe optimizations
-2. `scripts/postinstall.cjs` — fix `run()` signature to accept options (needed for Electron ABI prebuild)
-3. `H11_8D_READY_FOR_ORCHESTRATOR_REVIEW.md` — record exact skipped hunks, performance numbers, and verification evidence
-
----
-
-## 8. Gaps
+## Gaps
 
 | Gap | Severity | Notes |
 |---|---|---|
-| Usage events table populated but not consumed | Low | Infrastructure in place; GUI/usage tracking wiring out of scope for 8D. Table is populated during backfill and ready for consumption. |
-| No SSE throughput micro-benchmark | Info | SSE batching is tested behaviorally (63 tests in `kun-runtime.test.ts` verify correct event coalescing). Network-level throughput needs an integration test with real SSE traffic — outside pure-Node test scope. |
-| Thread record cache shows minimal benefit on tiny datasets | Info | At 20 threads × 10 turns, JSONL is small enough that re-reading is cheap. Benefit scales with real usage (multi-megabyte message histories). Cache infrastructure is proven upstream with >60× improvement on `get()` cold → 4ms. |
-| `postinstall.cjs` `require('electron/package.json')` outside try block | Low | Pre-existing — the `require(join(...))` is inside the try block but `require('electron/package.json')` is right before it. Only fails when electron is not installed (CI / non-Electron environments), which is expected. No regression. |
+| Physical-device proof not yet performed | Medium | Queued in `docs/M-PROOF-physical-device-pairing.md`. Requires actual mobile hardware on LAN. Loopback integration proves the server pipeline. |
+| Cert regen on every start loses cached cert | Low | `openssl req -x509` is fast (~100ms). Regen ensures SAN correctness. Key is reused across restarts. |
+| CORS `Access-Control-Allow-Origin: *` | Info | Intentional for mobile pairing. TLS-auth + device-token-scoped surface. |
+| No explicit proxy timeout | Low | Relies on injected `runtimeRequest` which should implement its own timeout. |
 
 ---
 
-## 9. Verification Commands
+## Verification Commands
 
 ```bash
 # Full gate
-npm run typecheck
-npm run lint
-npm test
-npm --prefix kun run typecheck
-npm --prefix kun run test
-npm run build
-git diff --check
+npm run typecheck && npm run lint && npm test \
+  && npm --prefix kun run typecheck && npm --prefix kun run test \
+  && npm run build && git diff --check
 
-# Targeted
-cd kun && npx vitest run tests/plan-mode-isolation.test.ts tests/checkpoint-service.test.ts tests/checkpoint-loop-integration.test.ts tests/hybrid-store.test.ts
-cd .. && npx vitest run src/renderer/src/agent/kun-runtime.test.ts src/renderer/src/agent/kun-mapper.test.ts src/renderer/src/components/terminal/TerminalPanel.test.ts
+# Integration tests only
+npx vitest run src/main/services/mobile-tls-listener-integration.test.ts
 
-# Performance
-cd kun && npx tsx scripts/bench-hybrid-store.ts
+# All mobile access tests (unit + integration)
+npx vitest run \
+  src/main/services/mobile-tls-listener.test.ts \
+  src/main/services/mobile-tls-listener-integration.test.ts \
+  src/main/services/mobile-pairing-service.test.ts \
+  src/main/services/mobile-pairing-acceptance.test.ts
 ```

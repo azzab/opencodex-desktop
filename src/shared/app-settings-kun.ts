@@ -46,7 +46,9 @@ import {
   type UserAgentStackValidationErrorV1,
   type ModelProviderSettingsV1,
   type ApprovalPolicy,
-  type SandboxMode
+  type SandboxMode,
+  type MobileAccessSettingsV1,
+  type MobileAccessDeviceV1
 } from './app-settings-types'
 import {
   normalizeModelProviderSettings,
@@ -138,6 +140,17 @@ export function defaultKunRemoteRunnersSettings(): KunRemoteRunnersSettingsV1 {
   }
 }
 
+export function defaultMobileAccessSettings(): MobileAccessSettingsV1 {
+  return {
+    enabled: false,
+    port: 19443,
+    host: '0.0.0.0',
+    devices: [],
+    auditLog: [],
+    maxAuditEntries: 500
+  }
+}
+
 export function defaultKunRuntimeSettings(
   port = DEFAULT_KUN_PORT
 ): KunRuntimeSettingsV1 {
@@ -168,7 +181,8 @@ export function defaultKunRuntimeSettings(
     terminal: defaultKunTerminalSettings(),
     checkpoints: defaultKunCheckpointSettings(),
     hooks: defaultKunHookSettings(),
-    remoteRunners: defaultKunRemoteRunnersSettings()
+    remoteRunners: defaultKunRemoteRunnersSettings(),
+    mobileAccess: defaultMobileAccessSettings()
   }
 }
 
@@ -538,6 +552,14 @@ export function mergeKunRuntimeSettings(
       patch?.remoteRunners?.maxAuditEntries ?? currentRemoteRunners.maxAuditEntries
     )
   })
+  const currentMobileAccess = normalizeMobileAccessSettings(current.mobileAccess)
+  const nextMobileAccess = normalizeMobileAccessSettings({
+    ...currentMobileAccess,
+    ...(patch?.mobileAccess ?? {}),
+    devices: patch?.mobileAccess?.devices ?? currentMobileAccess.devices,
+    auditLog: patch?.mobileAccess?.auditLog ?? currentMobileAccess.auditLog,
+    maxAuditEntries: patch?.mobileAccess?.maxAuditEntries ?? currentMobileAccess.maxAuditEntries
+  })
   return {
     ...current,
     ...(patch ?? {}),
@@ -555,7 +577,8 @@ export function mergeKunRuntimeSettings(
     terminal: nextTerminal,
     checkpoints: nextCheckpoints,
     hooks: nextHooks,
-    remoteRunners: nextRemoteRunners
+    remoteRunners: nextRemoteRunners,
+    mobileAccess: nextMobileAccess
   }
 }
 
@@ -1007,6 +1030,20 @@ function normalizeKunRuntimeTuningSettings(
         16 * 1024 * 1024
       )
     }
+  }
+}
+
+function normalizeMobileAccessSettings(
+  input: Partial<MobileAccessSettingsV1> | undefined
+): MobileAccessSettingsV1 {
+  const defaults = defaultMobileAccessSettings()
+  return {
+    enabled: input?.enabled === true,
+    port: typeof input?.port === 'number' && input.port >= 1 && input.port <= 65535 ? input.port : defaults.port,
+    host: typeof input?.host === 'string' && input.host.trim() ? input.host.trim() : defaults.host,
+    devices: Array.isArray(input?.devices) ? input.devices : defaults.devices,
+    auditLog: Array.isArray(input?.auditLog) ? input.auditLog.slice(0, input?.maxAuditEntries ?? defaults.maxAuditEntries) : defaults.auditLog,
+    maxAuditEntries: boundedPositiveInt(input?.maxAuditEntries, defaults.maxAuditEntries, 10_000)
   }
 }
 

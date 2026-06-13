@@ -83,7 +83,9 @@ import {
   hookRevokePayloadSchema,
   hookSourcePayloadSchema,
   hooksKillSwitchPayloadSchema,
-  remoteRunnerExecPayloadSchema
+  remoteRunnerExecPayloadSchema,
+  mobileAccessDeviceIdSchema,
+  mobileAccessEnabledSchema
 } from './app-ipc-schemas'
 import {
   MAX_BODY_BYTES,
@@ -145,6 +147,8 @@ import { getPhase7Diagnostics } from '../services/phase7-diagnostics-service'
 import { discoverUserAgentStackProfile } from '../services/user-agent-stack-service'
 import { fetchModelProviderCatalog } from '../upstream-models'
 import { TerminalService, type TerminalSessionInfo, type TerminalAuditEvent } from '../services/terminal-service'
+import { MobilePairingService } from '../services/mobile-pairing-service'
+import { MobileTlsListener } from '../services/mobile-tls-listener'
 import { STORED_ENCRYPTED_MARKER } from '../../shared/app-settings-types'
 
 function maskApiKeyForRenderer(key: string): string {
@@ -195,6 +199,9 @@ type RegisterAppIpcHandlersOptions = {
   getTerminalService: () => TerminalService | null
   getRemoteRunnerService: () => RemoteRunnerService | null
   getActiveProjectDir: () => Promise<string>
+  getMobilePairingService: () => MobilePairingService | null
+  getMobileAccessListener: () => MobileTlsListener | null
+  setMobileAccessListener: (listener: MobileTlsListener | null) => void
 }
 
 function parseIpcPayload<T>(channel: string, schema: z.ZodType<T>, payload: unknown): T {
@@ -351,7 +358,10 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
     logError,
     getTerminalService,
     getRemoteRunnerService,
-    getActiveProjectDir
+    getActiveProjectDir,
+    getMobilePairingService,
+    getMobileAccessListener,
+    setMobileAccessListener
   } = options
   const workspaceFileWatchers = new Map<string, WorkspaceFileWatchRecord>()
 
@@ -1719,6 +1729,158 @@ export function registerAppIpcHandlers(options: RegisterAppIpcHandlersOptions): 
       return { ok: true as const, hostId: id, runId, restored: runId !== null }
     } catch (err) {
       return { ok: false as const, message: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  /* ------------------------------------------------------------------ */
+  /*  Mobile Access IPC handlers                                        */
+  /* ------------------------------------------------------------------ */
+
+  function requireMobilePairing(): MobilePairingService {
+    const svc = getMobilePairingService()
+    if (!svc) throw new Error('Mobile pairing service is not available.')
+    return svc
+  }
+
+  /**
+   * Generate a QR pairing payload: one-time code, cert fingerprint,
+   * real LAN host candidates, and expiry. Called from renderer.
+   */
+  ipcMain.handle('mobile-access:qr-payload', async () => {
+    const pairing = requireMobilePairing()
+    const listener = getMobileAccessListener()
+
+    if (!pairing.isEnabled()) {
+      return { ok: false as const, message: 'Mobile access is disabled.' }
+    }
+
+    const { code, expiresAt } = pairing.generatePairingCode()
+    const certFingerprint = listener?.getCertFingerprint() ?? null
+    const hostCandidates = listener?.getHostCandidates() ?? [{ host: 'localhost', port: 19443 }]
+
+    return {
+      ok: true as const,
+      pairingCode: code,
+      expiresAt: new Date(expiresAt).toISOString(),
+      certFingerprint,
+      hostCandidates
+    }
+  })
+
+  /**
+   * Enable or disable mobile access. Starts/stops the TLS listener
+   * and persists the setting.
+   */
+  ipcMain.handle('mobile-access:set-enabled', async (_event, enabled: unknown) => {
+    const flag = parseIpcPayload('mobile-access:set-enabled', mobileAccessEnabledSchema, enabled)
+    const pairing = requireMobilePairing()
+    const listener = getMobileAccessListener()
+
+    // Persist the setting
+    const settings = await store.load()
+    const mobileAccess = settings.agents?.kun?.mobileAccess
+    await applySettingsPatch({
+      agents: { kun: { mobileAccess: { enabled: flag } as any } }
+    })
+
+    if (flag) {
+      // Create listener if none exists
+      if (!listener) {
+        const newListener = new MobileTlsListener({
+          pairingService: pairing,
+          port: mobileAccess?.port ?? 19443,
+          host: mobileAccess?.host ?? '0.0.0.0',
+          certDir: join(app.getPath('userData'), 'mobile-certs'),
+          runtimeRequest: async (path, init) => {
+            return runtimeRequest(path, init.method, init.body)
+          },
+          onAudit: (entry) => {
+            // Append audit event to settings
+            store.load().then((s) => {
+              const ma = s.agents?.kun?.mobileAccess
+              const auditLog = [entry, ...(ma?.auditLog ?? [])].slice(0, ma?.maxAuditEntries ?? 500)
+              applySettingsPatch({ agents: { kun: { mobileAccess: { auditLog } as any } } }).catch(() => {})
+            }).catch(() => {})
+          }
+        })
+        try {
+          await newListener.start()
+          setMobileAccessListener(newListener)
+        } catch (err) {
+          return { ok: false as const, message: `Failed to start TLS listener: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      } else if (!listener.isRunning()) {
+        try {
+          await listener.start()
+        } catch (err) {
+          return { ok: false as const, message: `Failed to start TLS listener: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      }
+    } else {
+      // Disable — stop the listener
+      if (listener && listener.isRunning()) {
+        try {
+          await listener.stop()
+        } catch (err) {
+          logError('mobile-access', 'Failed to stop TLS listener', { message: err instanceof Error ? err.message : String(err) })
+        }
+      }
+    }
+
+    return { ok: true as const }
+  })
+
+  /**
+   * Revoke a specific paired device using the pairing service.
+   */
+  ipcMain.handle('mobile-access:revoke-device', async (_event, deviceId: unknown) => {
+    const id = parseIpcPayload('mobile-access:revoke-device', mobileAccessDeviceIdSchema, deviceId)
+    const pairing = requireMobilePairing()
+    const ok = pairing.revokeDevice(id)
+    if (!ok) return { ok: false as const, deviceId: id }
+    return { ok: true as const, deviceId: id }
+  })
+
+  /**
+   * Revoke all paired devices using the pairing service.
+   */
+  ipcMain.handle('mobile-access:revoke-all', async () => {
+    const pairing = requireMobilePairing()
+    const count = pairing.revokeAllDevices()
+    return { ok: true as const, count }
+  })
+
+  /**
+   * Get live mobile access status: listener state, devices, audit log.
+   */
+  ipcMain.handle('mobile-access:status', async () => {
+    const pairing = getMobilePairingService()
+    const listener = getMobileAccessListener()
+    const settings = await store.load()
+    const mobileAccess = settings.agents?.kun?.mobileAccess
+
+    return {
+      listenerRunning: listener?.isRunning() ?? false,
+      enabled: mobileAccess?.enabled ?? false,
+      port: mobileAccess?.port ?? 19443,
+      host: mobileAccess?.host ?? '0.0.0.0',
+      certFingerprint: listener?.getCertFingerprint() ?? null,
+      hostCandidates: listener?.getHostCandidates() ?? [],
+      devices: (mobileAccess?.devices ?? []).map((d) => ({
+        id: d.id,
+        name: d.name,
+        createdAt: d.createdAt,
+        lastSeenAt: d.lastSeenAt
+      })),
+      auditLog: (mobileAccess?.auditLog ?? []).map((e) => ({
+        id: e.id,
+        timestamp: e.timestamp,
+        actor: e.actor,
+        deviceId: e.deviceId,
+        deviceName: e.deviceName,
+        action: e.action,
+        details: e.details
+      }))
     }
   })
 }
