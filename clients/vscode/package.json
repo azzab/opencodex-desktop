@@ -4,12 +4,18 @@
   "type": "module",
   "displayName": "OpenCodex",
   "description": "OpenCodex IDE companion — thin app-server protocol adapter for Kun runtime",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opencodex/opencodex-desktop"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Chat",
     "Other"
   ],
   "activationEvents": [
@@ -23,7 +29,7 @@
         {
           "id": "opencodex",
           "title": "OpenCodex",
-          "icon": "media/icon.svg"
+          "icon": "media/icon.png"
         }
       ]
     },
@@ -32,30 +38,192 @@
         {
           "type": "webview",
           "id": "opencodex.sidebar",
-          "name": "Threads"
+          "name": "Chat"
         }
       ]
     },
     "commands": [
       {
+        "command": "opencodex.newThread",
+        "title": "OpenCodex: New Thread",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencodex.openPanel",
+        "title": "OpenCodex: Open Chat Panel",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "opencodex.showThreads",
-        "title": "Show Threads",
+        "title": "OpenCodex: Show Threads",
         "icon": "$(list-tree)"
       },
       {
         "command": "opencodex.sendTurn",
-        "title": "Send Turn",
+        "title": "OpenCodex: Send Turn",
         "icon": "$(send)"
       },
       {
-        "command": "opencodex.approveAction",
-        "title": "Approve/Deny",
+        "command": "opencodex.attachActiveFile",
+        "title": "OpenCodex: Attach Active File to Context",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "opencodex.attachSelection",
+        "title": "OpenCodex: Attach Selection to Context",
+        "icon": "$(selection)"
+      },
+      {
+        "command": "opencodex.attachTerminalOutput",
+        "title": "OpenCodex: Attach Terminal Output to Context",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "opencodex.pickFile",
+        "title": "OpenCodex: Pick File to Attach (@)",
+        "icon": "$(mention)"
+      },
+      {
+        "command": "opencodex.approvePending",
+        "title": "OpenCodex: Approve/Deny Pending",
         "icon": "$(check)"
       },
       {
+        "command": "opencodex.diffApprove",
+        "title": "OpenCodex: Diff — Approve Change",
+        "icon": "$(check)"
+      },
+      {
+        "command": "opencodex.diffRevert",
+        "title": "OpenCodex: Diff — Revert Change",
+        "icon": "$(discard)"
+      },
+      {
         "command": "opencodex.health",
-        "title": "Check Server Health",
+        "title": "OpenCodex: Check Server Health",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "opencodex.explainCode",
+        "title": "OpenCodex: Explain Code",
+        "icon": "$(book)"
+      },
+      {
+        "command": "opencodex.fixCode",
+        "title": "OpenCodex: Fix Code",
+        "icon": "$(debug)"
+      },
+      {
+        "command": "opencodex.improveCode",
+        "title": "OpenCodex: Improve Code",
+        "icon": "$(sparkle)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "opencodex.newThread",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.openPanel",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.showThreads",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.sendTurn",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.attachActiveFile",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "opencodex.attachSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "opencodex.attachTerminalOutput",
+          "when": "terminalOpen"
+        },
+        {
+          "command": "opencodex.pickFile",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.approvePending",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.diffApprove",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.diffRevert",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.health",
+          "when": "true"
+        },
+        {
+          "command": "opencodex.explainCode",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "opencodex.fixCode",
+          "when": "editorIsOpen"
+        },
+        {
+          "command": "opencodex.improveCode",
+          "when": "editorIsOpen"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opencodex.attachSelection",
+          "when": "editorHasSelection",
+          "group": "OpenCodex@1"
+        },
+        {
+          "command": "opencodex.explainCode",
+          "when": "editorHasSelection",
+          "group": "OpenCodex@2"
+        },
+        {
+          "command": "opencodex.fixCode",
+          "when": "editorHasSelection",
+          "group": "OpenCodex@3"
+        },
+        {
+          "command": "opencodex.improveCode",
+          "when": "editorHasSelection",
+          "group": "OpenCodex@4"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "opencodex.newThread",
+          "when": "view == opencodex.sidebar",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "opencodex.attachSelection",
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "opencodex.newThread",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "!editorFocus"
       }
     ],
     "configuration": {
