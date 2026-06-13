@@ -136,6 +136,56 @@ const MAC_ARM64_ARTIFACTS = [
   }
 ]
 
+/**
+ * Windows NSIS installer artifacts (checked on Windows or when the .exe is present).
+ * The glob-style path means any matching installer counts.
+ */
+const WIN_NSIS_ARTIFACTS = [
+  {
+    id: 'winInstallerExe',
+    path: 'dist/OpenCodex-Desktop-*-win-x64.exe',
+    glob: true
+  },
+  {
+    id: 'winInstallerBlockmap',
+    path: 'dist/OpenCodex-Desktop-*-win-x64.exe.blockmap',
+    glob: true
+  },
+  {
+    id: 'winLatestYml',
+    path: 'dist/latest.yml'
+  }
+]
+
+/**
+ * Linux AppImage artifacts (checked on Linux or when the .AppImage is present).
+ */
+const LINUX_APPIMAGE_ARTIFACTS = [
+  {
+    id: 'linuxAppImage',
+    path: 'dist/OpenCodex-Desktop-*-linux-x86_64.AppImage',
+    glob: true
+  },
+  {
+    id: 'linuxAppImageBlockmap',
+    path: 'dist/OpenCodex-Desktop-*-linux-x86_64.AppImage.blockmap',
+    glob: true
+  },
+  {
+    id: 'linuxLatestYml',
+    path: 'dist/latest-linux.yml'
+  }
+]
+
+const PLATFORM_ARTIFACT_MAP = {
+  mac: MAC_ARM64_ARTIFACTS,
+  'mac-arm64': MAC_ARM64_ARTIFACTS,
+  win: WIN_NSIS_ARTIFACTS,
+  'win-x64': WIN_NSIS_ARTIFACTS,
+  linux: LINUX_APPIMAGE_ARTIFACTS,
+  'linux-x64': LINUX_APPIMAGE_ARTIFACTS
+}
+
 const V030_LOCAL_GATES = [
   {
     id: 'packageVersion',
@@ -221,16 +271,74 @@ function defaultArtifactExists(absolutePath, artifact) {
   }
 }
 
-function artifactStatus(root, artifactExists = defaultArtifactExists) {
+/**
+ * Check whether a glob-style artifact path matches at least one file.
+ * Falls back to an exact-path check when the glob contains no wildcards.
+ */
+function globArtifactExists(resolvedRoot, pattern, artifactExistsFn) {
+  const { globSync } = (function loadGlob() {
+    try {
+      return require('glob')
+    } catch {
+      // glob is not a direct dependency — use a simple fs-based fallback
+      return { globSync: null }
+    }
+  })()
+
+  if (!pattern.includes('*')) {
+    return artifactExistsFn(resolve(resolvedRoot, pattern), {})
+  }
+
+  if (globSync) {
+    try {
+      const matches = globSync(pattern, { cwd: resolvedRoot, nodir: true })
+      return matches.length > 0
+    } catch {
+      return false
+    }
+  }
+
+  // Fallback: check if the directory exists and try a simple readdir match
+  const { readdirSync, existsSync: fsExistsSync } = require('node:fs')
+  const dirPath = resolve(resolvedRoot, 'dist')
+  if (!fsExistsSync(dirPath)) return false
+  try {
+    const entries = readdirSync(dirPath)
+    // Convert glob to regex: escape dots, convert * to .*, support platform patterns
+    const escaped = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+    const re = new RegExp('^' + escaped + '$')
+    return entries.some((entry) => re.test(entry))
+  } catch {
+    return false
+  }
+}
+
+function artifactStatus(root, artifactExists = defaultArtifactExists, platform) {
   const resolvedRoot = root || process.cwd()
-  return MAC_ARM64_ARTIFACTS.map((artifact) => {
-    const absolutePath = resolve(resolvedRoot, artifact.path)
-    const present = Boolean(artifactExists(absolutePath, artifact))
+  // When a platform is explicitly requested, only check that platform's
+  // artifacts.  Without a platform flag, default to mac-arm64 only
+  // (backward-compat).  Never mix unrelated platform artifacts unless
+  // the caller explicitly passes --platform for each platform.
+  const artifacts = platform
+    ? (PLATFORM_ARTIFACT_MAP[platform] || [])
+    : MAC_ARM64_ARTIFACTS
+  return artifacts.map((artifact) => {
+    let present
+    if (artifact.glob) {
+      present = globArtifactExists(resolvedRoot, artifact.path, artifactExists)
+    } else {
+      const absolutePath = resolve(resolvedRoot, artifact.path)
+      present = Boolean(artifactExists(absolutePath, artifact))
+    }
     return {
       id: artifact.id,
       path: artifact.path,
       executable: Boolean(artifact.executable),
+      glob: Boolean(artifact.glob),
       present,
+      platform: platform || undefined,
       blocker: present ? undefined : `missing_artifact:${artifact.id}`
     }
   })
@@ -348,20 +456,35 @@ function classifyReleaseReadiness(report) {
 function createReleaseReadinessReport(options = {}) {
   const env = options.env || process.env
   const root = options.root || process.cwd()
+  const platform = options.platform || process.platform
+  const artifactOnly = Boolean(options.artifactOnly)
+
+  // --artifact-only mode: check ONLY packaging artifacts for the
+  // requested platform.  No operator gates, no v0.3.0 local evidence,
+  // no credential presence checks.  Designed for CI packaging-job
+  // stop gates where the only question is "did the native build produce
+  // the expected platform artifact?".
+  const checks = {
+    operator: artifactOnly ? [] : operatorGateStatus(env),
+    credentials: artifactOnly
+      ? { macSigning: [], r2: [] }
+      : {
+          macSigning: groupPresence(env, MAC_SIGNING_GROUPS),
+          r2: groupPresence(env, R2_GROUPS)
+        },
+    artifacts: artifactStatus(root, options.artifactExists, options.platform),
+    v030: artifactOnly ? [] : v030GateStatus(root, options)
+  }
+
   const report = {
     version: 1,
-    target: 'opencodex-desktop-v0.3.0-rc-release-readiness',
+    target: artifactOnly
+      ? `opencodex-desktop-packaging-artifact-check:${options.platform || platform}`
+      : 'opencodex-desktop-v0.3.0-rc-release-readiness',
     status: 'blocked',
     generatedAt: options.generatedAt || new Date().toISOString(),
-    checks: {
-      operator: operatorGateStatus(env),
-      credentials: {
-        macSigning: groupPresence(env, MAC_SIGNING_GROUPS),
-        r2: groupPresence(env, R2_GROUPS)
-      },
-      artifacts: artifactStatus(root, options.artifactExists),
-      v030: v030GateStatus(root, options)
-    },
+    platform,
+    checks,
     blockers: [],
     warnings: []
   }
@@ -371,10 +494,17 @@ function createReleaseReadinessReport(options = {}) {
     enumerable: false
   })
 
-  const classification = classifyReleaseReadiness(report)
-  report.status = classification.status
-  report.blockers = classification.blockers
-  report.warnings = classification.warnings
+  if (artifactOnly) {
+    // In artifact-only mode, readiness is purely about artifact presence.
+    const missingArtifacts = checks.artifacts.filter((a) => !a.present)
+    report.status = missingArtifacts.length === 0 ? 'ready' : 'blocked'
+    report.blockers = missingArtifacts.map((a) => a.blocker).filter(Boolean)
+  } else {
+    const classification = classifyReleaseReadiness(report)
+    report.status = classification.status
+    report.blockers = classification.blockers
+    report.warnings = classification.warnings
+  }
   return report
 }
 
@@ -382,13 +512,21 @@ function parseArgs(argv) {
   const flags = {
     json: false,
     strict: false,
-    help: false
+    help: false,
+    platform: null,
+    artifactOnly: false
   }
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
     if (arg === '--json') flags.json = true
     if (arg === '--strict') flags.strict = true
     if (arg === '--help' || arg === '-h') flags.help = true
+    if (arg === '--artifact-only') flags.artifactOnly = true
+    if ((arg === '--platform' || arg === '-p') && i + 1 < argv.length) {
+      flags.platform = argv[i + 1]
+      i++
+    }
   }
 
   return flags
@@ -396,10 +534,20 @@ function parseArgs(argv) {
 
 function usage() {
   return `Usage:
-  npm run release:readiness -- [--json] [--strict]
+  npm run release:readiness -- [--json] [--strict] [--platform mac|win|linux] [--artifact-only]
 
 This command is read-only. It reports release gate presence without printing
 credential values, creating tags, uploading artifacts, or promoting channels.
+
+With --platform, artifact checks verify the platform-specific
+packaging artifacts (NSIS .exe on win, AppImage on linux, .app on mac).
+Only the requested platform's artifacts are checked — mac artifacts are
+not mixed into win/linux checks.
+
+With --artifact-only, the report skips operator gates, credential presence,
+and v0.3.0 local evidence gates.  It checks ONLY packaging artifact presence
+for the given --platform.  Use this in CI packaging jobs where the only
+question is "did the build produce the expected platform artifact?".
 
 v0.3.0 local evidence gates:
   package.json version is 0.3.0-rc
@@ -440,9 +588,10 @@ function formatTextReport(report) {
     lines.push(`  ${group.id}: ${keys}`)
   }
   lines.push('')
-  lines.push('Package artifacts:')
+  lines.push(`Package artifacts (platform: ${report.platform || 'mac-arm64'}):`)
   for (const artifact of report.checks.artifacts) {
-    lines.push(`  ${artifact.present ? 'ok' : 'missing'} ${artifact.path}`)
+    const platformLabel = artifact.platform ? ` [${artifact.platform}]` : ''
+    lines.push(`  ${artifact.present ? 'ok' : 'missing'} ${artifact.path}${platformLabel}`)
   }
   lines.push('')
   lines.push('v0.3.0 local evidence:')
@@ -477,6 +626,8 @@ function runCli(argv = process.argv.slice(2), io = console, processLike = proces
   const report = createReleaseReadinessReport({
     env: processLike.env || {},
     root: typeof processLike.cwd === 'function' ? processLike.cwd() : process.cwd(),
+    platform: flags.platform || undefined,
+    artifactOnly: flags.artifactOnly || undefined,
     artifactExists: options.artifactExists,
     generatedAt: options.generatedAt,
     packageVersion: options.packageVersion,
@@ -500,11 +651,15 @@ module.exports = {
   OPERATOR_GATES,
   R2_GROUPS,
   V030_LOCAL_GATES,
+  WIN_NSIS_ARTIFACTS,
+  LINUX_APPIMAGE_ARTIFACTS,
+  PLATFORM_ARTIFACT_MAP,
   artifactStatus,
   classifyReleaseReadiness,
   createReleaseReadinessReport,
   defaultArtifactExists,
   formatTextReport,
+  globArtifactExists,
   groupPresence,
   keyPresence,
   packageVersionStatus,

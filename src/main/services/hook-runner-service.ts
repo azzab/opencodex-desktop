@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, resolve, dirname } from 'node:path'
@@ -70,6 +70,37 @@ export type DiscoveredHook = {
   contentHash: string
   /** Whether this hook is executable (+x or .sh/.js/.py/.ts). */
   executable: boolean
+}
+
+/**
+ * Cross-platform force-kill of a child process.  Uses child.kill() first
+ * (libuv maps to TerminateProcess on Windows), then falls back to
+ * taskkill /F /T on Windows or process.kill(-pid, SIGKILL) on POSIX.
+ */
+function forceKillChildProcess(child: ReturnType<typeof spawn>): void {
+  try {
+    child.kill('SIGKILL')
+  } catch {
+    /* already gone */
+  }
+  if (child.pid && !child.killed) {
+    if (process.platform === 'win32') {
+      try {
+        spawnSync('taskkill', ['/F', '/PID', String(child.pid), '/T'], {
+          stdio: 'pipe',
+          timeout: 10_000
+        })
+      } catch {
+        /* best effort */
+      }
+    } else {
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch {
+        /* already gone */
+      }
+    }
+  }
 }
 
 function sha256(content: string): string {
@@ -260,7 +291,7 @@ export async function runHook(
     const timer = setTimeout(() => {
       if (settled) return
       settled = true
-      try { child.kill('SIGKILL') } catch { /* best effort */ }
+      forceKillChildProcess(child)
       resolve({
         hookId: hook.id,
         phase: hook.phase,
@@ -279,7 +310,7 @@ export async function runHook(
       if (stdout.length > maxOutput) {
         if (!settled) {
           settled = true
-          try { child.kill('SIGKILL') } catch { /* best effort */ }
+          forceKillChildProcess(child)
         }
       }
     })
@@ -289,7 +320,7 @@ export async function runHook(
       if (stderr.length > maxOutput) {
         if (!settled) {
           settled = true
-          try { child.kill('SIGKILL') } catch { /* best effort */ }
+          forceKillChildProcess(child)
         }
       }
     })

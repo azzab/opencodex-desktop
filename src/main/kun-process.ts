@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
@@ -888,25 +888,48 @@ export async function stopKunChildAndWait(): Promise<void> {
   const pid = child.pid
   const capture = childLogCapture
   if (stoppingChild.exitCode === null && stoppingChild.signalCode === null) {
-    try {
-      stoppingChild.kill('SIGTERM')
-    } catch {
-      /* already gone */
-    }
+    forceKillChild(stoppingChild, 'SIGTERM')
   }
   const exited = await waitForChildExit(stoppingChild, KUN_STOP_GRACE_MS)
   if (!exited) {
-    try {
-      if (pid) process.kill(pid, 'SIGKILL')
-    } catch {
-      /* already gone */
-    }
+    forceKillChild(stoppingChild, 'SIGKILL')
     await waitForChildExit(stoppingChild, KUN_STOP_FORCE_MS)
   }
   if (child === stoppingChild) child = null
   if (capture) {
     childLogCapture = null
     await capture.close()
+  }
+}
+
+/**
+ * Cross-platform force-kill of a child process.  Uses child.kill() first
+ * (libuv maps to TerminateProcess on Windows), then falls back to
+ * `taskkill /F /T` on Windows or `process.kill(-pid, SIGKILL)` on POSIX.
+ */
+function forceKillChild(child: ChildProcess, signal: 'SIGTERM' | 'SIGKILL'): void {
+  try {
+    child.kill(signal)
+  } catch {
+    /* already gone */
+  }
+  if (signal === 'SIGKILL' && child.pid && !child.killed) {
+    if (process.platform === 'win32') {
+      try {
+        spawnSync('taskkill', ['/F', '/PID', String(child.pid), '/T'], {
+          stdio: 'pipe',
+          timeout: 10_000
+        })
+      } catch {
+        /* best effort */
+      }
+    } else {
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch {
+        /* already gone */
+      }
+    }
   }
 }
 

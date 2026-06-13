@@ -1,0 +1,233 @@
+name: Package (Cross-Platform)
+
+# Builds unsigned artifacts for all three desktop platforms on every push
+# to main/develop and on-demand via workflow_dispatch.  Runs the release
+# smoke harness on each platform natively.  Publish steps are stubbed
+# behind OPERATOR_RELEASE_GATE=1 (operator env gate).
+#
+# This workflow is the CI proof that Windows NSIS, Linux AppImage, and
+# macOS .app builds are green with correct native-module ABIs.
+
+on:
+  push:
+    branches: [main, develop, 'phase/**']
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE.md'
+  pull_request:
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - 'NOTICE.md'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish artifacts as GitHub Release draft'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ── macOS (unsigned dmg + zip, no notarization) ──────────────────────
+  build-macos:
+    name: macOS (x64 + arm64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules (Electron ABI)
+        run: node ./scripts/electron-rebuild-native.cjs electron
+
+      - name: Build unsigned macOS packages
+        run: npm run dist:mac
+
+      - name: Restore Node ABI (for smoke)
+        run: node ./scripts/electron-rebuild-native.cjs node
+
+      - name: Run release smoke (headless)
+        run: npm run smoke:release
+
+      - name: Run release:readiness (mac platform, artifact-only strict)
+        run: npm run release:readiness -- --platform mac --artifact-only --strict --json
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-macos
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            dist/OpenCodex-Desktop-*-mac-*.dmg
+            dist/OpenCodex-Desktop-*-mac-*.zip
+            dist/OpenCodex-Desktop-*-mac-*.blockmap
+            dist/latest-mac.yml
+
+  # ── Windows (NSIS installer, unsigned) ───────────────────────────────
+  build-windows:
+    name: Windows (x64 NSIS)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+        shell: pwsh
+
+      - name: Rebuild native modules (Electron ABI)
+        run: node ./scripts/electron-rebuild-native.cjs electron
+        shell: pwsh
+
+      - name: Build Windows NSIS installer
+        run: npm run dist:win
+        shell: pwsh
+
+      - name: Restore Node ABI (for smoke)
+        run: node ./scripts/electron-rebuild-native.cjs node
+        shell: pwsh
+
+      - name: Run release smoke (headless)
+        run: npm run smoke:release
+        shell: pwsh
+        timeout-minutes: 3
+
+      - name: Run release:readiness (win platform, artifact-only strict)
+        run: npm run release:readiness -- --platform win --artifact-only --strict --json
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-windows
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            dist/OpenCodex-Desktop-*-win-x64.exe
+            dist/OpenCodex-Desktop-*-win-x64.exe.blockmap
+            dist/latest.yml
+
+  # ── Linux (AppImage, unsigned) ───────────────────────────────────────
+  build-linux:
+    name: Linux (x64 AppImage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install Linux packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libarchive-tools \
+            rpm \
+            libfuse2 \
+            xvfb \
+            libgtk-3-0 \
+            libnotify4 \
+            libnss3 \
+            libxss1 \
+            libxtst6 \
+            libasound2 \
+            libgbm1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules (Electron ABI)
+        run: node ./scripts/electron-rebuild-native.cjs electron
+
+      - name: Build Linux AppImage
+        run: npm run dist:linux
+
+      - name: Restore Node ABI (for smoke)
+        run: node ./scripts/electron-rebuild-native.cjs node
+
+      - name: Run release smoke (headless via xvfb)
+        run: xvfb-run --auto-servernum npm run smoke:release
+        timeout-minutes: 3
+
+      - name: Run release:readiness (linux platform, artifact-only strict)
+        run: npm run release:readiness -- --platform linux --artifact-only --strict --json
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-linux
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            dist/OpenCodex-Desktop-*-linux-x86_64.AppImage
+            dist/OpenCodex-Desktop-*-linux-x86_64.AppImage.blockmap
+            dist/latest-linux.yml
+
+  # ── Publish (stubbed behind operator env gate) ───────────────────────
+  publish:
+    name: Publish (operator gate)
+    runs-on: ubuntu-latest
+    needs: [build-macos, build-windows, build-linux]
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true') ||
+      (github.event_name == 'push' && env.OPERATOR_RELEASE_GATE == '1')
+    env:
+      OPERATOR_RELEASE_GATE: ${{ vars.OPERATOR_RELEASE_GATE || '0' }}
+    steps:
+      - name: Operator gate check
+        run: |
+          echo "OPERATOR_RELEASE_GATE = ${OPERATOR_RELEASE_GATE}"
+          if [[ "${OPERATOR_RELEASE_GATE}" != "1" ]]; then
+            echo "::notice::Publish is gated behind OPERATOR_RELEASE_GATE=1. Skipping."
+            exit 0
+          fi
+          echo "Operator gate passed — would publish here."
+
+      # === STUBBED PUBLISH STEPS ===
+      # Uncomment and wire in secrets when ready:
+      #
+      # - name: Download all artifacts
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     pattern: package-*
+      #     path: release-artifacts
+      #     merge-multiple: true
+      #
+      # - name: Create GitHub Release draft
+      #   run: |
+      #     TAG="v$(node -p "require('./package.json').version")-ci-${GITHUB_RUN_NUMBER}"
+      #     gh release create "$TAG" --draft --title "$TAG" --notes "CI build #${GITHUB_RUN_NUMBER}"
+      #     gh release upload "$TAG" release-artifacts/*
+      #
+      # - name: Upload to R2
+      #   run: |
+      #     node ./scripts/publish-r2.mjs upload --platform mac --dist release-artifacts ...
+      #     node ./scripts/publish-r2.mjs upload --platform win --dist release-artifacts ...
+      #     node ./scripts/publish-r2.mjs upload --platform linux --dist release-artifacts ...
